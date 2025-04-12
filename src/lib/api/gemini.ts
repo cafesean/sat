@@ -26,19 +26,21 @@ const safetySettings = [
 ];
 
 /**
- * Enriches a word with definition, sample sentence, and translation using Gemini.
+ * Enriches a word with definition, sample sentence, translation, and word type using Gemini.
  */
-export async function enrichWord(word: string): Promise<{ definition: string; sampleSentence: string; translation: string } | null> {
+export async function enrichWord(word: string): Promise<{ definition: string; sampleSentence: string; translation: string; wordType: string } | null> {
   if (!genAI) return null; // Return null if API key is missing
 
   const prompt = `
     For the English word "${word}", provide the following in JSON format:
-    1.  A concise definition suitable for an SAT student.
-    2.  A clear sample sentence using the word in context.
-    3.  The Chinese translation of the word.
+    1.  "wordType": The primary part of speech (e.g., "noun", "verb", "adjective", "adverb").
+    2.  "definition": A concise definition suitable for an SAT student.
+    3.  "sampleSentence": A clear sample sentence using the word in context.
+    4.  "translation": The Chinese translation of the word.
 
     Example JSON format:
     {
+      "wordType": "adjective",
       "definition": "lasting for a very short time",
       "sampleSentence": "The ephemeral beauty of the cherry blossoms lasts only a few weeks.",
       "translation": "短暂的"
@@ -58,14 +60,16 @@ export async function enrichWord(word: string): Promise<{ definition: string; sa
     const responseText = result.response.text();
     // Attempt to parse the JSON response
     const parsed = JSON.parse(responseText.trim());
-    if (parsed.definition && parsed.sampleSentence && parsed.translation) {
+    // Check for all four fields now
+    if (parsed.wordType && parsed.definition && parsed.sampleSentence && parsed.translation) {
       return {
+        wordType: parsed.wordType,
         definition: parsed.definition,
         sampleSentence: parsed.sampleSentence,
         translation: parsed.translation,
       };
     } else {
-      console.error("Gemini enrichWord response missing expected fields:", responseText);
+      console.error("Gemini enrichWord response missing expected fields (wordType, definition, sampleSentence, translation):", responseText);
       return null;
     }
   } catch (error) {
@@ -75,16 +79,22 @@ export async function enrichWord(word: string): Promise<{ definition: string; sa
 }
 
 /**
- * Grades a user's sentence for correct usage of a given word using Gemini.
+ * Grades a user's sentence for correct usage of a given word using Gemini, optionally considering grade level.
  */
-export async function gradeSentence(word: string, sentence: string): Promise<{ isCorrect: boolean; feedback: string } | null> {
+export async function gradeSentence(
+  word: string,
+  sentence: string,
+  gradeLevel?: number | null // Optional grade level parameter
+): Promise<{ isCorrect: boolean; feedback: string } | null> {
    if (!genAI) return { isCorrect: false, feedback: "AI grading is disabled (API key missing)." }; // Return default if API key is missing
 
-  const prompt = `
+  // Construct the prompt, adding grade level context if provided
+  let prompt = `
     Word: "${word}"
     User's Sentence: "${sentence}"
+    ${gradeLevel ? `Assume the user is in grade ${gradeLevel}.` : ''}
 
-    Analyze the user's sentence. Does it demonstrate a clear and correct understanding of the word "${word}" in context?
+    Analyze the user's sentence. Does it demonstrate a clear and correct understanding of the word "${word}" in context${gradeLevel ? ` appropriate for a grade ${gradeLevel} student` : ''}?
     Provide your response in JSON format with two keys:
     1.  "isCorrect": boolean (true if the usage is clearly correct, false otherwise)
     2.  "feedback": string (a brief explanation for the user, e.g., "Good usage!" or "The sentence doesn't clearly show understanding of the word's meaning.")
@@ -100,7 +110,7 @@ export async function gradeSentence(word: string, sentence: string): Promise<{ i
       "feedback": "This sentence doesn't quite capture the meaning of '${word}'. Try focusing on [brief hint]."
     }
 
-    Provide only the JSON object. Be strict - only mark as correct if the usage is unambiguous.
+    Provide only the JSON object. Be strict - only mark as correct if the usage is unambiguous${gradeLevel ? ` for their grade level` : ''}.
   `;
 
   try {

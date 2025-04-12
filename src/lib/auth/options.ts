@@ -10,7 +10,9 @@ declare module 'next-auth' {
   interface Session {
     user: NextAuthUser & {
       id: string;
-      role: UserRole; // Add role here
+      role: UserRole;
+      gradeLevel?: number | null; // Add gradeLevel
+      languagePreference?: string; // Add languagePreference
     };
   }
   // Optional: Extend the default User type if needed elsewhere
@@ -56,14 +58,16 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async session({ session, user }) {
       if (session.user) {
-        // Fetch the full user data including the role from the database
+        // Fetch the full user data including role, gradeLevel, and languagePreference
         const userFromDb = await prisma.user.findUnique({
           where: { id: user.id },
-          select: { role: true }, // Select only the role
+          select: { role: true, gradeLevel: true, languagePreference: true }, // Select required fields
         });
 
-        session.user.id = user.id; // Add user ID
-        session.user.role = userFromDb?.role ?? UserRole.USER; // Add role, default to USER if not found
+        session.user.id = user.id;
+        session.user.role = userFromDb?.role ?? UserRole.USER;
+        session.user.gradeLevel = userFromDb?.gradeLevel; // Add gradeLevel
+        session.user.languagePreference = userFromDb?.languagePreference; // Add languagePreference
       }
       return session;
     },

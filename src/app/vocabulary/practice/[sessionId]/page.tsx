@@ -1,14 +1,15 @@
 'use client'
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // Import Alert components
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'; // Import Popover
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import type { AppRouter } from '@/server/api/root';
 import { api, type RouterOutputs } from '@/utils/trpc';
 import type { TRPCClientErrorLike } from '@trpc/client';
-import { CheckCircle2, LogOut, XCircle } from 'lucide-react'; // Import icons
+import { CheckCircle2, Lightbulb, LogOut, XCircle } from 'lucide-react'; // Import Lightbulb, Loader2
 import { useSession } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -17,6 +18,46 @@ import { toast } from 'sonner';
 // Define types for clarity
 type VocabWord = RouterOutputs['vocab']['getNextVocabWord'];
 type EaseLevel = 'AGAIN' | 'HARD' | 'GOOD' | 'EASY'; // Corresponds to SRS logic
+type HintData = RouterOutputs['vocab']['getWordHint'];
+
+// Hint Component within Popover
+function HintDisplay({ wordId }: { wordId: string }) {
+  const { data: hint, isLoading, error } = api.vocab.getWordHint.useQuery(
+    { wordId },
+    // Keep enabled: true, let Popover control mounting/unmounting
+  );
+
+  if (isLoading) {
+    return <div className="p-4"><Skeleton className="h-16 w-full" /></div>;
+  }
+  if (error) {
+    return <p className="p-4 text-sm text-destructive">Error loading hint: {error.message}</p>;
+  }
+  if (!hint) {
+    // This case handles if the query itself returns null/undefined, e.g., word not found
+    return <p className="p-4 text-sm text-muted-foreground">Hint data could not be loaded.</p>;
+  }
+
+  // Check if *any* hint data exists
+  const hasAnyHint = hint.wordType || hint.definition || hint.sampleSentence || hint.translation;
+
+  return (
+    <div className="p-4 space-y-2 text-sm">
+      {hasAnyHint ? (
+        <>
+          {hint.wordType ? <p><strong>Type:</strong> {hint.wordType}</p> : <p className="text-xs text-muted-foreground italic">Word type not available.</p>}
+          {hint.definition ? <p><strong>Definition:</strong> {hint.definition}</p> : <p className="text-xs text-muted-foreground italic">Definition not available.</p>}
+          {hint.sampleSentence ? <p><strong>Example:</strong> <em>{hint.sampleSentence}</em></p> : <p className="text-xs text-muted-foreground italic">Example sentence not available.</p>}
+          {hint.translation ? <p><strong>Translation:</strong> {hint.translation}</p> : <p className="text-xs text-muted-foreground italic">Translation not available.</p>}
+        </>
+      ) : (
+        // This case handles if the query succeeded but returned an object with all null/empty fields
+        <p className="text-sm text-muted-foreground">No hint details found for this word.</p>
+      )}
+    </div>
+  );
+}
+
 
 export default function VocabularyPracticeSessionPage () {
   const router = useRouter()
@@ -29,6 +70,7 @@ export default function VocabularyPracticeSessionPage () {
   const [feedbackData, setFeedbackData] = useState<{ isCorrect: boolean, feedback: string } | null>(null)
   const [isSessionComplete, setIsSessionComplete] = useState(false) // State to track completion
   const [wordsAnsweredCount, setWordsAnsweredCount] = useState(0); // State for word counter
+  const [isHintPopoverOpen, setIsHintPopoverOpen] = useState(false); // State for hint popover
 
   // Fetch the next word for the session
   const {
@@ -42,19 +84,17 @@ export default function VocabularyPracticeSessionPage () {
       enabled: status === 'authenticated' && !!sessionId && !showFeedback, // Only fetch if authenticated, session ID exists, and not showing feedback
       refetchOnWindowFocus: false, // Prevent refetching on window focus
       retry: false // Don't retry automatically if fetching fails (e.g., session complete)
-      // Remove invalid onSuccess/onError from useQuery
     }
   )
 
   // Effect to check for session completion based on query result
   useEffect(() => {
-    // Check after the query has potentially finished (isLoading is false)
     if (!isLoadingWord) {
       if (currentWord === null || wordError?.data?.code === 'NOT_FOUND') {
         setIsSessionComplete(true);
       }
     }
-  }, [currentWord, wordError, isLoadingWord]); // Depend on query state
+  }, [currentWord, wordError, isLoadingWord]);
 
   // Fetch session summary when session is marked as complete
   const {
@@ -74,7 +114,6 @@ export default function VocabularyPracticeSessionPage () {
       setFeedbackData({ isCorrect: data.isCorrect, feedback: data.feedback })
       setShowFeedback(true)
       setWordsAnsweredCount(prev => prev + 1); // Increment counter on success
-      // Don't refetch next word immediately, wait for user to click "Next"
     },
     onError: (error: TRPCClientErrorLike<AppRouter>) => {
       toast.error(`Failed to submit answer: ${error.message}`)
@@ -91,28 +130,23 @@ export default function VocabularyPracticeSessionPage () {
       return
     }
 
-    // Map EaseLevel string to number based on schema
-    const easeMap: Record<EaseLevel, number> = {
-      AGAIN: 1,
-      HARD: 2,
-      GOOD: 3,
-      EASY: 4
-    };
+    const easeMap: Record<EaseLevel, number> = { AGAIN: 1, HARD: 2, GOOD: 3, EASY: 4 };
     const easeNumber = easeMap[ease];
 
     submitAnswerMutation.mutate({
       practiceSessionId: sessionId,
       wordId: currentWord.id,
       userSentence: userSentence.trim(),
-      easeChosen: easeNumber // Pass the mapped number
+      easeChosen: easeNumber
     })
   }
 
   const handleNextWord = () => {
-    setUserSentence('') // Clear textarea
-    setShowFeedback(false) // Hide feedback
-    setFeedbackData(null) // Clear feedback data
-    refetchNextWord() // Fetch the next word
+    setUserSentence('')
+    setShowFeedback(false)
+    setFeedbackData(null)
+    setIsHintPopoverOpen(false); // Close hint popover on next word
+    refetchNextWord()
   }
 
   // --- Render Logic ---
@@ -125,7 +159,6 @@ export default function VocabularyPracticeSessionPage () {
     return <div className="container mx-auto p-4">Please sign in to practice.</div>
   }
 
-  // Handle Session Completion display
   if (isSessionComplete) {
     return (
       <div className="container mx-auto p-4">
@@ -150,7 +183,6 @@ export default function VocabularyPracticeSessionPage () {
                 <p><strong>Total Words Reviewed:</strong> {sessionSummary.totalWords}</p>
                 <p><strong>Correct Answers:</strong> {sessionSummary.correctCount}</p>
                 <p><strong>Accuracy:</strong> {sessionSummary.accuracy}%</p>
-                {/* Optionally display logs: sessionSummary.logs */}
               </div>
             )}
           </CardContent>
@@ -162,12 +194,10 @@ export default function VocabularyPracticeSessionPage () {
     )
   }
 
-  // Handle other word loading errors after checking for completion
   if (wordError) {
     return <div className="container mx-auto p-4 text-red-500">Error loading next word: {wordError.message}</div>
   }
 
-  // Show skeleton only on initial word load
   if (isLoadingWord && !currentWord) {
     return (
       <div className="container mx-auto p-4">
@@ -193,7 +223,6 @@ export default function VocabularyPracticeSessionPage () {
   // --- Main Practice UI ---
   return (
     <div className="container mx-auto p-4">
-      {/* Top Bar: Counter and End Button */}
       <div className="flex justify-between items-center mb-4">
         <span className="text-sm font-medium text-muted-foreground">
           Words Answered: {wordsAnsweredCount}
@@ -206,9 +235,24 @@ export default function VocabularyPracticeSessionPage () {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-3xl font-bold">{currentWord?.text}</CardTitle>
-          {/* Optionally show definition/translation later */}
-          <CardDescription>Write a sentence using the word above.</CardDescription>
+          <div className="flex justify-between items-start">
+            <CardTitle className="text-3xl font-bold">{currentWord?.text}</CardTitle>
+            {/* Hint Button & Popover */}
+            {currentWord && (
+              <Popover open={isHintPopoverOpen} onOpenChange={setIsHintPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Lightbulb className="mr-2 h-4 w-4" /> Hint
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80">
+                  {/* Render HintDisplay only when popover is open */}
+                  {isHintPopoverOpen && <HintDisplay wordId={currentWord.id} />}
+                </PopoverContent>
+              </Popover>
+            )}
+          </div>
+          <CardDescription className="mt-2">Write a sentence using the word above.</CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-4">
@@ -218,13 +262,12 @@ export default function VocabularyPracticeSessionPage () {
             onChange={(e) => setUserSentence(e.target.value)}
             rows={4}
             disabled={showFeedback || submitAnswerMutation.isPending}
-            className="text-base" // Increase text size
+            className="text-base"
           />
 
-          {/* Use Alert component for feedback */}
           {showFeedback && feedbackData && (
-            <Alert> {/* Remove variant */}
-              <div className="flex items-center gap-2"> {/* Flex container for icon and title */}
+            <Alert>
+              <div className="flex items-center gap-2">
                 {feedbackData.isCorrect
                   ? <CheckCircle2 className="h-5 w-5 text-green-600" />
                   : <XCircle className="h-5 w-5 text-red-600" />
@@ -233,7 +276,7 @@ export default function VocabularyPracticeSessionPage () {
                   {feedbackData.isCorrect ? 'Correct!' : 'Needs Improvement'}
                 </AlertTitle>
               </div>
-              <AlertDescription className="mt-1 pl-7 text-base"> {/* Indent description, increase size */}
+              <AlertDescription className="mt-1 pl-7 text-base">
                 {feedbackData.feedback}
               </AlertDescription>
             </Alert>

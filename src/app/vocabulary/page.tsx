@@ -248,15 +248,19 @@ function WordBankCard({
     <Card className="flex flex-col h-full">
      <Link href={`/vocabulary/banks/${id}`} className="flex flex-col flex-grow hover:bg-muted/50 rounded-t-lg">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <BookText className="h-5 w-5" />
-           {title}
+        <CardTitle className="flex items-center justify-between gap-2">
+          <span className="flex items-center gap-2">
+            <BookText className="h-5 w-5" />
+            {title}
+          </span>
+          {/* Larger Word Count */}
+          <span className="text-2xl font-bold text-muted-foreground">{wordCount}</span>
         </CardTitle>
-        <CardDescription className="line-clamp-3 h-[3.75rem]">
-          {description || `${wordCount} words • Last practiced: ${lastPracticed}`}
+        <CardDescription className="line-clamp-3 h-[3.75rem] mt-1"> {/* Added margin-top */}
+          {description || `Last practiced: ${lastPracticed}`} {/* Removed word count from here */}
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex-grow pt-4">
+      <CardContent className="flex-grow pt-2"> {/* Reduced padding-top */}
         <div className="space-y-1">
           <div className="flex justify-between text-sm font-medium">
             <span>Mastery</span>
@@ -270,8 +274,9 @@ function WordBankCard({
      </Link>
       <CardFooter className="flex justify-between items-center pt-4">
         <Button
-          variant="default" // Changed to default (primary color)
-          className="w-full flex-grow mr-2"
+          variant="default"
+          // Apply bright color class - using cyan as an example
+          className="w-full flex-grow mr-2 bg-cyan-500 hover:bg-cyan-600 text-white"
           onClick={handleStartPractice}
           disabled={startSessionMutation.isPending}
         >

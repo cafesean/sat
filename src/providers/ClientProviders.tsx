@@ -15,8 +15,8 @@ const ClientProviders = ({ children }: ClientProvidersProps) => {
       <TRPCProvider>
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
-          enableSystem
+          defaultTheme="light" // Change default theme to light
+          enableSystem={false} // Disable system theme preference
           disableTransitionOnChange
         >
           {children}

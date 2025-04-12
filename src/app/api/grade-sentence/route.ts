@@ -8,6 +8,7 @@ import { z } from 'zod';
 const gradeRequestSchema = z.object({
   word: z.string().min(1),
   sentence: z.string().min(1),
+  gradeLevel: z.number().int().min(1).max(12).optional().nullable(), // Add optional gradeLevel
 });
 
 export async function POST(request: Request) {
@@ -30,11 +31,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   }
 
-  const { word, sentence } = requestBody;
+  // Destructure validated data, including gradeLevel
+  const { word, sentence, gradeLevel } = requestBody;
 
-  // 3. Call the Gemini grading function
+  // 3. Call the Gemini grading function, passing gradeLevel
   try {
-    const result = await gradeSentence(word, sentence);
+    const result = await gradeSentence(word, sentence, gradeLevel);
     if (result === null) {
       // Handle case where grading might fail internally in gradeSentence
       return NextResponse.json({ error: 'AI grading failed' }, { status: 500 });

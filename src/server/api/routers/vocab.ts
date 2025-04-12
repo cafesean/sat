@@ -11,14 +11,12 @@ import {
 	deleteWordSchema,
 	getWordHistorySchema,
 	listWordsByBankSchema,
-	toggleWordStarSchema // Add the schema import
-	,
-
+	toggleWordStarSchema,
 
 	updateWordSchema,
 	wordBankSchema
 } from "@/schemas/vocab.schema";
-import { PracticeType } from "@prisma/client"; // Added Word type back
+import { PracticeType } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
@@ -138,8 +136,8 @@ export const vocabRouter = router({
 					id: true, text: true, definition: true, sampleSentence: true,
 					translation: true, interval: true, createdAt: true, updatedAt: true,
 					wordBankId: true, easeFactor: true, repetitions: true, nextReviewDate: true,
-					isStarred: true, // Include isStarred
-					_count: { // Include count of practice logs
+					isStarred: true,
+					_count: {
 						select: { practiceLogs: true }
 					}
 				},
@@ -196,7 +194,7 @@ export const vocabRouter = router({
 			const updatedWord = await ctx.prisma.word.update({
 				where: { id: wordId },
 				data: { isStarred: !word.isStarred },
-				select: { id: true, isStarred: true }, // Return the updated status
+				select: { id: true, isStarred: true },
 			});
 
 			return updatedWord;
@@ -222,6 +220,7 @@ export const vocabRouter = router({
 						const enrichedData = await enrichWord(word);
 						return {
 							text: word,
+							wordType: enrichedData?.wordType,
 							definition: enrichedData?.definition,
 							sampleSentence: enrichedData?.sampleSentence,
 							translation: enrichedData?.translation,
@@ -266,7 +265,7 @@ export const vocabRouter = router({
 		.mutation(async ({ ctx }) => {
 			try {
 				const session = await ctx.prisma.practiceSession.create({
-					data: { userId: ctx.session.user.id, type: PracticeType.VOCABULARY }, // No wordBankId
+					data: { userId: ctx.session.user.id, type: PracticeType.VOCABULARY },
 				});
 				return { practiceSessionId: session.id };
 			} catch (error) {
@@ -316,22 +315,28 @@ export const vocabRouter = router({
 		.input(submitVocabAnswerSchema)
 		.mutation(async ({ ctx, input }) => {
 			const { practiceSessionId, wordId, userSentence, easeChosen } = input;
+			const userId = ctx.session.user.id;
+
 			try {
 				const word = await ctx.prisma.word.findUnique({ where: { id: wordId } });
+
 				if (!word) {
 					throw new TRPCError({ code: "NOT_FOUND", message: "Word not found." });
 				}
+
+				const userGradeLevel = ctx.session.user.gradeLevel;
 
 				let gradingResult: { isCorrect: boolean; feedback: string };
 				try {
 					const aiResult = await gradeSentence(word.text, userSentence);
 					if (aiResult === null || typeof aiResult.isCorrect !== 'boolean' || typeof aiResult.feedback !== 'string') {
-						throw new Error("Invalid response structure from gradeSentence function.");
+						console.error("Invalid response structure from /api/grade-sentence:", aiResult);
+						throw new Error("Invalid response structure from AI grading service.");
 					}
 					gradingResult = aiResult;
-				} catch (aiError) {
-					console.error("Error calling gradeSentence function:", aiError);
-					gradingResult = { isCorrect: false, feedback: "Could not get AI feedback at this time." };
+				} catch (apiError: any) { // Catch specific error type if possible
+					console.error("Error calling /api/grade-sentence:", apiError);
+					gradingResult = { isCorrect: false, feedback: `Could not get AI feedback: ${apiError.message}` }; // Include error message
 				}
 
 				const srsUpdate = calculateNextReview(word, easeChosen);
@@ -362,10 +367,10 @@ export const vocabRouter = router({
 			const session = await ctx.prisma.practiceSession.findUnique({
 				where: { id: practiceSessionId, userId: ctx.session.user.id },
 				include: {
-					vocabLogs: { // Include related word data in logs
+					vocabLogs: {
 						include: {
 							word: {
-								select: { text: true } // Select only the word text
+								select: { text: true }
 							}
 						}
 					}
@@ -398,7 +403,6 @@ export const vocabRouter = router({
 				orderBy: { startTime: 'desc' },
         include: {
           _count: { select: { vocabLogs: true } },
-          // Include the related WordBank to get its name
           wordBank: { select: { name: true } }
         }
       });
@@ -410,9 +414,9 @@ export const vocabRouter = router({
 			const sessions = items.map(s => ({
 				id: s.id, startTime: s.startTime, endTime: s.endTime,
 				wordBankId: s.wordBankId,
-				wordBankName: s.wordBank?.name ?? null, // Include bank name (null if quick practice)
+				wordBankName: s.wordBank?.name ?? null,
 				wordsStudied: s._count.vocabLogs,
-				accuracy: s.score ?? 0, // Use stored score if available, else 0
+				accuracy: s.score ?? 0,
 			}));
 			return { sessions, nextCursor };
 		}),
@@ -433,5 +437,34 @@ export const vocabRouter = router({
 				select: { id: true, timestamp: true, userSentence: true, isCorrect: true, aiFeedback: true, easeChosen: true },
 			});
 			return history;
+		}),
+
+	// --- Get Word Hint ---
+	getWordHint: protectedProcedure
+		.input(z.object({ wordId: z.string().cuid() }))
+		.query(async ({ ctx, input }) => {
+			const { wordId } = input;
+			const wordWithOwnerCheck = await ctx.prisma.word.findUnique({
+				where: {
+					id: wordId,
+					wordBank: {
+						userId: ctx.session.user.id
+					}
+				},
+				select: {
+					id: true,
+					wordType: true,
+					definition: true,
+					sampleSentence: true,
+					translation: true,
+				}
+			});
+
+			if (!wordWithOwnerCheck) {
+				throw new TRPCError({ code: "NOT_FOUND", message: "Word not found or access denied." });
+			}
+
+			const { id, ...hintData } = wordWithOwnerCheck;
+			return hintData;
 		}),
 });

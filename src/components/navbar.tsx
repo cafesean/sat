@@ -17,19 +17,18 @@ import {
 import { cn } from '@/lib/utils';
 import { api } from '@/utils/trpc';
 import { UserRole } from '@prisma/client';
-import { PlayCircle } from 'lucide-react';
+import { Moon, PlayCircle, Sun } from 'lucide-react'; // Add Moon, Sun
 import { signIn, signOut, useSession } from 'next-auth/react';
+import { useTheme } from 'next-themes'; // Import useTheme
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-// import { Moon, Sun } from 'lucide-react'
-// import { useTheme } from 'next-themes'
 
 const Navbar = () => {
   const { data: session, status } = useSession()
   const pathname = usePathname();
-  const router = useRouter(); // Add router hook
-  // const { setTheme } = useTheme()
+  const router = useRouter();
+  const { theme, setTheme } = useTheme(); // Get theme state and setter
 
   const navLinks = [
     { href: '/dashboard', label: 'Dashboard' },
@@ -67,12 +66,17 @@ const Navbar = () => {
 
       {/* Right side: Theme Toggle and Auth */}
       <div className='flex items-center gap-2'> {/* Reduced gap */}
-        {/* Theme Toggle Placeholder */}
-        {/* <Button variant="outline" size="icon" onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>
+        {/* Theme Toggle Button */}
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8" // Match avatar button size
+          onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+        >
           <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
           <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
           <span className="sr-only">Toggle theme</span>
-        </Button> */}
+        </Button>
 
         {/* Auth Buttons */}
         {status === 'loading' ? (
@@ -179,37 +183,5 @@ function UserNav({ session }: { session: any }) { // Use 'any' for now, refine l
     </DropdownMenu>
   );
 }
-
-// Remove the duplicate QuickPracticeButton definition below this line
-
-/* Duplicate removed:
-// Separate component for the Quick Practice button logic
-function QuickPracticeButton() {
-  const router = useRouter();
-  const quickStartMutation = api.vocab.startQuickVocabSession.useMutation({
-    onSuccess: (data) => {
-      toast.success('Quick practice session started!');
-      router.push(`/vocabulary/practice/${data.practiceSessionId}`);
-    },
-    onError: (error) => {
-      toast.error(`Failed to start quick session: ${error.message}`);
-    }
-  });
-
-  return (
-    <Button
-      variant='secondary' // Or another appropriate variant
-      size='sm'
-      onClick={() => quickStartMutation.mutate()}
-      disabled={quickStartMutation.isPending}
-    >
-      {quickStartMutation.isPending
-        ? 'Starting...'
-        : <><PlayCircle className="mr-2 h-4 w-4" /> Quick Practice</>
-      }
-    </Button>
-  );
-}
-*/
 
 export default Navbar

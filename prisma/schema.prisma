@@ -26,6 +26,8 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   role          UserRole  @default(USER) // Add role field
+  languagePreference String @default("en") // e.g., "en", "zh"
+  gradeLevel    Int?      // e.g., 9, 10, 11, 12
 
   // Relations needed later for app features
   wordBanks     WordBank[]
@@ -89,6 +91,7 @@ model WordBank {
 model Word {
   id                String    @id @default(cuid())
   text              String    // The word itself
+  wordType          String?   // AI Generated (e.g., "noun", "verb")
   definition        String?   // AI Generated
   sampleSentence    String?   // AI Generated
   translation       String?   // AI Generated (e.g., Chinese)
