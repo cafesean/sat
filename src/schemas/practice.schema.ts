@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const startVocabSessionSchema = z.object({
-  wordBankIds: z.array(z.string()).min(1, "Please select at least one word bank."),
+  wordBankId: z.string().cuid(), // Expect a single CUID for the bank
 });
 
 export const getNextVocabWordSchema = z.object({

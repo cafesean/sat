@@ -8,9 +8,10 @@ import { Textarea } from '@/components/ui/textarea';
 import type { AppRouter } from '@/server/api/root';
 import { api, type RouterOutputs } from '@/utils/trpc';
 import type { TRPCClientErrorLike } from '@trpc/client';
+import { CheckCircle2, LogOut, XCircle } from 'lucide-react'; // Import icons
 import { useSession } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react'; // Add useEffect back
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 // Define types for clarity
@@ -27,6 +28,7 @@ export default function VocabularyPracticeSessionPage () {
   const [showFeedback, setShowFeedback] = useState(false)
   const [feedbackData, setFeedbackData] = useState<{ isCorrect: boolean, feedback: string } | null>(null)
   const [isSessionComplete, setIsSessionComplete] = useState(false) // State to track completion
+  const [wordsAnsweredCount, setWordsAnsweredCount] = useState(0); // State for word counter
 
   // Fetch the next word for the session
   const {
@@ -71,6 +73,7 @@ export default function VocabularyPracticeSessionPage () {
     onSuccess: (data) => {
       setFeedbackData({ isCorrect: data.isCorrect, feedback: data.feedback })
       setShowFeedback(true)
+      setWordsAnsweredCount(prev => prev + 1); // Increment counter on success
       // Don't refetch next word immediately, wait for user to click "Next"
     },
     onError: (error: TRPCClientErrorLike<AppRouter>) => {
@@ -190,6 +193,17 @@ export default function VocabularyPracticeSessionPage () {
   // --- Main Practice UI ---
   return (
     <div className="container mx-auto p-4">
+      {/* Top Bar: Counter and End Button */}
+      <div className="flex justify-between items-center mb-4">
+        <span className="text-sm font-medium text-muted-foreground">
+          Words Answered: {wordsAnsweredCount}
+        </span>
+        <Button variant="outline" size="sm" onClick={() => router.push('/vocabulary')}>
+          <LogOut className="mr-2 h-4 w-4" />
+          End Session
+        </Button>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-3xl font-bold">{currentWord?.text}</CardTitle>
@@ -204,16 +218,22 @@ export default function VocabularyPracticeSessionPage () {
             onChange={(e) => setUserSentence(e.target.value)}
             rows={4}
             disabled={showFeedback || submitAnswerMutation.isPending}
+            className="text-base" // Increase text size
           />
 
           {/* Use Alert component for feedback */}
           {showFeedback && feedbackData && (
-            <Alert variant={feedbackData.isCorrect ? 'default' : 'destructive'}>
-              {/* Optionally add an icon here later e.g. <Terminal className="h-4 w-4" /> */}
-              <AlertTitle className="font-bold"> {/* Make title bold */}
-                {feedbackData.isCorrect ? 'Correct!' : 'Needs Improvement'}
-              </AlertTitle>
-              <AlertDescription>
+            <Alert> {/* Remove variant */}
+              <div className="flex items-center gap-2"> {/* Flex container for icon and title */}
+                {feedbackData.isCorrect
+                  ? <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  : <XCircle className="h-5 w-5 text-red-600" />
+                }
+                <AlertTitle className="font-bold">
+                  {feedbackData.isCorrect ? 'Correct!' : 'Needs Improvement'}
+                </AlertTitle>
+              </div>
+              <AlertDescription className="mt-1 pl-7 text-base"> {/* Indent description, increase size */}
                 {feedbackData.feedback}
               </AlertDescription>
             </Alert>

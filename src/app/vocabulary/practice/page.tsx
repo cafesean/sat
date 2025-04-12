@@ -52,7 +52,10 @@ export default function VocabularyPracticeSetupPage () {
       toast.warning('Please select at least one word bank to practice.')
       return
     }
-    startSessionMutation.mutate({ wordBankIds: selectedBankIds })
+    // Pass only the first selected bank ID to match the updated schema
+    // Note: This page's primary function for starting sessions is being replaced
+    // by the button on the WordBankCard.
+    startSessionMutation.mutate({ wordBankId: selectedBankIds[0] })
   }
 
   if (status === 'loading' || isLoadingBanks) {
