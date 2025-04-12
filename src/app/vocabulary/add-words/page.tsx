@@ -8,8 +8,13 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { api, type RouterOutputs } from "@/utils/trpc"; // Correct import and add types
 import { AlertCircle, Check, Loader2 } from "lucide-react";
 import { useState } from "react";
+
+// Infer types for better type safety - Use correct procedure names from vocabRouter
+type WordBankListOutput = RouterOutputs['vocab']['listWordBanks']
+type WordAddBatchOutput = RouterOutputs['vocab']['addBatch']
 
 export default function AddWordsPage() {
   const [wordBank, setWordBank] = useState("")
@@ -19,6 +24,23 @@ export default function AddWordsPage() {
   const [totalCount, setTotalCount] = useState(0)
   const [isComplete, setIsComplete] = useState(false)
   const [error, setError] = useState("")
+
+  // Fetch word banks - Use correct procedure name
+  const { data: wordBanks, isLoading: isLoadingBanks } = api.vocab.listWordBanks.useQuery()
+
+  // tRPC mutation for adding words - Use correct procedure name
+  const addWordsMutation = api.vocab.addBatch.useMutation({
+    onSuccess: (data: WordAddBatchOutput) => { // Add type annotation for data
+      // Assuming the mutation returns the count of processed words
+      setProcessedCount(data?.count ?? totalCount) // Use returned count or fallback
+      setIsProcessing(false)
+      setIsComplete(true)
+    },
+    onError: (error) => { // Type for error is inferred by tRPC
+      setError(`Failed to add words: ${error.message}`)
+      setIsProcessing(false)
+    },
+  })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,24 +57,14 @@ export default function AddWordsPage() {
 
     setError("")
     setIsProcessing(true)
+    // Backend now handles parsing, just send the raw text
+    // setTotalCount(wordText.split(/[\n,]/).filter(w => w.trim().length > 0).length); // Estimate count for UI if needed
 
-    // Parse words (simple split by newlines and commas)
-    const words = wordText
-      .split(/[\n,]/)
-      .map((word) => word.trim())
-      .filter((word) => word.length > 0)
-
-    setTotalCount(words.length)
-
-    // Simulate processing with Gemini API
-    for (let i = 0; i < words.length; i++) {
-      // In a real app, this would be an API call to process each word
-      await new Promise((resolve) => setTimeout(resolve, 500))
-      setProcessedCount(i + 1)
-    }
-
-    setIsProcessing(false)
-    setIsComplete(true)
+    // Call the actual tRPC mutation with wordsText
+    addWordsMutation.mutate({
+      wordBankId: wordBank,
+      wordsText: wordText, // Send raw text
+    })
   }
 
   const resetForm = () => {
@@ -113,13 +125,22 @@ export default function AddWordsPage() {
                 <div className="space-y-2">
                   <Label htmlFor="word-bank">Select Word Bank</Label>
                   <Select value={wordBank} onValueChange={setWordBank}>
-                    <SelectTrigger id="word-bank">
-                      <SelectValue placeholder="Select a word bank" />
+                    <SelectTrigger id="word-bank" disabled={isLoadingBanks || isProcessing}>
+                      <SelectValue placeholder={isLoadingBanks ? "Loading banks..." : "Select a word bank"} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="sat-common">SAT Common Words</SelectItem>
-                      <SelectItem value="advanced">Advanced Vocabulary</SelectItem>
-                      <SelectItem value="new">Create New Word Bank</SelectItem>
+                      {wordBanks && wordBanks.length > 0 ? (
+                        wordBanks.map((bank: WordBankListOutput[number]) => ( // Add type annotation for bank
+                          <SelectItem key={bank.id} value={bank.id}>
+                            {bank.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="no-banks" disabled>
+                          No word banks found. Create one first.
+                        </SelectItem>
+                      )}
+                      {/* Consider adding a "Create New" item that triggers a modal */}
                     </SelectContent>
                   </Select>
                 </div>

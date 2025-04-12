@@ -1,8 +1,24 @@
-import { PrismaAdapter } from '@auth/prisma-adapter';
-import { type NextAuthOptions } from 'next-auth';
-import GoogleProvider from 'next-auth/providers/google';
-// import EmailProvider from 'next-auth/providers/email' // Example for Email provider
 import { prisma } from '@/lib/db/prisma'; // Use the singleton instance
+import { PrismaAdapter } from '@auth/prisma-adapter';
+import { UserRole } from '@prisma/client'; // Import UserRole enum
+import { type NextAuthOptions, type User as NextAuthUser } from 'next-auth'; // Import User type
+import EmailProvider from 'next-auth/providers/email'; // Enable Email provider
+import GoogleProvider from 'next-auth/providers/google';
+
+// Extend the default session user type to include id and role
+declare module 'next-auth' {
+  interface Session {
+    user: NextAuthUser & {
+      id: string;
+      role: UserRole; // Add role here
+    };
+  }
+  // Optional: Extend the default User type if needed elsewhere
+  // interface User {
+  //   role: UserRole;
+  // }
+}
+
 
 export const authOptions: NextAuthOptions = {
   // Configure one or more authentication providers
@@ -13,18 +29,19 @@ export const authOptions: NextAuthOptions = {
       clientId: process.env.GOOGLE_CLIENT_ID!, // The '!' asserts that the value is non-null
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
-    // Example: Email Provider (Requires email server setup in .env)
-    // EmailProvider({
-    //   server: {
-    //     host: process.env.EMAIL_SERVER_HOST,
-    //     port: Number(process.env.EMAIL_SERVER_PORT), // Ensure port is a number
-    //     auth: {
-    //       user: process.env.EMAIL_SERVER_USER,
-    //       pass: process.env.EMAIL_SERVER_PASSWORD
-    //     }
-    //   },
-    //   from: process.env.EMAIL_FROM,
-    // }),
+    // Email Provider (Requires email server setup in .env)
+    // IMPORTANT: Ensure EMAIL_SERVER_* and EMAIL_FROM variables are set in your .env file
+    EmailProvider({
+      server: {
+        host: process.env.EMAIL_SERVER_HOST,
+        port: Number(process.env.EMAIL_SERVER_PORT), // Ensure port is a number
+        auth: {
+          user: process.env.EMAIL_SERVER_USER,
+          pass: process.env.EMAIL_SERVER_PASSWORD
+        }
+      },
+      from: process.env.EMAIL_FROM,
+    }),
     // ...add more providers here
   ],
 
@@ -38,11 +55,17 @@ export const authOptions: NextAuthOptions = {
   // Optional: Add callbacks to control session/JWT data
   callbacks: {
     async session({ session, user }) {
-      // Send properties to the client, like an access_token and user id from a provider.
       if (session.user) {
-        session.user.id = user.id // Add user ID to the session object
+        // Fetch the full user data including the role from the database
+        const userFromDb = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { role: true }, // Select only the role
+        });
+
+        session.user.id = user.id; // Add user ID
+        session.user.role = userFromDb?.role ?? UserRole.USER; // Add role, default to USER if not found
       }
-      return session
+      return session;
     },
     // async jwt({ token, user }) {
     //   // Persist the OAuth access_token and or the user id to the token right after signin

@@ -111,9 +111,12 @@ export async function gradeSentence(word: string, sentence: string): Promise<{ i
       safetySettings,
     });
 
-    const responseText = result.response.text();
-     // Attempt to parse the JSON response
-    const parsed = JSON.parse(responseText.trim());
+    let responseText = result.response.text();
+    // Clean the response text: remove potential markdown fences and trim
+    responseText = responseText.trim().replace(/^```json\s*/, '').replace(/\s*```$/, '');
+
+     // Attempt to parse the cleaned JSON response
+    const parsed = JSON.parse(responseText);
     if (typeof parsed.isCorrect === 'boolean' && parsed.feedback) {
       return {
         isCorrect: parsed.isCorrect,

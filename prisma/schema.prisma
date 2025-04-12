@@ -10,6 +10,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserRole {
+  USER
+  ADMIN
+}
+
 // --- NextAuth.js Models ---
 
 model User {
@@ -20,6 +25,7 @@ model User {
   image         String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  role          UserRole  @default(USER) // Add role field
 
   // Relations needed later for app features
   wordBanks     WordBank[]

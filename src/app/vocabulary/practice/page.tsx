@@ -1,118 +1,126 @@
-"use client";
+'use client'
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import type { AppRouter } from "@/server/api/root"; // Import AppRouter type
-import { api, type RouterOutputs } from "@/utils/trpc"; // Import correct tRPC hook and types
-import type { TRPCClientErrorLike } from "@trpc/client";
-import { AlertCircle, Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import type { AppRouter } from '@/server/api/root'; // Import AppRouter for error type
+import { api, type RouterOutputs } from '@/utils/trpc'; // Import api and RouterOutputs
+import type { TRPCClientErrorLike } from '@trpc/client'; // Import error type
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { toast } from 'sonner';
 
-// Mock data for word bank selection (replace with actual data fetching)
-const mockWordBanks = [
-  { id: "bank1", name: "SAT Common Words" },
-  { id: "bank2", name: "Advanced Vocab" },
-  // Add more banks as needed
-];
+export default function VocabularyPracticeSetupPage () {
+  const router = useRouter()
+  const { data: session, status } = useSession()
+  const [selectedBankIds, setSelectedBankIds] = useState<string[]>([])
 
-export default function VocabularyPracticeSetupPage() {
-  const router = useRouter();
-  const [selectedBankIds, setSelectedBankIds] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  // Type for individual word bank in the list
+  type WordBankListItem = RouterOutputs['vocab']['listWordBanks'][number]; // Fix path
 
-  // Define types for mutation callbacks
-  type StartSessionOutput = RouterOutputs["vocab"]["startVocabSession"];
-  type StartSessionError = TRPCClientErrorLike<AppRouter>;
-
-  // tRPC mutation hook for starting a session
-  const startSessionMutation = api.vocab.startVocabSession.useMutation({
-    onSuccess: (data: StartSessionOutput) => {
-      // Redirect to the dynamic practice session page
-      router.push(`/vocabulary/practice/${data.practiceSessionId}`);
-    },
-    onError: (error: StartSessionError) => {
-      console.error("Failed to start practice session:", error);
-      setError(error.message || "Failed to start practice session. Please try again.");
-    },
-  });
-
-  const handleCheckboxChange = (bankId: string, checked: boolean | "indeterminate") => {
-    if (checked === true) {
-      setSelectedBankIds((prev) => [...prev, bankId]);
-    } else {
-      setSelectedBankIds((prev) => prev.filter((id) => id !== bankId));
+  const { data: wordBanks, isLoading: isLoadingBanks, error: banksError } = api.vocab.listWordBanks.useQuery( // Fix path
+    undefined,
+    {
+      enabled: status === 'authenticated' // Only fetch if authenticated
     }
-  };
+  )
+
+  const startSessionMutation = api.vocab.startVocabSession.useMutation({ // Fix path
+    onSuccess: (data: RouterOutputs['vocab']['startVocabSession']) => { // Fix path for type
+      toast.success('Practice session started!')
+      // The mutation returns { practiceSessionId: string }, adjust access accordingly
+      router.push(`/vocabulary/practice/${data.practiceSessionId}`)
+    },
+    onError: (error: TRPCClientErrorLike<AppRouter>) => {
+      toast.error(`Failed to start session: ${error.message}`)
+    }
+  })
+
+  const handleCheckboxChange = (bankId: string, checked: boolean | 'indeterminate') => {
+    setSelectedBankIds(prev =>
+      checked === true
+        ? [...prev, bankId]
+        : prev.filter(id => id !== bankId)
+    )
+  }
 
   const handleStartPractice = () => {
-    setError(null); // Clear previous errors
     if (selectedBankIds.length === 0) {
-      setError("Please select at least one word bank to practice.");
-      return;
+      toast.warning('Please select at least one word bank to practice.')
+      return
     }
-    startSessionMutation.mutate({ wordBankIds: selectedBankIds });
-  };
+    startSessionMutation.mutate({ wordBankIds: selectedBankIds })
+  }
 
-  return (
-    <main className="container mx-auto px-4 py-8">
-      <div className="max-w-xl mx-auto">
+  if (status === 'loading' || isLoadingBanks) {
+    return (
+      <div className="container mx-auto p-4">
         <Card>
           <CardHeader>
-            <CardTitle>Vocabulary Practice Setup</CardTitle>
-            <CardDescription>Select the word banks you want to include in your practice session.</CardDescription>
+            <Skeleton className="h-6 w-1/2" />
+            <Skeleton className="h-4 w-3/4 mt-1" />
           </CardHeader>
-          <CardContent className="space-y-6">
-            {error && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
-            <div className="space-y-3">
-              <Label className="font-medium">Select Word Banks:</Label>
-              {/* TODO: Replace mockWordBanks with data fetched using trpc.vocab.listWordBanks.useQuery */}
-              {mockWordBanks.map((bank) => (
-                <div key={bank.id} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`bank-${bank.id}`}
-                    checked={selectedBankIds.includes(bank.id)}
-                    onCheckedChange={(checked) => handleCheckboxChange(bank.id, checked)}
-                    disabled={startSessionMutation.isPending}
-                  />
-                  <Label htmlFor={`bank-${bank.id}`} className="cursor-pointer">
-                    {bank.name}
-                  </Label>
-                </div>
-              ))}
-              {mockWordBanks.length === 0 && (
-                 <p className="text-sm text-muted-foreground">You haven't created any word banks yet.</p>
-                 // TODO: Add link to create word bank page
-              )}
-            </div>
-
-            <Button
-              onClick={handleStartPractice}
-              disabled={selectedBankIds.length === 0 || startSessionMutation.isPending}
-              className="w-full"
-            >
-              {startSessionMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Starting Session...
-                </>
-              ) : (
-                "Start Practice"
-              )}
-            </Button>
+          <CardContent className="space-y-4">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
           </CardContent>
+          <CardFooter>
+            <Skeleton className="h-10 w-32" />
+          </CardFooter>
         </Card>
       </div>
-    </main>
-  );
+    )
+  }
+
+  if (status === 'unauthenticated') {
+    return <div className="container mx-auto p-4">Please sign in to start practicing.</div>
+  }
+
+  if (banksError) {
+    return <div className="container mx-auto p-4 text-red-500">Error loading word banks: {banksError.message}</div>
+  }
+
+  return (
+    <div className="container mx-auto p-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Start Vocabulary Practice</CardTitle>
+          <CardDescription>Select the word banks you want to include in this practice session.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {wordBanks && wordBanks.length > 0
+            ? (
+                wordBanks.map((bank: WordBankListItem) => ( // Add type for bank
+              <div key={bank.id} className="flex items-center space-x-2 p-2 border rounded-md hover:bg-muted/50">
+                <Checkbox
+                  id={`bank-${bank.id}`}
+                  checked={selectedBankIds.includes(bank.id)}
+                  onCheckedChange={(checked) => handleCheckboxChange(bank.id, checked)}
+                />
+                <Label htmlFor={`bank-${bank.id}`} className="flex-grow cursor-pointer">
+                  {bank.name} ({bank.wordCount} words) {/* Use wordCount directly */}
+                  {bank.description && <p className="text-xs text-muted-foreground">{bank.description}</p>}
+                </Label>
+              </div>
+                ))
+              )
+            : (
+            <p>You haven't created any word banks yet. <a href="/vocabulary/create-bank" className="text-blue-600 hover:underline">Create one now!</a></p>
+              )}
+        </CardContent>
+        <CardFooter>
+          <Button
+            onClick={handleStartPractice}
+            disabled={selectedBankIds.length === 0 || startSessionMutation.isPending} // Use isPending for mutations
+          >
+            {startSessionMutation.isPending ? 'Starting...' : 'Start Practice'} {/* Use isPending for mutations */}
+          </Button>
+        </CardFooter>
+      </Card>
+    </div>
+  )
 }

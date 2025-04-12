@@ -1,10 +1,10 @@
 'use client';
 
-import React from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { httpBatchLink, loggerLink } from '@trpc/client';
 import { api, getBaseUrl } from '@/utils/trpc';
-import superjson from 'superjson';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { httpLink, loggerLink } from '@trpc/client'; // Change httpBatchLink to httpLink
+import React from 'react';
+import superjson from 'superjson'; // Restore superjson
 
 const TRPCProvider = ({ children }: { children: React.ReactNode; }) => {
   const [queryClient] = React.useState(() => new QueryClient({
@@ -28,14 +28,15 @@ const TRPCProvider = ({ children }: { children: React.ReactNode; }) => {
 
   const [trpcClient] = React.useState(() =>
     api.createClient({
-      transformer: superjson,
+      // transformer: superjson, // Remove transformer from here
       links: [
         loggerLink({
           enabled: (opts) =>
             process.env.NODE_ENV === "development" ||
             (opts.direction === "down" && opts.result instanceof Error),
         }),
-        httpBatchLink({
+        httpLink({ // Change httpBatchLink to httpLink
+          transformer: superjson, // Restore transformer here
           url: `${getBaseUrl()}/api/trpc`,
           headers() {
             return {};

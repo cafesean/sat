@@ -1,6 +1,7 @@
 'use client' // Needed for useSession, useState, etc.
 
 import { Button } from '@/components/ui/button';
+import { UserRole } from '@prisma/client'; // Re-import UserRole
 import { signIn, signOut, useSession } from 'next-auth/react';
 import Link from 'next/link';
 // import { Moon, Sun } from 'lucide-react' // For theme toggle later
@@ -33,6 +34,12 @@ const Navbar = () => {
           <>
             {/* Optional: Display user info */}
             {/* <span>{session.user?.name || session.user?.email}</span> */}
+            {/* Conditionally show Admin link */}
+            {session.user.role === UserRole.ADMIN && (
+              <Link href='/admin/users'>
+                <Button variant='ghost' size='sm'>Admin</Button>
+              </Link>
+            )}
             <Button variant='outline' size='sm' onClick={() => signOut()}>
               Sign Out
             </Button>

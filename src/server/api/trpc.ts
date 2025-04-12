@@ -3,11 +3,11 @@
  * Should be done only once per backend!
  */
 import { initTRPC, TRPCError } from '@trpc/server';
-import superjson from 'superjson'; // Use superjson for data serialization
+import superjson from 'superjson'; // Restore superjson
 import { type Context } from './context';
 
 const t = initTRPC.context<Context>().create({
-  transformer: superjson, // Enable superjson transformer
+  transformer: superjson, // Restore transformer
   errorFormatter({ shape }) {
     return shape
   },

@@ -15,10 +15,11 @@ export async function createContext(opts?: FetchCreateContextFnOptions) {
 
   console.log('createContext for', session?.user?.email ?? 'unknown user')
 
-  // Return the context object with prisma instance and the session
+  // Return the context object with prisma instance, the session, and headers
   return {
     session,
     prisma,
+    headers: opts?.req.headers, // Include request headers
   }
 }
 

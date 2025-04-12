@@ -8,7 +8,8 @@ import { appRouter } from '@/server/api/root';
  * This wraps the `appRouter` and creates a tRPC handler.
  * @see https://trpc.io/docs/v11/server/adapters
  */
-const handler = (req: NextRequest) =>
+const handler = (req: NextRequest) => // Revert to non-async
+  // Remove logging block
   fetchRequestHandler({
     endpoint: '/api/trpc',
     req,
@@ -23,6 +24,6 @@ const handler = (req: NextRequest) =>
           }
         : undefined,
   })
+// Remove extra closing brace
 
 export { handler as GET, handler as POST };
-

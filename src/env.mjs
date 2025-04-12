@@ -25,6 +25,13 @@ export const env = createEnv({
     // Add `.optional()` if you want to allow empty strings
     GOOGLE_CLIENT_ID: z.string().min(1).optional(), // Optional for now
     GOOGLE_CLIENT_SECRET: z.string().min(1).optional(), // Optional for now
+    // Email Server Variables (Optional for build, required for EmailProvider)
+    EMAIL_SERVER_HOST: z.string().min(1).optional(),
+    EMAIL_SERVER_PORT: z.coerce.number().optional(), // Use coerce for port number
+    EMAIL_SERVER_USER: z.string().min(1).optional(),
+    EMAIL_SERVER_PASSWORD: z.string().min(1).optional(),
+    EMAIL_FROM: z.string().email().optional(), // Validate as email
+    // Gemini API
     GEMINI_API_KEY: z.string().min(1).optional(), // Optional for now
     GEMINI_MODEL_NAME: z.string().min(1).default('gemini-1.5-flash'), // Default to flash model
   },
@@ -49,6 +56,13 @@ export const env = createEnv({
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+    // Email Server Runtime Mapping
+    EMAIL_SERVER_HOST: process.env.EMAIL_SERVER_HOST,
+    EMAIL_SERVER_PORT: process.env.EMAIL_SERVER_PORT,
+    EMAIL_SERVER_USER: process.env.EMAIL_SERVER_USER,
+    EMAIL_SERVER_PASSWORD: process.env.EMAIL_SERVER_PASSWORD,
+    EMAIL_FROM: process.env.EMAIL_FROM,
+    // Gemini API
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     GEMINI_MODEL_NAME: process.env.GEMINI_MODEL_NAME,
     // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,

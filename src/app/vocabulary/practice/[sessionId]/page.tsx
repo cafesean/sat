@@ -1,295 +1,240 @@
-"use client";
+'use client'
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label"; // Import Label
-import { Skeleton } from "@/components/ui/skeleton"; // For loading state
-import { Textarea } from "@/components/ui/textarea";
-import type { AppRouter } from "@/server/api/root";
-import { api, type RouterInputs, type RouterOutputs } from "@/utils/trpc";
-import type { TRPCClientErrorLike } from "@trpc/client";
-import { AlertCircle, ArrowRight, Check, Loader2, X } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react"; // Import useEffect
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // Import Alert components
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
+import type { AppRouter } from '@/server/api/root';
+import { api, type RouterOutputs } from '@/utils/trpc';
+import type { TRPCClientErrorLike } from '@trpc/client';
+import { useSession } from 'next-auth/react';
+import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react'; // Add useEffect back
+import { toast } from 'sonner';
 
-// Define types for mutation/query results and errors
-type NextWordOutput = RouterOutputs["vocab"]["getNextVocabWord"];
-type SubmitAnswerOutput = RouterOutputs["vocab"]["submitVocabAnswer"];
-type SubmitAnswerInput = RouterInputs["vocab"]["submitVocabAnswer"];
-type VocabApiError = TRPCClientErrorLike<AppRouter>;
+// Define types for clarity
+type VocabWord = RouterOutputs['vocab']['getNextVocabWord'];
+type EaseLevel = 'AGAIN' | 'HARD' | 'GOOD' | 'EASY'; // Corresponds to SRS logic
 
-export default function VocabularyPracticeSessionPage() {
-  const params = useParams();
-  const router = useRouter();
-  const sessionId = params.sessionId as string; // Assume sessionId is always present
+export default function VocabularyPracticeSessionPage () {
+  const router = useRouter()
+  const params = useParams()
+  const { data: session, status } = useSession()
+  const sessionId = params.sessionId as string // Get session ID from URL
 
-  const [userSentence, setUserSentence] = useState("");
-  const [selectedEase, setSelectedEase] = useState<number | null>(null); // 1=Again, 2=Hard, 3=Good, 4=Easy
-  const [showFeedback, setShowFeedback] = useState(false);
-  const [isComplete, setIsComplete] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [userSentence, setUserSentence] = useState('')
+  const [showFeedback, setShowFeedback] = useState(false)
+  const [feedbackData, setFeedbackData] = useState<{ isCorrect: boolean, feedback: string } | null>(null)
+  const [isSessionComplete, setIsSessionComplete] = useState(false) // State to track completion
 
-  // --- tRPC Hooks ---
-
-  // Query to get the next word
+  // Fetch the next word for the session
   const {
     data: currentWord,
     isLoading: isLoadingWord,
     error: wordError,
-    refetch: refetchWord,
+    refetch: refetchNextWord
   } = api.vocab.getNextVocabWord.useQuery(
     { practiceSessionId: sessionId },
     {
-      enabled: !!sessionId && !isComplete, // Only run if sessionId is available and session not complete
+      enabled: status === 'authenticated' && !!sessionId && !showFeedback, // Only fetch if authenticated, session ID exists, and not showing feedback
       refetchOnWindowFocus: false, // Prevent refetching on window focus
-      retry: 1, // Retry once on error
-      // onSuccess callback removed as it's not a valid option here
+      retry: false // Don't retry automatically if fetching fails (e.g., session complete)
+      // Remove invalid onSuccess/onError from useQuery
     }
-  );
+  )
 
-  // Effect to check for session completion when data changes
+  // Effect to check for session completion based on query result
   useEffect(() => {
-    // Check if loading is finished and data is explicitly null
-    if (!isLoadingWord && currentWord === null) {
-      setIsComplete(true);
+    // Check after the query has potentially finished (isLoading is false)
+    if (!isLoadingWord) {
+      if (currentWord === null || wordError?.data?.code === 'NOT_FOUND') {
+        setIsSessionComplete(true);
+      }
     }
-  }, [currentWord, isLoadingWord]);
+  }, [currentWord, wordError, isLoadingWord]); // Depend on query state
 
-  // Mutation to submit the answer
+  // Fetch session summary when session is marked as complete
+  const {
+    data: sessionSummary,
+    isLoading: isLoadingSummary,
+    error: summaryError
+  } = api.vocab.getVocabSessionSummary.useQuery(
+    { practiceSessionId: sessionId },
+    {
+      enabled: isSessionComplete // Only fetch summary when session is complete
+    }
+  )
+
+  // Mutation for submitting the answer
   const submitAnswerMutation = api.vocab.submitVocabAnswer.useMutation({
     onSuccess: (data) => {
-      setShowFeedback(true); // Show feedback panel
-      setSubmitError(null);
-      // Optionally trigger refetch for the next word automatically after a delay,
-      // or wait for user to click "Next"
+      setFeedbackData({ isCorrect: data.isCorrect, feedback: data.feedback })
+      setShowFeedback(true)
+      // Don't refetch next word immediately, wait for user to click "Next"
     },
-    onError: (error: VocabApiError) => {
-      console.error("Failed to submit answer:", error);
-      setSubmitError(error.message || "Failed to submit answer. Please try again.");
-      setShowFeedback(false); // Hide feedback panel on error
-    },
-  });
-
-  // --- Event Handlers ---
-
-  const handleSubmit = () => {
-    if (!currentWord || !userSentence.trim() || selectedEase === null) {
-      setSubmitError("Please enter a sentence and select how easy it was.");
-      return;
+    onError: (error: TRPCClientErrorLike<AppRouter>) => {
+      toast.error(`Failed to submit answer: ${error.message}`)
     }
-    setSubmitError(null);
-    setShowFeedback(false); // Hide previous feedback
+  })
+
+  const handleSentenceSubmit = (ease: EaseLevel) => {
+    if (!currentWord) {
+      toast.error('No current word to practice.')
+      return
+    }
+    if (!userSentence.trim()) {
+      toast.warning('Please enter a sentence.')
+      return
+    }
+
+    // Map EaseLevel string to number based on schema
+    const easeMap: Record<EaseLevel, number> = {
+      AGAIN: 1,
+      HARD: 2,
+      GOOD: 3,
+      EASY: 4
+    };
+    const easeNumber = easeMap[ease];
 
     submitAnswerMutation.mutate({
       practiceSessionId: sessionId,
       wordId: currentWord.id,
-      userSentence: userSentence,
-      easeChosen: selectedEase,
-    });
-  };
+      userSentence: userSentence.trim(),
+      easeChosen: easeNumber // Pass the mapped number
+    })
+  }
 
   const handleNextWord = () => {
-    setShowFeedback(false);
-    setUserSentence("");
-    setSelectedEase(null);
-    setSubmitError(null);
-    refetchWord(); // Fetch the next word
-  };
-
-  // --- UI Rendering ---
-
-  // Loading state for the word
-  if (isLoadingWord) {
-    return (
-      <main className="container mx-auto px-4 py-8">
-        <div className="max-w-2xl mx-auto">
-          <Skeleton className="h-8 w-1/4 mb-2" />
-          <Skeleton className="h-4 w-1/2 mb-8" />
-          <Card>
-            <CardHeader>
-              <Skeleton className="h-8 w-1/3 mb-2" />
-              <Skeleton className="h-4 w-3/4" />
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <Skeleton className="h-20 w-full" />
-              <Skeleton className="h-24 w-full" />
-            </CardContent>
-            <CardFooter>
-              <Skeleton className="h-10 w-24" />
-            </CardFooter>
-          </Card>
-        </div>
-      </main>
-    );
+    setUserSentence('') // Clear textarea
+    setShowFeedback(false) // Hide feedback
+    setFeedbackData(null) // Clear feedback data
+    refetchNextWord() // Fetch the next word
   }
 
-  // Error state for fetching word
-  if (wordError) {
-    return (
-       <main className="container mx-auto px-4 py-8">
-         <div className="max-w-2xl mx-auto">
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Error Loading Word</AlertTitle>
-              <AlertDescription>{wordError.message || "Could not load the next word. Please try again later."}</AlertDescription>
-            </Alert>
-             <Button onClick={() => router.push('/vocabulary')} className="mt-4">Return to Vocabulary</Button>
-         </div>
-       </main>
-    );
+  // --- Render Logic ---
+
+  if (status === 'loading') {
+    return <div className="container mx-auto p-4"><Skeleton className="h-64 w-full" /></div>
   }
 
-  // Session Complete State
-  if (isComplete || !currentWord) {
-     // TODO: Implement summary view using getVocabSessionSummary query
-    return (
-      <main className="container mx-auto px-4 py-8">
-        <div className="max-w-2xl mx-auto">
-          <Card>
-            <CardHeader>
-              <CardTitle>Practice Complete!</CardTitle>
-              <CardDescription>You've reviewed all due words for this session.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p>Loading summary...</p> {/* Placeholder */}
-            </CardContent>
-            <CardFooter className="flex gap-2">
-              <Button onClick={() => router.push('/vocabulary')}>Return to Vocabulary</Button>
-              {/* Optionally add a button to restart */}
-            </CardFooter>
-          </Card>
-        </div>
-      </main>
-    );
+  if (status === 'unauthenticated') {
+    return <div className="container mx-auto p-4">Please sign in to practice.</div>
   }
 
-  // Main Practice UI
-  const feedbackData = submitAnswerMutation.data;
-
-  return (
-    <main className="container mx-auto px-4 py-8">
-      <div className="max-w-2xl mx-auto">
-         {/* TODO: Add progress indicator if desired */}
-         {/* <div className="flex justify-between items-center mb-8"> ... </div> */}
-
+  // Handle Session Completion display
+  if (isSessionComplete) {
+    return (
+      <div className="container mx-auto p-4">
         <Card>
           <CardHeader>
-            <CardTitle className="text-3xl font-bold">{currentWord.text}</CardTitle>
-            <CardDescription>Write a sentence using this word.</CardDescription>
+            <CardTitle>Practice Complete!</CardTitle>
+            <CardDescription>Here's how you did in this session.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Word Details */}
-            <div className="space-y-4 rounded-md border bg-muted p-4">
-               <div className="space-y-1">
-                 <p className="text-sm font-medium text-muted-foreground">Definition</p>
-                 <p>{currentWord.definition || "N/A"}</p>
-               </div>
-               <div className="space-y-1">
-                 <p className="text-sm font-medium text-muted-foreground">Translation (Chinese)</p>
-                 <p>{currentWord.translation || "N/A"}</p>
-               </div>
-            </div>
-
-            {/* Sentence Input */}
-            <div className="space-y-2">
-              <Label htmlFor="sentence" className="font-medium">
-                Your Sentence
-              </Label>
-              <Textarea
-                id="sentence"
-                placeholder="Type your sentence here..."
-                value={userSentence}
-                onChange={(e) => setUserSentence(e.target.value)}
-                disabled={showFeedback || submitAnswerMutation.isPending}
-                className="min-h-[100px]"
-              />
-            </div>
-
-             {/* Ease Selection */}
-             {!showFeedback && (
-                <div className="space-y-2">
-                   <Label className="font-medium">How easy was this word?</Label>
-                   <div className="flex flex-wrap gap-2">
-                      {[
-                         { label: "Again", value: 1 },
-                         { label: "Hard", value: 2 },
-                         { label: "Good", value: 3 },
-                         { label: "Easy", value: 4 },
-                      ].map((ease) => (
-                         <Button
-                            key={ease.value}
-                            variant={selectedEase === ease.value ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setSelectedEase(ease.value)}
-                            disabled={submitAnswerMutation.isPending}
-                         >
-                            {ease.label}
-                         </Button>
-                      ))}
-                   </div>
-                </div>
-             )}
-
-
-            {/* Submission Error */}
-            {submitError && !showFeedback && (
-               <Alert variant="destructive" className="mt-4">
-                 <AlertCircle className="h-4 w-4" />
-                 <AlertTitle>Submission Error</AlertTitle>
-                 <AlertDescription>{submitError}</AlertDescription>
-               </Alert>
+          <CardContent>
+            {isLoadingSummary && (
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-4 w-2/3" />
+              </div>
             )}
-
-            {/* Feedback Panel */}
-            {showFeedback && feedbackData && (
-              <div
-                className={`p-4 rounded-md ${feedbackData.isCorrect ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"}`}
-              >
-                <div className="flex items-start gap-3">
-                  {feedbackData.isCorrect ? (
-                    <Check className="h-5 w-5 mt-0.5 flex-shrink-0" />
-                  ) : (
-                    <X className="h-5 w-5 mt-0.5 flex-shrink-0" />
-                  )}
-                  <div className="flex-1">
-                    <p className="font-semibold">{feedbackData.isCorrect ? "Correct!" : "Needs Review"}</p>
-                    <p className="text-sm mt-1">{feedbackData.feedback}</p>
-                    {!feedbackData.isCorrect && currentWord.sampleSentence && (
-                      <div className="mt-3 pt-3 border-t border-current/30">
-                        <p className="text-xs font-medium text-muted-foreground">Example Sentence:</p>
-                        <p className="text-sm mt-1 italic">{currentWord.sampleSentence}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
+            {summaryError && (
+              <p className="text-red-500">Error loading summary: {summaryError.message}</p>
+            )}
+            {sessionSummary && !isLoadingSummary && (
+              <div className="space-y-1 text-sm">
+                <p><strong>Total Words Reviewed:</strong> {sessionSummary.totalWords}</p>
+                <p><strong>Correct Answers:</strong> {sessionSummary.correctCount}</p>
+                <p><strong>Accuracy:</strong> {sessionSummary.accuracy}%</p>
+                {/* Optionally display logs: sessionSummary.logs */}
               </div>
             )}
           </CardContent>
           <CardFooter>
-            {!showFeedback ? (
-              <Button
-                 onClick={handleSubmit}
-                 disabled={!userSentence.trim() || selectedEase === null || submitAnswerMutation.isPending}
-              >
-                {submitAnswerMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Checking...
-                  </>
-                ) : (
-                  "Check Answer"
-                )}
-              </Button>
-            ) : (
-              <Button onClick={handleNextWord}>
-                Next Word
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            )}
+            <Button onClick={() => router.push('/vocabulary')}>Back to Vocabulary</Button>
+            </CardFooter>
+        </Card>
+      </div>
+    )
+  }
+
+  // Handle other word loading errors after checking for completion
+  if (wordError) {
+    return <div className="container mx-auto p-4 text-red-500">Error loading next word: {wordError.message}</div>
+  }
+
+  // Show skeleton only on initial word load
+  if (isLoadingWord && !currentWord) {
+    return (
+      <div className="container mx-auto p-4">
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-8 w-1/3 mb-2" />
+            <Skeleton className="h-4 w-1/2" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Skeleton className="h-20 w-full" />
+          </CardContent>
+          <CardFooter className="flex justify-between">
+            <Skeleton className="h-10 w-20" />
+            <Skeleton className="h-10 w-20" />
+            <Skeleton className="h-10 w-20" />
+            <Skeleton className="h-10 w-20" />
           </CardFooter>
         </Card>
       </div>
-    </main>
-  );
+    )
+  }
+
+  // --- Main Practice UI ---
+  return (
+    <div className="container mx-auto p-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-3xl font-bold">{currentWord?.text}</CardTitle>
+          {/* Optionally show definition/translation later */}
+          <CardDescription>Write a sentence using the word above.</CardDescription>
+        </CardHeader>
+
+        <CardContent className="space-y-4">
+          <Textarea
+            placeholder="Type your sentence here..."
+            value={userSentence}
+            onChange={(e) => setUserSentence(e.target.value)}
+            rows={4}
+            disabled={showFeedback || submitAnswerMutation.isPending}
+          />
+
+          {/* Use Alert component for feedback */}
+          {showFeedback && feedbackData && (
+            <Alert variant={feedbackData.isCorrect ? 'default' : 'destructive'}>
+              {/* Optionally add an icon here later e.g. <Terminal className="h-4 w-4" /> */}
+              <AlertTitle className="font-bold"> {/* Make title bold */}
+                {feedbackData.isCorrect ? 'Correct!' : 'Needs Improvement'}
+              </AlertTitle>
+              <AlertDescription>
+                {feedbackData.feedback}
+              </AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+
+        <CardFooter className="flex flex-col sm:flex-row justify-between items-center gap-4">
+          {showFeedback
+            ? (
+            <Button onClick={handleNextWord} className="w-full sm:w-auto">Next Word</Button>
+              )
+            : (
+            <div className="flex flex-wrap justify-center sm:justify-end gap-2 w-full">
+              <Button variant="destructive" onClick={() => handleSentenceSubmit('AGAIN')} disabled={submitAnswerMutation.isPending}>Again</Button>
+              <Button variant="secondary" onClick={() => handleSentenceSubmit('HARD')} disabled={submitAnswerMutation.isPending}>Hard</Button>
+              <Button variant="secondary" onClick={() => handleSentenceSubmit('GOOD')} disabled={submitAnswerMutation.isPending}>Good</Button>
+              <Button variant="default" onClick={() => handleSentenceSubmit('EASY')} disabled={submitAnswerMutation.isPending}>Easy</Button>
+            </div>
+              )}
+        </CardFooter>
+      </Card>
+    </div>
+  )
 }

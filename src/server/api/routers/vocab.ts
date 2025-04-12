@@ -4,46 +4,234 @@ import {
   getNextVocabWordSchema,
   getVocabSessionSummarySchema,
   startVocabSessionSchema,
-  submitVocabAnswerSchema,
+  submitVocabAnswerSchema
 } from "@/schemas/practice.schema";
+import { addWordsSchema, deleteWordSchema, getWordHistorySchema, listWordsByBankSchema, updateWordSchema, wordBankSchema } from "@/schemas/vocab.schema"; // Import new schemas + getWordHistorySchema
 // Import Prisma types correctly
+import { gradeSentence } from "@/lib/api/gemini"; // Re-add gradeSentence import
 import { PracticeType, WordPracticeLog } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
-import { z } from "zod";
+import { z } from "zod"; // Re-add zod import
 import { protectedProcedure, router } from "../trpc";
 
+
 export const vocabRouter = router({
-  // --- Word Bank CRUD (Placeholder - Implement later based on Sprint 2) ---
-  createWordBank: protectedProcedure
-    .input(z.object({ name: z.string(), description: z.string().optional() }))
+  // --- Word Bank CRUD ---
+  createWordBank: protectedProcedure // Change back to protectedProcedure
+    .input(wordBankSchema) // Restore automatic input validation
     .mutation(async ({ ctx, input }) => {
-      // Placeholder
-      console.log("Creating word bank:", input);
-      return { id: "mock-bank-id", ...input };
+      // Input should now be validated and typed correctly by tRPC/Zod
+      console.log('Validated input received by createWordBank:', input); // Log the validated input
+      try {
+        // No need for manual parsing here anymore
+        // const validatedInput = wordBankSchema.parse(input); // Remove manual parse
+
+        const newWordBank = await ctx.prisma.wordBank.create({
+          data: {
+            name: input.name, // Use input directly
+            description: input.description, // Restore description
+            userId: ctx.session.user.id, // Associate with the logged-in user
+          },
+        });
+        return newWordBank; // Return the created bank object
+      } catch (error) {
+        console.error("Error creating word bank:", error);
+        // Handle potential unique constraint errors or other DB errors
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to create word bank.",
+          cause: error,
+        });
+      }
     }),
   listWordBanks: protectedProcedure.query(async ({ ctx }) => {
-    // Placeholder
+    // Replace placeholder with actual DB query
+    try {
+      const wordBanks = await ctx.prisma.wordBank.findMany({
+        where: {
+          userId: ctx.session.user.id, // Fetch only banks belonging to the user
+        },
+        include: {
+          // Include words with their interval to calculate mastery
+          words: {
+            select: { interval: true }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc', // Order by creation date, newest first
+        },
+      });
+      // Map the result to calculate mastery percentage
+      const wordBanksWithMastery = wordBanks.map(bank => {
+        const totalWords = bank.words.length;
+        if (totalWords === 0) {
+          return { ...bank, wordCount: 0, masteryPercentage: 0 };
+        }
+        const masteredCount = bank.words.filter(word => word.interval > 30).length;
+        const masteryPercentage = Math.round((masteredCount / totalWords) * 100);
+        // We no longer need the full words array in the response
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { words, ...bankWithoutWords } = bank;
+        return {
+          ...bankWithoutWords,
+          wordCount: totalWords,
+          masteryPercentage: masteryPercentage,
+        };
+      });
+      return wordBanksWithMastery;
+    } catch (error) {
+      console.error("Error listing word banks:", error);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to retrieve word banks.",
+        cause: error,
+      });
+    }
+    /* Placeholder data removed:
     console.log("Listing word banks for user:", ctx.session.user.id);
-    return [
-      { id: "bank1", name: "SAT Common Words", description: "Frequently used SAT words" },
-      { id: "bank2", name: "Advanced Vocab", description: "Challenging words" },
-    ];
+    */
+    // The return statement is within the 'try' block above.
   }),
+  getById: protectedProcedure
+    .input(z.object({ id: z.string().cuid() })) // Input schema for ID
+    .query(async ({ ctx, input }) => {
+      const wordBank = await ctx.prisma.wordBank.findUnique({
+        where: {
+          id: input.id,
+          userId: ctx.session.user.id, // Ensure it belongs to the user
+        },
+      });
+      if (!wordBank) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Word bank not found.' });
+      }
+      return wordBank;
+    }),
+  update: protectedProcedure
+    .input(wordBankSchema.extend({ id: z.string().cuid() })) // Add ID to the schema
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...dataToUpdate } = input; // Separate ID from data
+      try {
+        const updatedWordBank = await ctx.prisma.wordBank.update({
+          where: {
+            id: id,
+            userId: ctx.session.user.id, // Ensure user owns the bank
+          },
+          data: dataToUpdate,
+        });
+        return updatedWordBank;
+      } catch (error: any) {
+        // Handle specific Prisma error for record not found (P2025)
+        if (error.code === 'P2025') {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Word bank not found or you do not have permission to edit it.',
+          });
+        }
+        console.error("Error updating word bank:", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to update word bank.",
+          cause: error,
+        });
+      }
+    }),
   // ... other word bank CRUD operations ...
 
-  // --- Add Words ---
-  addBatch: protectedProcedure
-    .input(
-      z.object({
-        wordBankId: z.string(),
-        words: z.array(z.string()),
-      })
-    )
+  // --- Word CRUD ---
+  listByBank: protectedProcedure
+    .input(listWordsByBankSchema)
+    .query(async ({ ctx, input }) => {
+      // Verify user owns the bank first
+      const bank = await ctx.prisma.wordBank.findUnique({
+        where: { id: input.wordBankId, userId: ctx.session.user.id },
+        select: { id: true } // Only need to select ID for verification
+      });
+      if (!bank) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Word bank not found or access denied.' });
+      }
+
+      // Fetch words for the specified bank
+      const words = await ctx.prisma.word.findMany({
+        where: { wordBankId: input.wordBankId },
+        orderBy: { createdAt: 'asc' }, // Or order by text?
+      });
+      return words;
+    }),
+
+  updateWord: protectedProcedure
+    .input(updateWordSchema)
     .mutation(async ({ ctx, input }) => {
-      // Ensure word bank exists and belongs to user (add check later)
+      const { wordId, text } = input;
+
+      // Verify the word exists and belongs to the user (via the word bank)
+      const word = await ctx.prisma.word.findUnique({
+        where: { id: wordId },
+        select: { wordBank: { select: { userId: true } } } // Select nested userId
+      });
+
+      if (!word || word.wordBank.userId !== ctx.session.user.id) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Word not found or access denied.' });
+      }
+
+      // TODO: Consider re-enriching the word with AI if the text changes significantly?
+      // For now, just update the text.
+      const updatedWord = await ctx.prisma.word.update({
+        where: { id: wordId },
+        data: { text: text },
+      });
+      return updatedWord;
+    }),
+
+  deleteWord: protectedProcedure
+    .input(deleteWordSchema)
+    .mutation(async ({ ctx, input }) => {
+       const { wordId } = input;
+
+       // Verify the word exists and belongs to the user (via the word bank)
+       const word = await ctx.prisma.word.findUnique({
+         where: { id: wordId },
+         select: { id: true, wordBank: { select: { userId: true } } } // Select nested userId
+       });
+
+       if (!word || word.wordBank.userId !== ctx.session.user.id) {
+         throw new TRPCError({ code: 'NOT_FOUND', message: 'Word not found or access denied.' });
+       }
+
+       await ctx.prisma.word.delete({
+         where: { id: wordId },
+       });
+
+       return { success: true, deletedWordId: wordId };
+    }),
+
+  // --- Add Words (Batch) ---
+  addBatch: protectedProcedure
+    .input(addWordsSchema) // Use imported schema
+    .mutation(async ({ ctx, input }) => {
+      // 1. Verify the word bank exists and belongs to the user
+      const wordBank = await ctx.prisma.wordBank.findUnique({
+        where: { id: input.wordBankId, userId: ctx.session.user.id },
+      });
+
+      if (!wordBank) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Word bank not found or access denied.' });
+      }
+
+      // 2. Parse the input text into an array of words
+      // Split by newline OR comma, trim whitespace, filter empty lines
+      const words = input.wordsText
+        .split(/\s*[\n,]\s*/) // Split by newline or comma, trimming whitespace
+        .map(word => word.trim())
+        .filter(word => word.length > 0);
+
+      if (words.length === 0) {
+         throw new TRPCError({ code: 'BAD_REQUEST', message: 'No valid words found in the input.' });
+      }
+
+      // 3. Enrich words and save to DB
       try {
         const wordsWithData = await Promise.all(
-          input.words.map(async (word) => {
+          words.map(async (word) => { // Use parsed words array
             const enrichedData = await enrichWord(word); // Uses placeholder from gemini.ts
             return {
               text: word,
@@ -161,45 +349,29 @@ export const vocabRouter = router({
         }
         // Ensure word belongs to user (implicit via session check later?)
 
-        // 2. Call the grading API endpoint
+        // 2. Call the grading function directly
         let gradingResult: { isCorrect: boolean; feedback: string };
         try {
-          // Construct the absolute URL for the API endpoint
-          // Note: In a real deployment, use env variables for the base URL
-          const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-          const gradeApiUrl = new URL('/api/grade-sentence', baseUrl);
-
-          const response = await fetch(gradeApiUrl.toString(), {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              // Pass necessary auth info if endpoint requires it beyond session cookie
-              // e.g., 'Authorization': `Bearer ${ctx.session.accessToken}`
-            },
-            body: JSON.stringify({ word: word.text, sentence: userSentence }),
-          });
-
-          if (!response.ok) {
-             const errorBody = await response.text();
-             console.error(`Grading API call failed with status ${response.status}:`, errorBody);
-             throw new Error(`Grading API call failed: ${response.statusText}`);
+          const aiResult = await gradeSentence(word.text, userSentence);
+          if (aiResult === null) {
+            // Handle case where grading might fail internally
+            console.error('AI grading function returned null.');
+            throw new Error('AI grading failed internally.');
           }
-          gradingResult = await response.json();
-
-          // Validate the structure of the grading result
-          if (typeof gradingResult?.isCorrect !== 'boolean' || typeof gradingResult?.feedback !== 'string') {
-            console.error('Invalid response structure from grading API:', gradingResult);
-            throw new Error('Invalid response structure from grading API.');
+          // Basic validation of the direct result structure
+          if (typeof aiResult?.isCorrect !== 'boolean' || typeof aiResult?.feedback !== 'string') {
+             console.error('Invalid response structure from gradeSentence function:', aiResult);
+             throw new Error('Invalid response structure from gradeSentence function.');
           }
+          gradingResult = aiResult;
 
-        } catch (apiError) {
-           console.error("Error calling grading API:", apiError);
-           // Provide default feedback if API call fails
+        } catch (aiError) {
+           console.error("Error calling gradeSentence function:", aiError);
+           // Provide default feedback if direct call fails
            gradingResult = { isCorrect: false, feedback: "Could not get AI feedback at this time." };
-           // Optionally re-throw or handle differently if grading is critical
+           // Optionally re-throw or handle differently
            // throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to get AI grading." });
         }
-
 
         // 3. Calculate next review based on SRS
         const srsUpdate = calculateNextReview(word, easeChosen);
@@ -210,7 +382,7 @@ export const vocabRouter = router({
             data: {
               practiceSessionId,
               wordId,
-              userId, // Log who practiced
+              // userId, // Removed: Not a direct field on WordPracticeLog
               userSentence,
               isCorrect: gradingResult.isCorrect,
               aiFeedback: gradingResult.feedback,
@@ -278,5 +450,38 @@ export const vocabRouter = router({
           logs: session.vocabLogs, // Return individual logs if needed
         };
       }),
+
+  // --- Word Practice History ---
+  getWordPracticeHistory: protectedProcedure
+    .input(getWordHistorySchema) // Use the new schema
+    .query(async ({ ctx, input }) => {
+      const { wordId } = input;
+
+      // 1. Verify the word exists and belongs to the user
+      const word = await ctx.prisma.word.findUnique({
+        where: { id: wordId },
+        select: { id: true, wordBank: { select: { userId: true } } }
+      });
+
+      if (!word || word.wordBank.userId !== ctx.session.user.id) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Word not found or access denied.' });
+      }
+
+      // 2. Fetch practice logs for this word
+      const history = await ctx.prisma.wordPracticeLog.findMany({
+        where: { wordId: wordId },
+        orderBy: { timestamp: 'desc' }, // Show most recent first
+        select: {
+          id: true,
+          timestamp: true,
+          userSentence: true,
+          isCorrect: true,
+          aiFeedback: true,
+          easeChosen: true,
+        }
+      });
+
+      return history;
+    }),
 
 });

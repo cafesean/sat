@@ -1,3 +1,4 @@
+import { adminRouter } from "./routers/admin"; // Import admin router
 import { userRouter } from "./routers/user";
 import { vocabRouter } from "./routers/vocab";
 import { router } from "./trpc";
@@ -11,7 +12,8 @@ import { router } from "./trpc";
  */
 export const appRouter = router({
   user: userRouter,
-  vocab: vocabRouter, // Add later
+  vocab: vocabRouter,
+  admin: adminRouter, // Add admin router
   // readingWriting: readingWritingRouter, // Add later
 });
 
