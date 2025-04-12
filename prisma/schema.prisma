@@ -83,6 +83,7 @@ model WordBank {
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   words       Word[]
+  practiceSessions PracticeSession[] // Add back-relation
 }
 
 model Word {
@@ -136,6 +137,7 @@ model PracticeSession {
   difficulty    Int?      // For R&W (1-5)
   createdAt     DateTime  @default(now())
   wordBankId    String?   // Link to specific bank if session started from one
+  wordBank      WordBank? @relation(fields: [wordBankId], references: [id], onDelete: SetNull) // Add relation
 
   // Relations
   vocabLogs     WordPracticeLog[] // If type is VOCABULARY

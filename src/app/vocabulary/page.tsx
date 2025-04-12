@@ -1,22 +1,74 @@
 'use client'
 
+import { PracticeHistoryTabContent } from "@/components/features/vocab/PracticeHistoryTabContent";
+import { WordBankListItem as WordBankListItemComponent } from "@/components/features/vocab/WordBankListItem";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input"; // Import Input
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // Import Select
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, type RouterOutputs } from "@/utils/trpc";
-import { AlertCircle, BookText, Grid, List, Pencil, Play, Plus, Settings } from "lucide-react"; // Added Grid, List, Pencil, Settings
+import { AlertCircle, BookText, Grid, History, List, Pencil, Play, Plus, Settings, SortAsc, SortDesc } from "lucide-react"; // Add Sort icons
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react"; // Import useMemo
 import { toast } from "sonner";
 
 // Infer type for word bank list item
 type WordBankListItem = RouterOutputs['vocab']['listWordBanks'][number]
+type SortKey = 'name' | 'createdAt' | 'masteryPercentage';
+type SortDirection = 'asc' | 'desc';
 
 export default function VocabularyPage() {
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid'); // State for view mode
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [filterText, setFilterText] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('createdAt');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
   // Fetch word banks
-  const { data: wordBanks, isLoading, error } = api.vocab.listWordBanks.useQuery()
+  const { data: wordBanks, isLoading: isLoadingBanks, error: banksError } = api.vocab.listWordBanks.useQuery()
+
+  // Client-side filtering and sorting
+  const filteredAndSortedBanks = useMemo(() => {
+    if (!wordBanks) return [];
+
+    let banks = [...wordBanks];
+
+    // Filter
+    if (filterText) {
+      banks = banks.filter(bank =>
+        bank.name.toLowerCase().includes(filterText.toLowerCase()) ||
+        bank.description?.toLowerCase().includes(filterText.toLowerCase())
+      );
+    }
+
+    // Sort
+    banks.sort((a, b) => {
+      let compareA: string | number | Date = a[sortKey];
+      let compareB: string | number | Date = b[sortKey];
+
+      // Handle date sorting correctly
+      if (sortKey === 'createdAt') {
+        compareA = new Date(compareA);
+        compareB = new Date(compareB);
+      }
+
+      let comparison = 0;
+      if (compareA > compareB) {
+        comparison = 1;
+      } else if (compareA < compareB) {
+        comparison = -1;
+      }
+
+      return sortDirection === 'desc' ? comparison * -1 : comparison;
+    });
+
+    return banks;
+  }, [wordBanks, filterText, sortKey, sortDirection]);
+
+  const toggleSortDirection = () => {
+    setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+  }
 
   return (
     <main className="container mx-auto px-4 py-8">
@@ -26,7 +78,6 @@ export default function VocabularyPage() {
           <h1 className="text-3xl font-bold tracking-tight">Vocabulary Dashboard</h1>
           <p className="text-muted-foreground mt-1">Manage your word banks and track your progress.</p>
         </div>
-        {/* Top-level Practice button removed */}
       </div>
 
       {/* Progress Overview Section - Placeholder */}
@@ -36,71 +87,80 @@ export default function VocabularyPage() {
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground">Progress metrics coming soon...</p>
-          {/* TODO: Add charts or stats here */}
         </CardContent>
       </Card>
 
       {/* Word Banks Section */}
-      <div className="mt-8">
-        <div className="flex justify-between items-center mb-4">
+      <div className="mt-8 mb-8">
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
           <h2 className="text-2xl font-semibold tracking-tight">Your Word Banks</h2>
-          {/* View Mode Toggle Buttons */}
-          <div className="flex items-center gap-1 rounded-md bg-muted p-1">
-             <Button
-               variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
-               size="sm"
-               onClick={() => setViewMode('grid')}
-               className="h-7 px-2"
-               aria-label="Grid view"
-             >
-               <Grid className="h-4 w-4" />
+          {/* Filter, Sort, View Toggle */}
+          <div className="flex items-center gap-2 w-full md:w-auto">
+             <Input
+               placeholder="Filter banks..."
+               value={filterText}
+               onChange={(e) => setFilterText(e.target.value)}
+               className="h-9 max-w-xs"
+             />
+             <Select value={sortKey} onValueChange={(value) => setSortKey(value as SortKey)}>
+               <SelectTrigger className="h-9 w-[150px]">
+                 <SelectValue placeholder="Sort by" />
+               </SelectTrigger>
+               <SelectContent>
+                 <SelectItem value="name">Name</SelectItem>
+                 <SelectItem value="createdAt">Date Created</SelectItem>
+                 <SelectItem value="masteryPercentage">Mastery</SelectItem>
+               </SelectContent>
+             </Select>
+             <Button variant="ghost" size="icon" onClick={toggleSortDirection} className="h-9 w-9">
+               {sortDirection === 'asc' ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />}
              </Button>
-             <Button
-               variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-               size="sm"
-               onClick={() => setViewMode('list')}
-               className="h-7 px-2"
-               aria-label="List view"
-             >
-               <List className="h-4 w-4" />
-             </Button>
+             <div className="flex items-center gap-1 rounded-md bg-muted p-1 ml-2">
+               <Button
+                 variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+                 size="sm" onClick={() => setViewMode('grid')} className="h-7 px-2" aria-label="Grid view">
+                 <Grid className="h-4 w-4" />
+               </Button>
+               <Button
+                 variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                 size="sm" onClick={() => setViewMode('list')} className="h-7 px-2" aria-label="List view">
+                 <List className="h-4 w-4" />
+               </Button>
+             </div>
            </div>
         </div>
 
         {/* Loading State */}
-        {isLoading && (
+        {isLoadingBanks && (
           <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-2"}>
-            {viewMode === 'grid' ? (
-              <>
-                <Skeleton className="h-[200px] w-full" />
-                <Skeleton className="h-[200px] w-full" />
-                <Skeleton className="h-[200px] w-full" />
-              </>
-            ) : (
-               <>
-                 <Skeleton className="h-[60px] w-full" />
-                 <Skeleton className="h-[60px] w-full" />
-                 <Skeleton className="h-[60px] w-full" />
-               </>
-            )}
+            {/* Skeletons */}
+            {viewMode === 'grid' ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[200px] w-full" />)
+             : Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[60px] w-full" />)}
           </div>
         )}
 
         {/* Error State */}
-        {error && (
+        {banksError && (
           <div className="text-destructive flex items-center gap-2 p-4 border border-destructive/50 bg-destructive/10 rounded-md">
             <AlertCircle className="h-5 w-5" />
-            <span>Error loading word banks: {error.message}</span>
+            <span>Error loading word banks: {banksError.message}</span>
           </div>
         )}
 
         {/* Content Area */}
-        {!isLoading && !error && wordBanks && (
+        {!isLoadingBanks && !banksError && (
           <>
+            {filteredAndSortedBanks.length === 0 && !filterText && (
+               <p className="text-muted-foreground text-center py-8">No word banks created yet. Create one below!</p>
+            )}
+             {filteredAndSortedBanks.length === 0 && filterText && (
+               <p className="text-muted-foreground text-center py-8">No word banks match your filter.</p>
+            )}
+
             {/* Grid View */}
             {viewMode === 'grid' && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {wordBanks.length > 0 && wordBanks.map((bank) => (
+                {filteredAndSortedBanks.map((bank) => (
                   <WordBankCard
                     key={bank.id}
                     id={bank.id}
@@ -127,25 +187,9 @@ export default function VocabularyPage() {
             {/* List View */}
             {viewMode === 'list' && (
               <div className="space-y-2">
-                {wordBanks.length > 0
-                  ? wordBanks.map((bank) => (
-                      // TODO: Replace with WordBankListItem component
-                      <div key={bank.id} className="p-4 border rounded-md flex justify-between items-center">
-                        <div className="flex flex-col">
-                           <span className="font-semibold">{bank.name}</span>
-                           <span className="text-sm text-muted-foreground">{bank.wordCount} words</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                           <span className="text-sm font-medium">Mastery: {bank.masteryPercentage}%</span>
-                           {/* TODO: Add compact list view action buttons */}
-                           <Button variant="ghost" size="icon"><Play className="h-4 w-4" /></Button>
-                           <Button variant="ghost" size="icon"><Settings className="h-4 w-4" /></Button>
-                           <Button variant="ghost" size="icon"><Pencil className="h-4 w-4" /></Button>
-                        </div>
-                      </div>
-                    ))
-                  : <p className="text-muted-foreground text-center py-4">No word banks created yet.</p>
-                }
+                {filteredAndSortedBanks.map((bank) => (
+                  <WordBankListItemComponent key={bank.id} {...bank} />
+                ))}
                 {/* Create New Bank Button (List) */}
                  <Link href="/vocabulary/create-bank" className="block pt-2">
                     <Button variant="outline" className="w-full">
@@ -157,6 +201,16 @@ export default function VocabularyPage() {
           </>
         )}
       </div>
+
+      {/* Practice History Section */}
+      <div className="mt-12">
+         <div className="flex justify-between items-center mb-4">
+           <h2 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
+             <History className="h-6 w-6" /> Practice History
+           </h2>
+         </div>
+         <PracticeHistoryTabContent />
+       </div>
     </main>
   )
 }
@@ -189,7 +243,7 @@ function WordBankCard({
   });
 
   const handleStartPractice = (e: React.MouseEvent) => {
-    e.preventDefault(); // Prevent link navigation when clicking button
+    e.preventDefault();
     e.stopPropagation();
     startSessionMutation.mutate({ wordBankId: id });
   };
@@ -202,7 +256,7 @@ function WordBankCard({
           <BookText className="h-5 w-5" />
            {title}
         </CardTitle>
-        <CardDescription className="line-clamp-3 h-[3.75rem]"> {/* line-clamp for description */}
+        <CardDescription className="line-clamp-3 h-[3.75rem]">
           {description || `${wordCount} words • Last practiced: ${lastPracticed}`}
         </CardDescription>
       </CardHeader>
@@ -220,7 +274,7 @@ function WordBankCard({
      </Link>
       <CardFooter className="flex justify-between items-center pt-4">
         <Button
-          variant="secondary" // Make practice button colored
+          variant="secondary"
           className="w-full flex-grow mr-2"
           onClick={handleStartPractice}
           disabled={startSessionMutation.isPending}
@@ -246,6 +300,3 @@ function WordBankCard({
     </Card>
   )
 }
-
-// Placeholder component for practice history items - REMOVED as Tabs are gone
-// function PracticeHistoryItem(...) { ... }
