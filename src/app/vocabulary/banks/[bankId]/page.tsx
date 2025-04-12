@@ -1,27 +1,39 @@
 'use client'
 
 import { WordHistoryDialog } from '@/components/features/vocab/WordHistoryDialog';
-import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/components/ui/collapsible"; // Re-import Collapsible
-import { Input } from '@/components/ui/input'; // Add Input back
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // Add Select back
+} from "@/components/ui/collapsible";
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
 import { api, type RouterOutputs } from '@/utils/trpc';
-import { ArrowLeft, ChevronsUpDown, SortAsc, SortDesc } from 'lucide-react'; // Add Sort icons back
+import { ArrowLeft, ChevronsUpDown, Loader2, Plus, Save, SortAsc, SortDesc, Star, Trash2, X } from 'lucide-react'; // Added Star icon
 import { useSession } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
 // Define types
 type WordBank = RouterOutputs['vocab']['getById'];
+// Ensure WordListItem type includes isStarred and _count (inferred from backend)
 type WordListItem = RouterOutputs['vocab']['listByBank'][number];
-type WordSortKey = 'text' | 'createdAt' | 'interval'; // Add sort keys for words
+type WordSortKey = 'text' | 'createdAt' | 'interval';
 type SortDirection = 'asc' | 'desc';
 
 // Helper function to determine mastery level and badge variant
@@ -59,13 +71,130 @@ export default function WordBankDetailPage () {
   const [wordFilterText, setWordFilterText] = useState('');
   const [wordSortKey, setWordSortKey] = useState<WordSortKey>('createdAt');
   const [wordSortDirection, setWordSortDirection] = useState<SortDirection>('asc');
+  const [showStarredOnly, setShowStarredOnly] = useState(false); // State for starred filter
+  const [newWordsText, setNewWordsText] = useState(''); // State for the new words textarea
+  const [editingWordId, setEditingWordId] = useState<string | null>(null); // Track which word is being edited
+  const [editingWordText, setEditingWordText] = useState<string>(''); // Track the temporary edit value
+  const [wordToDelete, setWordToDelete] = useState<WordListItem | null>(null); // State for delete confirmation
+
+  // tRPC utils for cache invalidation
+  const utils = api.useUtils();
+
+  // Mutation for adding words
+  const addWordsMutation = api.vocab.addBatch.useMutation({
+    onSuccess: () => {
+      toast.success('Words added successfully!');
+      setNewWordsText(''); // Clear textarea
+      // Invalidate queries to refetch data
+      utils.vocab.listByBank.invalidate({ wordBankId: bankId });
+      utils.vocab.getById.invalidate({ id: bankId }); // To update word count if displayed
+      utils.vocab.listWordBanks.invalidate(); // To update mastery/count on dashboard
+    },
+    onError: (error) => {
+      toast.error(`Failed to add words: ${error.message}`);
+    }
+  });
+
+  const handleAddWords = () => {
+    if (!newWordsText.trim()) {
+      toast.warning('Please enter words to add.');
+      return;
+    }
+    // Pass the raw text directly, backend handles splitting
+    addWordsMutation.mutate({
+      wordBankId: bankId,
+      wordsText: newWordsText
+    });
+  };
+
+  // Mutation for deleting a word
+  const deleteWordMutation = api.vocab.deleteWord.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Word deleted successfully.`);
+      setWordToDelete(null); // Close confirmation dialog
+      // Invalidate queries to refetch data
+      utils.vocab.listByBank.invalidate({ wordBankId: bankId });
+      utils.vocab.getById.invalidate({ id: bankId }); // To update word count if displayed
+      utils.vocab.listWordBanks.invalidate(); // To update mastery/count on dashboard
+    },
+    onError: (error) => {
+      toast.error(`Failed to delete word: ${error.message}`);
+      setWordToDelete(null); // Close confirmation dialog
+    }
+  });
+
+  // Mutation for toggling star status
+  const toggleStarMutation = api.vocab.toggleStar.useMutation({
+     onSuccess: (updatedWord) => {
+       toast.success(`Word ${updatedWord.isStarred ? 'starred' : 'unstarred'}.`);
+       // Optimistic update or invalidate cache
+       utils.vocab.listByBank.invalidate({ wordBankId: bankId });
+     },
+     onError: (error) => {
+       toast.error(`Failed to update star status: ${error.message}`);
+     }
+   });
+
+  // Mutation for updating a word
+  const updateWordMutation = api.vocab.updateWord.useMutation({
+    onSuccess: (updatedWord) => {
+      toast.success(`Word "${updatedWord.text}" updated.`);
+      setEditingWordId(null); // Exit editing mode
+      // Invalidate queries to refetch data
+      utils.vocab.listByBank.invalidate({ wordBankId: bankId });
+      // No need to invalidate getById or listWordBanks as only word text changed
+    },
+    onError: (error) => {
+      toast.error(`Failed to update word: ${error.message}`);
+      // Optionally revert the text change or keep editing mode active
+    }
+  });
+
+  const handleEditClick = (word: WordListItem) => {
+    setEditingWordId(word.id);
+    setEditingWordText(word.text);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingWordId(null);
+    setEditingWordText('');
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingWordId || !editingWordText.trim()) return;
+    if (editingWordText === words?.find(w => w.id === editingWordId)?.text) {
+      // No change, just cancel edit
+      handleCancelEdit();
+      return;
+    }
+    updateWordMutation.mutate({
+      wordId: editingWordId,
+      text: editingWordText.trim(),
+    });
+  };
+
+  const handleEditKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      handleSaveEdit();
+    } else if (event.key === 'Escape') {
+      handleCancelEdit();
+    }
+  };
+
 
   // Client-side filtering and sorting for words
   const filteredAndSortedWords = useMemo(() => {
     if (!words) return [];
-    let processedWords = [...words];
+    // Ensure words have the isStarred property (handle potential type mismatch)
+    let processedWords = words.map(w => ({ ...w, isStarred: w.isStarred ?? false })) as (WordListItem & { isStarred: boolean })[];
 
-    // Filter
+
+    // Filter by Starred Status
+    if (showStarredOnly) {
+      processedWords = processedWords.filter(word => word.isStarred);
+    }
+
+    // Filter by Text
     if (wordFilterText) {
       processedWords = processedWords.filter(word =>
         word.text.toLowerCase().includes(wordFilterText.toLowerCase()) ||
@@ -97,7 +226,7 @@ export default function WordBankDetailPage () {
     });
 
     return processedWords;
-  }, [words, wordFilterText, wordSortKey, wordSortDirection]);
+  }, [words, wordFilterText, wordSortKey, wordSortDirection, showStarredOnly]); // Add showStarredOnly dependency
 
   const toggleWordSortDirection = () => {
     setWordSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
@@ -177,6 +306,16 @@ export default function WordBankDetailPage () {
               <Button variant="ghost" size="icon" onClick={toggleWordSortDirection} className="h-9 w-9">
                 {wordSortDirection === 'asc' ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />}
               </Button>
+              {/* Starred Filter Toggle Button */}
+              <Button
+                variant={showStarredOnly ? "secondary" : "ghost"}
+                size="icon"
+                onClick={() => setShowStarredOnly(!showStarredOnly)}
+                className="h-9 w-9"
+                title={showStarredOnly ? "Show all words" : "Show starred words only"}
+              >
+                <Star className={`h-4 w-4 ${showStarredOnly ? 'text-yellow-500 fill-yellow-400' : ''}`} />
+              </Button>
             </div>
           </div>
 
@@ -184,27 +323,94 @@ export default function WordBankDetailPage () {
           {filteredAndSortedWords && filteredAndSortedWords.length > 0
             ? (
             <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {filteredAndSortedWords.map((word: WordListItem) => { // Use filteredAndSortedWords
+              {filteredAndSortedWords.map((word) => { // Use inferred type now
                 const mastery = getMasteryInfo(word.interval);
+                const isEditing = editingWordId === word.id;
                 return (
                   <Collapsible key={word.id} asChild>
-                    <li className="border rounded-md px-4 py-3 flex flex-col"> {/* Use flex-col */}
-                      <div className="flex items-center justify-between w-full"> {/* Ensure trigger takes full width */}
-                        <CollapsibleTrigger asChild>
-                          <button className="flex items-center gap-2 flex-grow text-left mr-2 overflow-hidden"> {/* Allow trigger to grow, hide overflow */}
-                            <span className="font-medium truncate">{word.text}</span> {/* Truncate long words */}
-                            <ChevronsUpDown className="h-4 w-4 text-muted-foreground flex-shrink-0" /> {/* Prevent icon shrinking */}
-                          </button>
-                        </CollapsibleTrigger>
-                        <div className="flex items-center space-x-1 flex-shrink-0"> {/* Reduced space */}
-                          <Badge variant={mastery.variant} className="text-xs px-1.5 py-0.5"> {/* Smaller badge */}
-                             {mastery.level.substring(0,1)} {/* Abbreviate mastery */}
-                          </Badge>
-                          <WordHistoryDialog wordId={word.id} wordText={word.text} />
-                        </div>
+                    {/* Use a div instead of li if direct child needed for Collapsible */}
+                    {/* Add relative positioning and padding-left */}
+                    <div className="border rounded-md px-4 py-3 flex flex-col relative pl-6">
+                      {/* Mastery Bar */}
+                      <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-md ${
+                        mastery.variant === 'destructive' ? 'bg-red-500' :
+                        mastery.variant === 'secondary' ? 'bg-yellow-400' :
+                        mastery.variant === 'outline' ? 'bg-green-400' :
+                        'bg-blue-500' // default for Mastered
+                      }`}></div>
+                      <div className="flex items-center justify-between w-full gap-2"> {/* Added gap */}
+                        {/* Word Text or Input */}
+                        {isEditing ? (
+                          <div className="flex-grow flex items-center gap-1">
+                            <Input
+                              value={editingWordText}
+                              onChange={(e) => setEditingWordText(e.target.value)}
+                              onKeyDown={handleEditKeyDown}
+                              onBlur={handleSaveEdit} // Save on blur
+                              autoFocus
+                              className="h-7 px-1.5 text-sm flex-grow" // Smaller height, padding, text
+                              disabled={updateWordMutation.isPending}
+                            />
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleSaveEdit} disabled={updateWordMutation.isPending} title="Save">
+                              {updateWordMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin"/> : <Save className="h-3 w-3" />}
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCancelEdit} disabled={updateWordMutation.isPending} title="Cancel">
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <CollapsibleTrigger asChild>
+                            <button
+                              className="flex items-center gap-2 flex-grow text-left mr-2 overflow-hidden"
+                              onClick={() => handleEditClick(word)} // Enable editing on click
+                              title={`Edit "${word.text}"`}
+                            >
+                              <span className="font-medium truncate">{word.text}</span>
+                              <ChevronsUpDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            </button>
+                          </CollapsibleTrigger>
+                        )}
+
+                        {/* Right side icons (only show when not editing) */}
+                        {!isEditing && (
+                          <div className="flex items-center space-x-1 flex-shrink-0">
+                            {/* Removed Mastery Badge */}
+                            <WordHistoryDialog wordId={word.id} wordText={word.text} historyCount={word._count.practiceLogs} />
+                            {/* Star Button */}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className={`h-6 w-6 ${word.isStarred ? 'text-yellow-400 hover:text-yellow-500' : 'text-muted-foreground hover:text-yellow-400'}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleStarMutation.mutate({ wordId: word.id });
+                              }}
+                              title={word.isStarred ? 'Unstar word' : 'Star word'}
+                              disabled={toggleStarMutation.isPending && toggleStarMutation.variables?.wordId === word.id}
+                            >
+                              {toggleStarMutation.isPending && toggleStarMutation.variables?.wordId === word.id
+                                ? <Loader2 className="h-3 w-3 animate-spin" />
+                                : <Star className={`h-3 w-3 ${word.isStarred ? 'fill-current' : ''}`} />
+                              }
+                            </Button>
+                            {/* Delete Button */}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-destructive hover:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation(); // Prevent collapsible trigger
+                                setWordToDelete(word);
+                              }}
+                              title={`Delete "${word.text}"`}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
                       </div>
-                      <CollapsibleContent className="pt-3 mt-2 border-t w-full"> {/* Ensure content takes full width */}
-                        <div className="space-y-1.5 text-xs"> {/* Reduced spacing and text size */}
+                      <CollapsibleContent className="pt-3 mt-2 border-t w-full">
+                        <div className="space-y-1.5 text-xs">
                           {word.definition && <p><strong>Def:</strong> {word.definition}</p>}
                           {word.sampleSentence && <p><strong>Ex:</strong> <em>{word.sampleSentence}</em></p>}
                           {word.translation && <p><strong>Trans:</strong> {word.translation}</p>}
@@ -213,7 +419,7 @@ export default function WordBankDetailPage () {
                           )}
                         </div>
                       </CollapsibleContent>
-                    </li>
+                    </div>
                   </Collapsible>
                 );
               })}
@@ -224,9 +430,60 @@ export default function WordBankDetailPage () {
               {wordFilterText ? 'No words match your filter.' : 'No words added to this bank yet.'}
             </p>
               )}
-           {/* TODO: Add input/button for adding new words here */}
+
+          {/* Add New Words Section */}
+          <div className="mt-6 pt-6 border-t">
+            <h3 className="text-lg font-medium mb-2">Add New Words</h3>
+            <p className="text-sm text-muted-foreground mb-3">
+              Enter words separated by commas or new lines. Definitions and examples will be generated automatically.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Textarea
+                placeholder="Enter words here..."
+                value={newWordsText}
+                onChange={(e) => setNewWordsText(e.target.value)}
+                className="min-h-[60px] flex-grow"
+                disabled={addWordsMutation.isPending}
+              />
+              <Button
+                onClick={handleAddWords}
+                disabled={addWordsMutation.isPending || !newWordsText.trim()}
+                className="sm:self-end" // Align button nicely on larger screens
+              >
+                {addWordsMutation.isPending ? 'Adding...' : <><Plus className="mr-2 h-4 w-4" /> Add Word(s)</>}
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!wordToDelete} onOpenChange={(open) => !open && setWordToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the word
+              <span className="font-semibold"> "{wordToDelete?.text}"</span> and its practice history.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteWordMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (wordToDelete) {
+                  deleteWordMutation.mutate({ wordId: wordToDelete.id });
+                }
+              }}
+              disabled={deleteWordMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteWordMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

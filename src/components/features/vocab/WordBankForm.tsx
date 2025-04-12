@@ -136,18 +136,31 @@ export const WordBankForm: React.FC<WordBankFormProps> = ({ initialData, onSucce
             </FormItem>
           )}
         />
-        <Button type="submit" disabled={isPending}>
-          {isPending ? (
-            <>
+        {/* Button Row */}
+        <div className="flex justify-end gap-2">
+          {/* Cancel Button */}
+          <Button
+            type="button" // Important: type="button" to prevent form submission
+            variant="outline"
+            onClick={() => router.back()} // Go back to previous page
+            disabled={isPending}
+          >
+            Cancel
+          </Button>
+          {/* Submit Button (Existing) */}
+          <Button type="submit" disabled={isPending}>
+            {isPending ? (
+              <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               {initialData ? 'Saving...' : 'Creating...'}
             </>
           ) : initialData ? (
             'Save Changes'
           ) : (
-            'Create Word Bank'
-          )}
-        </Button>
+              'Create Word Bank'
+            )}
+          </Button>
+        </div>
       </form>
     </Form>
   )

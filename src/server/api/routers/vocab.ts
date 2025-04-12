@@ -11,8 +11,12 @@ import {
 	deleteWordSchema,
 	getWordHistorySchema,
 	listWordsByBankSchema,
+	toggleWordStarSchema // Add the schema import
+	,
+
+
 	updateWordSchema,
-	wordBankSchema,
+	wordBankSchema
 } from "@/schemas/vocab.schema";
 import { PracticeType } from "@prisma/client"; // Added Word type back
 import { TRPCError } from "@trpc/server";
@@ -134,6 +138,10 @@ export const vocabRouter = router({
 					id: true, text: true, definition: true, sampleSentence: true,
 					translation: true, interval: true, createdAt: true, updatedAt: true,
 					wordBankId: true, easeFactor: true, repetitions: true, nextReviewDate: true,
+					isStarred: true, // Include isStarred
+					_count: { // Include count of practice logs
+						select: { practiceLogs: true }
+					}
 				},
 				orderBy: { createdAt: "asc" },
 			});
@@ -170,6 +178,28 @@ export const vocabRouter = router({
 			}
 			await ctx.prisma.word.delete({ where: { id: wordId } });
 			return { success: true, deletedWordId: wordId };
+		}),
+
+	toggleStar: protectedProcedure
+		.input(toggleWordStarSchema)
+		.mutation(async ({ ctx, input }) => {
+			const { wordId } = input;
+			const word = await ctx.prisma.word.findUnique({
+				where: { id: wordId },
+				select: { isStarred: true, wordBank: { select: { userId: true } } },
+			});
+
+			if (!word || word.wordBank.userId !== ctx.session.user.id) {
+				throw new TRPCError({ code: "NOT_FOUND", message: "Word not found or access denied." });
+			}
+
+			const updatedWord = await ctx.prisma.word.update({
+				where: { id: wordId },
+				data: { isStarred: !word.isStarred },
+				select: { id: true, isStarred: true }, // Return the updated status
+			});
+
+			return updatedWord;
 		}),
 
 	// --- Add Words (Batch) ---
@@ -331,7 +361,15 @@ export const vocabRouter = router({
 			const { practiceSessionId } = input;
 			const session = await ctx.prisma.practiceSession.findUnique({
 				where: { id: practiceSessionId, userId: ctx.session.user.id },
-				include: { vocabLogs: true },
+				include: {
+					vocabLogs: { // Include related word data in logs
+						include: {
+							word: {
+								select: { text: true } // Select only the word text
+							}
+						}
+					}
+				},
 			});
 			if (!session) { throw new TRPCError({ code: "NOT_FOUND", message: "Session not found." }); }
 			if (session.type !== PracticeType.VOCABULARY) { throw new TRPCError({ code: "BAD_REQUEST", message: "Session is not a vocabulary practice session." }); }

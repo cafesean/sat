@@ -1,5 +1,6 @@
 'use client'
 
+import { Badge } from '@/components/ui/badge'; // Import Badge
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -22,8 +23,9 @@ import { useState } from 'react';
 type HistoryLog = RouterOutputs['vocab']['getWordPracticeHistory'][number];
 
 interface WordHistoryDialogProps {
-  wordId: string
-  wordText: string
+  wordId: string;
+  wordText: string;
+  historyCount?: number; // Make count optional
 }
 
 // Helper to map ease number to string
@@ -34,7 +36,7 @@ const easeLevelMap: { [key: number]: string } = {
   4: 'Easy'
 }
 
-export function WordHistoryDialog ({ wordId, wordText }: WordHistoryDialogProps) {
+export function WordHistoryDialog ({ wordId, wordText, historyCount }: WordHistoryDialogProps) {
   const [isOpen, setIsOpen] = useState(false)
 
   // Fetch history only when the dialog is open
@@ -46,8 +48,18 @@ export function WordHistoryDialog ({ wordId, wordText }: WordHistoryDialogProps)
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label={`View history for ${wordText}`}>
-          <History className="h-4 w-4" />
+        {/* Add relative positioning to the button for the badge */}
+        <Button variant="ghost" size="icon" className="relative h-6 w-6" aria-label={`View history for ${wordText}`}>
+          <History className="h-3 w-3" />
+          {/* Display badge if count is greater than 0 */}
+          {historyCount !== undefined && historyCount > 0 && (
+            <Badge
+              variant="destructive" // Or another variant like "secondary"
+              className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-xs rounded-full"
+            >
+              {historyCount > 9 ? '9+' : historyCount} {/* Cap count display */}
+            </Badge>
+          )}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[600px]"> {/* Adjust max width as needed */}

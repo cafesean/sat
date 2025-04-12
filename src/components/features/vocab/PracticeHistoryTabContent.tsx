@@ -1,62 +1,109 @@
 'use client'
 
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/button'; // Re-add Button import
 import { Card, CardContent } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'; // Import Dialog components
+import { ScrollArea } from '@/components/ui/scroll-area'; // Import ScrollArea
 import { Skeleton } from '@/components/ui/skeleton';
 import { api, type RouterOutputs } from '@/utils/trpc';
 import { format } from 'date-fns';
-import { AlertCircle, BookText } from 'lucide-react';
-import Link from 'next/link';
+import { AlertCircle, BookText } from 'lucide-react'; // Import Loader2
+import { useState } from 'react'; // Import useState
 
-// Infer type for a single session item
+// Infer types
 type PracticeSessionItem = RouterOutputs['vocab']['listPracticeSessions']['sessions'][number];
+type SessionSummary = RouterOutputs['vocab']['getVocabSessionSummary'];
 
 // Helper component to display individual history item
-function PracticeHistoryItem ({ session }: { session: PracticeSessionItem }) {
-  // Use the fetched bank name, or fallback for quick practice
+function PracticeHistoryItem ({ session, onReviewClick }: { session: PracticeSessionItem, onReviewClick: (sessionId: string) => void }) {
   const bankName = session.wordBankName ?? 'Quick Practice';
 
   return (
     <Card>
-      <CardContent className="p-4 md:p-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          {/* Session Info */}
-          <div className="flex-grow">
-            <p className="font-medium text-sm md:text-base">
-              {format(new Date(session.startTime), 'PPpp')} {/* Format timestamp */}
-            </p>
-            <p className="text-xs md:text-sm text-muted-foreground flex items-center gap-1 mt-1">
-              <BookText className="h-3 w-3" />
-              {bankName}
-            </p>
+      {/* More compact layout */}
+      <CardContent className="p-3 flex items-center justify-between gap-3">
+        {/* Session Info */}
+        <div className="flex-grow overflow-hidden"> {/* Prevent text overflow */}
+          <p className="font-medium text-sm truncate" title={format(new Date(session.startTime), 'PPpp')}>
+            {format(new Date(session.startTime), 'PPp')} {/* Shorter date format */}
+          </p>
+          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5 truncate" title={bankName}>
+            <BookText className="h-3 w-3 flex-shrink-0" />
+            {bankName}
+          </p>
+        </div>
+        {/* Stats */}
+        <div className="flex items-center gap-3 sm:gap-4 text-center flex-shrink-0">
+          <div>
+            <p className="text-xs text-muted-foreground">Words</p>
+            <p className="font-medium text-sm">{session.wordsStudied}</p>
           </div>
-          {/* Stats */}
-          <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 text-center sm:text-left">
-            <div>
-              <p className="text-xs text-muted-foreground">Words Studied</p>
-              <p className="font-medium text-lg">{session.wordsStudied}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Accuracy</p>
-              <p className="font-medium text-lg">{session.accuracy}%</p>
-            </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Acc.</p>
+            <p className="font-medium text-sm">{session.accuracy}%</p>
           </div>
-          {/* Review Button */}
-          <div className="mt-2 md:mt-0 flex-shrink-0">
-            <Link href={`/vocabulary/practice/${session.id}`}> {/* Link to session page */}
-              <Button variant="outline" size="sm">
-                Review Session
-              </Button>
-            </Link>
-          </div>
+        </div>
+        {/* Review Button */}
+        <div className="flex-shrink-0">
+          {/* Trigger the modal instead of linking */}
+          <Button variant="outline" size="sm" onClick={() => onReviewClick(session.id)}>
+            Review
+          </Button>
         </div>
       </CardContent>
     </Card>
   )
 }
 
+// Component to display session summary inside the dialog
+function SessionReviewContent({ sessionId }: { sessionId: string }) {
+  const { data: summary, isLoading, error } = api.vocab.getVocabSessionSummary.useQuery({ practiceSessionId: sessionId });
+
+  if (isLoading) {
+    return <div className="py-4"><Skeleton className="h-20 w-full" /></div>;
+  }
+  if (error) {
+    return <p className="text-red-500 py-4">Error loading summary: {error.message}</p>;
+  }
+  if (!summary) {
+    return <p className="text-muted-foreground py-4">Session summary not found.</p>;
+  }
+
+  // Helper to map ease number to string
+  const easeLevelMap: { [key: number]: string } = { 1: 'Again', 2: 'Hard', 3: 'Good', 4: 'Easy' };
+
+  return (
+    <ScrollArea className="h-[450px] pr-4">
+      <div className="space-y-3 py-2">
+        {summary.logs.map((log) => (
+          <div key={log.id} className="p-3 border rounded-md text-sm">
+            <p className="mb-1"><strong>Word:</strong> {log.word?.text ?? 'N/A'}</p> {/* Assuming word text is needed - adjust query if not */}
+            <p className="mb-1"><strong>Your Sentence:</strong> {log.userSentence}</p>
+            <p className={`font-medium ${log.isCorrect ? 'text-green-600' : 'text-red-600'}`}>
+              <strong>Result:</strong> {log.isCorrect ? 'Correct' : 'Incorrect'}
+            </p>
+            {log.aiFeedback && <p className="text-xs italic text-muted-foreground mt-1"><strong>Feedback:</strong> {log.aiFeedback}</p>}
+            <p className="text-xs mt-1"><strong>Ease:</strong> {easeLevelMap[log.easeChosen] ?? 'N/A'}</p>
+          </div>
+        ))}
+      </div>
+    </ScrollArea>
+  );
+}
+
+
 // Main component to fetch and display history
 export function PracticeHistoryTabContent() {
+  const [reviewSessionId, setReviewSessionId] = useState<string | null>(null); // State for review dialog
+
   // Using useInfiniteQuery for potential pagination later
   const {
     data,
@@ -94,13 +141,18 @@ export function PracticeHistoryTabContent() {
     )
   }
 
+  const handleReviewClick = (sessionId: string) => {
+    setReviewSessionId(sessionId);
+  };
+
   return (
-    <div className="space-y-4">
-      {sessions.length > 0 ? (
-        sessions.map((session) => (
-          <PracticeHistoryItem key={session.id} session={session} />
-        ))
-      ) : (
+    <>
+      <div className="space-y-3"> {/* Reduced spacing */}
+        {sessions.length > 0 ? (
+          sessions.map((session) => (
+            <PracticeHistoryItem key={session.id} session={session} onReviewClick={handleReviewClick} />
+          ))
+        ) : (
         <p className="text-muted-foreground text-center py-8">No practice history found.</p>
       )}
       {hasNextPage && (
@@ -113,6 +165,25 @@ export function PracticeHistoryTabContent() {
           {isFetchingNextPage ? 'Loading more...' : 'Load More'}
         </Button>
       )}
-    </div>
+      </div>
+
+      {/* Review Dialog */}
+      <Dialog open={!!reviewSessionId} onOpenChange={(open) => !open && setReviewSessionId(null)}>
+        <DialogContent className="sm:max-w-[650px]">
+          <DialogHeader>
+            <DialogTitle>Session Review</DialogTitle>
+            <DialogDescription>
+              Detailed review of your practice session.
+            </DialogDescription>
+          </DialogHeader>
+          {reviewSessionId && <SessionReviewContent sessionId={reviewSessionId} />}
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="secondary">Close</Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

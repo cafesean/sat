@@ -33,7 +33,12 @@ export type UpdateWordInput = z.infer<typeof updateWordSchema>;
 
 // Schema for deleting a single word
 export const deleteWordSchema = z.object({
-  wordId: z.string(),
+  wordId: z.string().cuid(),
+});
+
+// Schema for toggling the starred status of a word
+export const toggleWordStarSchema = z.object({
+  wordId: z.string().cuid(),
 });
 
 // Schema for fetching word practice history

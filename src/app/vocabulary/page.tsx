@@ -4,14 +4,15 @@ import { PracticeHistoryTabContent } from "@/components/features/vocab/PracticeH
 import { WordBankListItem as WordBankListItemComponent } from "@/components/features/vocab/WordBankListItem";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input"; // Import Input
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // Import Select
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import useLocalStorage from "@/hooks/useLocalStorage"; // Import the custom hook
 import { api, type RouterOutputs } from "@/utils/trpc";
-import { AlertCircle, BookText, Grid, History, List, Pencil, Play, Plus, Settings, SortAsc, SortDesc } from "lucide-react"; // Add Sort icons
+import { AlertCircle, BookText, Grid, History, List, Pencil, Play, Plus, Settings, SortAsc, SortDesc } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react"; // Import useMemo
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 // Infer type for word bank list item
@@ -20,7 +21,8 @@ type SortKey = 'name' | 'createdAt' | 'masteryPercentage';
 type SortDirection = 'asc' | 'desc';
 
 export default function VocabularyPage() {
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  // Use useLocalStorage for viewMode persistence
+  const [viewMode, setViewMode] = useLocalStorage<'grid' | 'list'>('vocabViewMode', 'grid');
   const [filterText, setFilterText] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('createdAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -31,7 +33,6 @@ export default function VocabularyPage() {
   // Client-side filtering and sorting
   const filteredAndSortedBanks = useMemo(() => {
     if (!wordBanks) return [];
-
     let banks = [...wordBanks];
 
     // Filter
@@ -47,18 +48,14 @@ export default function VocabularyPage() {
       let compareA: string | number | Date = a[sortKey];
       let compareB: string | number | Date = b[sortKey];
 
-      // Handle date sorting correctly
       if (sortKey === 'createdAt') {
         compareA = new Date(compareA);
         compareB = new Date(compareB);
       }
 
       let comparison = 0;
-      if (compareA > compareB) {
-        comparison = 1;
-      } else if (compareA < compareB) {
-        comparison = -1;
-      }
+      if (compareA > compareB) comparison = 1;
+      else if (compareA < compareB) comparison = -1;
 
       return sortDirection === 'desc' ? comparison * -1 : comparison;
     });
@@ -133,7 +130,6 @@ export default function VocabularyPage() {
         {/* Loading State */}
         {isLoadingBanks && (
           <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-2"}>
-            {/* Skeletons */}
             {viewMode === 'grid' ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[200px] w-full" />)
              : Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[60px] w-full" />)}
           </div>
@@ -274,7 +270,7 @@ function WordBankCard({
      </Link>
       <CardFooter className="flex justify-between items-center pt-4">
         <Button
-          variant="secondary"
+          variant="default" // Changed to default (primary color)
           className="w-full flex-grow mr-2"
           onClick={handleStartPractice}
           disabled={startSessionMutation.isPending}
