@@ -1,99 +1,50 @@
-"use client"
+'use client' // Needed for useSession, useState, etc.
 
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { BarChart3, BookOpen, BookText, Menu } from "lucide-react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { Button } from '@/components/ui/button';
+import { signIn, signOut, useSession } from 'next-auth/react';
+import Link from 'next/link';
+// import { Moon, Sun } from 'lucide-react' // For theme toggle later
+// import { useTheme } from 'next-themes' // For theme toggle later
+// import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu' // For theme toggle later
 
-export default function Navbar() {
-  const pathname = usePathname()
-  const [open, setOpen] = useState(false)
-
-  const routes = [
-    {
-      href: "/",
-      label: "Home",
-      active: pathname === "/",
-    },
-    {
-      href: "/vocabulary",
-      label: "Vocabulary",
-      icon: <BookText className="h-4 w-4 mr-2" />,
-      active: pathname.startsWith("/vocabulary"),
-    },
-    {
-      href: "/reading-writing",
-      label: "Reading & Writing",
-      icon: <BookOpen className="h-4 w-4 mr-2" />,
-      active: pathname.startsWith("/reading-writing"),
-    },
-    {
-      href: "/dashboard",
-      label: "Dashboard",
-      icon: <BarChart3 className="h-4 w-4 mr-2" />,
-      active: pathname.startsWith("/dashboard"),
-    },
-  ]
+const Navbar = () => {
+  const { data: session, status } = useSession()
+  // const { setTheme } = useTheme() // For theme toggle later
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-14 items-center">
-        <div className="mr-4 hidden md:flex">
-          <Link href="/" className="mr-6 flex items-center space-x-2">
-            <span className="font-bold text-xl">SAT Study</span>
-          </Link>
-          <nav className="flex items-center space-x-6 text-sm font-medium">
-            {routes.map((route) => (
-              <Link
-                key={route.href}
-                href={route.href}
-                className={`flex items-center transition-colors hover:text-foreground/80 ${
-                  route.active ? "text-foreground" : "text-foreground/60"
-                }`}
-              >
-                {route.icon}
-                {route.label}
-              </Link>
-            ))}
-          </nav>
-        </div>
+    <nav className='flex items-center justify-between p-4 border-b'>
+      <Link href='/' className='text-lg font-semibold'>
+        SAT Study App {/* Placeholder Logo/Title */}
+      </Link>
+      <div className='flex items-center gap-4'>
+        {/* Theme Toggle Placeholder - Implement later */}
+        {/* <Button variant="outline" size="icon" onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>
+          <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+          <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+          <span className="sr-only">Toggle theme</span>
+        </Button> */}
 
-        <div className="flex md:hidden">
-          <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="icon" className="mr-2">
-                <Menu className="h-5 w-5" />
-                <span className="sr-only">Toggle menu</span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left">
-              <Link href="/" className="flex items-center mb-8" onClick={() => setOpen(false)}>
-                <span className="font-bold text-xl">SAT Study</span>
-              </Link>
-              <nav className="flex flex-col space-y-4">
-                {routes.map((route) => (
-                  <Link
-                    key={route.href}
-                    href={route.href}
-                    onClick={() => setOpen(false)}
-                    className={`flex items-center py-2 text-sm font-medium transition-colors hover:text-foreground/80 ${
-                      route.active ? "text-foreground" : "text-foreground/60"
-                    }`}
-                  >
-                    {route.icon}
-                    {route.label}
-                  </Link>
-                ))}
-              </nav>
-            </SheetContent>
-          </Sheet>
-          <Link href="/" className="flex items-center">
-            <span className="font-bold text-xl">SAT Study</span>
-          </Link>
-        </div>
+        {/* Auth Button */}
+        {status === 'loading' ? (
+          <Button variant='outline' size='sm' disabled>
+            Loading...
+          </Button>
+        ) : session ? (
+          <>
+            {/* Optional: Display user info */}
+            {/* <span>{session.user?.name || session.user?.email}</span> */}
+            <Button variant='outline' size='sm' onClick={() => signOut()}>
+              Sign Out
+            </Button>
+          </>
+        ) : (
+          <Button variant='outline' size='sm' onClick={() => signIn()}>
+            Sign In
+          </Button>
+        )}
       </div>
-    </header>
+    </nav>
   )
 }
+
+export default Navbar

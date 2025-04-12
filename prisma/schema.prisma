@@ -1,0 +1,178 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- NextAuth.js Models ---
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations needed later for app features
+  wordBanks     WordBank[]
+  practiceSessions PracticeSession[]
+  answerAttempts AnswerAttempt[]
+
+  // Relations for NextAuth
+  accounts      Account[]
+  sessions      Session[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// --- Application Specific Models (Add in later sprints) ---
+
+model WordBank {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  words       Word[]
+}
+
+model Word {
+  id                String    @id @default(cuid())
+  text              String    // The word itself
+  definition        String?   // AI Generated
+  sampleSentence    String?   // AI Generated
+  translation       String?   // AI Generated (e.g., Chinese)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  wordBankId        String
+  wordBank          WordBank  @relation(fields: [wordBankId], references: [id], onDelete: Cascade)
+
+  // SRS Fields
+  interval          Int       @default(1) // Days until next review
+  easeFactor        Float     @default(2.5)
+  repetitions       Int       @default(0) // Number of times reviewed
+  nextReviewDate    DateTime  @default(now())
+
+  practiceLogs      WordPracticeLog[]
+
+  @@unique([wordBankId, text]) // Ensure unique words within a bank
+}
+
+model WordPracticeLog {
+  id                String    @id @default(cuid())
+  wordId            String
+  word              Word      @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  practiceSessionId String
+  practiceSession   PracticeSession @relation(fields: [practiceSessionId], references: [id], onDelete: Cascade)
+  timestamp         DateTime  @default(now())
+  userSentence      String    // Sentence user provided
+  isCorrect         Boolean   // Based on AI grading
+  aiFeedback        String?   // Explanation from AI
+  easeChosen        Int       // User feedback on difficulty (e.g., 1=Again, 2=Hard, 3=Good, 4=Easy) - used by SRS
+}
+
+enum PracticeType {
+  VOCABULARY
+  READING_WRITING
+}
+
+model PracticeSession {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type          PracticeType
+  startTime     DateTime  @default(now())
+  endTime       DateTime?
+  score         Float?    // Overall score (e.g., percentage for R&W)
+  difficulty    Int?      // For R&W (1-5)
+  createdAt     DateTime  @default(now())
+
+  // Relations
+  vocabLogs     WordPracticeLog[] // If type is VOCABULARY
+  passage       Passage?          // If type is READING_WRITING
+  answerAttempts AnswerAttempt[]  // If type is READING_WRITING
+}
+
+model Passage {
+  id                String    @id @default(cuid())
+  content           String    @db.Text // The reading passage text
+  difficulty        Int       // Difficulty level it was generated for
+  createdAt         DateTime  @default(now())
+  practiceSessionId String    @unique // One passage per R&W session
+  practiceSession   PracticeSession @relation(fields: [practiceSessionId], references: [id], onDelete: Cascade)
+  questions         Question[]
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE // Add others if needed
+}
+
+model Question {
+  id          String       @id @default(cuid())
+  passageId   String
+  passage     Passage      @relation(fields: [passageId], references: [id], onDelete: Cascade)
+  questionText String
+  type        QuestionType @default(MULTIPLE_CHOICE)
+  options     String[]     // Array of multiple-choice options
+  correctAnswer String     // The correct option text
+  explanation String?      // Explanation for the correct answer (AI generated)
+  createdAt   DateTime     @default(now())
+
+  answerAttempts AnswerAttempt[]
+}
+
+model AnswerAttempt {
+  id                String    @id @default(cuid())
+  practiceSessionId String
+  practiceSession   PracticeSession @relation(fields: [practiceSessionId], references: [id], onDelete: Cascade)
+  questionId        String
+  question          Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  selectedAnswer    String
+  isCorrect         Boolean
+  timestamp         DateTime  @default(now())
+}

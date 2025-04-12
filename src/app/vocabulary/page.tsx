@@ -1,8 +1,10 @@
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import Link from "next/link"
-import { Plus, BookText, Play } from "lucide-react"
+'use client'
+
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BookText, Play, Plus } from "lucide-react";
+import Link from "next/link";
 
 export default function VocabularyPage() {
   return (

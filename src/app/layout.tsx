@@ -1,11 +1,11 @@
-import Navbar from "@/components/navbar";
-import { ThemeProvider } from "@/components/theme-provider";
-import "@/styles/globals.css";
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import type React from "react";
+import Navbar from '@/components/navbar';
+import ClientProviders from '@/providers/ClientProviders'; // Import the new component
+import '@/styles/globals.css';
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import type React from 'react';
 
-const inter = Inter({ subsets: ["latin"] })
+const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: "SAT Study Assistant",
@@ -19,12 +19,13 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang='en' suppressHydrationWarning>
       <body className={inter.className}>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        {/* Wrap with ClientProviders */}
+        <ClientProviders>
           <Navbar />
           {children}
-        </ThemeProvider>
+        </ClientProviders>
       </body>
     </html>
   )
