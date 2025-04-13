@@ -61,19 +61,27 @@ export async function enrichWord(
       safetySettings,
     });
 
-    const responseText = result.response.text();
-    // Attempt to parse the JSON response
-    const parsed = JSON.parse(responseText.trim());
-    // Check for all four fields now
-    if (parsed.wordType && parsed.definition && parsed.sampleSentence && parsed.translation) {
-      return {
-        wordType: parsed.wordType,
-        definition: parsed.definition,
-        sampleSentence: parsed.sampleSentence,
-        translation: parsed.translation,
-      };
-    } else {
-      console.error("Gemini enrichWord response missing expected fields (wordType, definition, sampleSentence, translation):", responseText);
+    let responseText = result.response.text().trim();
+    // Clean the response text: remove potential markdown fences and trim
+    responseText = responseText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    
+    try {
+      const parsed = JSON.parse(responseText);
+      // Check for all four fields now
+      if (parsed.wordType && parsed.definition && parsed.sampleSentence && parsed.translation) {
+        return {
+          wordType: parsed.wordType,
+          definition: parsed.definition,
+          sampleSentence: parsed.sampleSentence,
+          translation: parsed.translation,
+        };
+      } else {
+        console.error("Gemini enrichWord response missing expected fields (wordType, definition, sampleSentence, translation):", responseText);
+        return null;
+      }
+    } catch (parseError) {
+      console.error(`Failed to parse Gemini response for word "${word}":`, parseError);
+      console.error("Raw response:", responseText);
       return null;
     }
   } catch (error) {

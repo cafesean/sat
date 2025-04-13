@@ -77,6 +77,23 @@ model VerificationToken {
 
 // --- Application Specific Models (Add in later sprints) ---
 
+model WordMaster {
+  id              String   @id @default(cuid())
+  baseWord        String
+  variations      Json     // JSON array of word forms
+  language        String   @default("en")
+  wordType        String?  // noun/verb/adjective/etc.
+  definition      String?
+  sampleSentences Json     // JSON object with grade-level sentences
+  translations    Json     // JSON object with translations by language
+  isDictionaryWord Boolean @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  words          Word[]    // Relation to Word model
+
+  @@unique([baseWord, language])
+}
+
 model WordBank {
   id          String   @id @default(cuid())
   name        String
@@ -85,33 +102,36 @@ model WordBank {
   updatedAt   DateTime @updatedAt
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  words       Word[]
-  practiceSessions PracticeSession[] // Add back-relation
+  wordReferences WordBankWords[]
+  practiceSessions PracticeSession[]
+  words       Word[]   // Relation to Word model
+}
+
+model WordBankWords {
+  id          String   @id @default(cuid())
+  wordBankId  String
+  wordBank    WordBank @relation(fields: [wordBankId], references: [id], onDelete: Cascade)
+  words       Json     // JSON array of word references
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Word {
   id                String    @id @default(cuid())
-  text              String    // The word itself
-  wordType          String?   // AI Generated (e.g., "noun", "verb")
-  definition        String?   // AI Generated
-  sampleSentence    String?   // AI Generated
-  translation       String?   // AI Generated (e.g., Chinese)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  text              String    @default("") // Temporary field for backward compatibility
+  wordMasterId      String
+  wordMaster        WordMaster @relation(fields: [wordMasterId], references: [id], onDelete: Cascade)
   wordBankId        String
   wordBank          WordBank  @relation(fields: [wordBankId], references: [id], onDelete: Cascade)
-
-  // SRS Fields
-  interval          Int       @default(1) // Days until next review
+  interval          Int       @default(1)
   easeFactor        Float     @default(2.5)
-  repetitions       Int       @default(0) // Number of times reviewed
+  repetitions       Int       @default(0)
   nextReviewDate    DateTime  @default(now())
-
+  isStarred         Boolean   @default(false)
+  notes             String?
   practiceLogs      WordPracticeLog[]
-  isStarred         Boolean   @default(false) // Added for starring words
-  notes             String?   // User-added notes for the word
 
-  @@unique([wordBankId, text]) // Ensure unique words within a bank
+  @@unique([wordBankId, wordMasterId]) // Ensure unique word references within a bank
 }
 
 model WordPracticeLog {

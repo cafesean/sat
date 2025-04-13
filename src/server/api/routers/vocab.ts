@@ -28,12 +28,21 @@ export const vocabRouter = router({
 		.input(wordBankSchema)
 		.mutation(async ({ ctx, input }) => {
 			console.log("Validated input received by createWordBank:", input);
+			console.log("Session user:", ctx.session.user);
+			
+			if (!ctx.session.user?.id) {
+				throw new TRPCError({
+					code: "UNAUTHORIZED",
+					message: "User ID not found in session. Please log in again.",
+				});
+			}
+
 			try {
 				const newWordBank = await ctx.prisma.wordBank.create({
 					data: {
 						name: input.name,
 						description: input.description,
-						userId: ctx.session.user.id,
+						userId: ctx.session.user.id, // Directly assign userId instead of using connect
 					},
 				});
 				return newWordBank;
@@ -134,35 +143,58 @@ export const vocabRouter = router({
 			const words = await ctx.prisma.word.findMany({
 				where: { wordBankId: input.wordBankId },
 				select: {
-					// Ensure all fields needed by components are selected
 					id: true,
 					text: true,
-					wordType: true, // Needed for LearnWords
-					definition: true, // Needed for LearnWords
-					sampleSentence: true, // Needed for LearnWords
-					translation: true, // Needed for LearnWords
 					interval: true,
-					createdAt: true,
-					updatedAt: true,
-					wordBankId: true,
 					easeFactor: true,
 					repetitions: true,
 					nextReviewDate: true,
 					isStarred: true,
-					notes: true, // Needed for LearnWords & ViewNotesDialog
+					notes: true,
+					wordMasterId: true,
+					wordMaster: {
+						select: {
+							id: true,
+							baseWord: true,
+							wordType: true,
+							definition: true,
+							sampleSentences: true,
+							translations: true,
+							isDictionaryWord: true
+						}
+					},
+					wordBank: {
+						select: {
+							id: true
+						}
+					},
 					_count: {
-						select: { practiceLogs: true } // Needed for WordHistoryDialog
+						select: { practiceLogs: true }
 					}
 				},
-				orderBy: { createdAt: "asc" },
+				orderBy: { id: "asc" }, // Order by Word ID
 			});
-			return words;
+
+			// Transform the result to match the WordListItem type
+			return words.map(word => ({
+				id: word.id,
+				text: word.text,
+				interval: word.interval,
+				easeFactor: word.easeFactor,
+				repetitions: word.repetitions,
+				nextReviewDate: word.nextReviewDate,
+				isStarred: word.isStarred,
+				notes: word.notes,
+				wordBankId: word.wordBank.id,
+				wordMaster: word.wordMaster,
+				practiceCount: word._count.practiceLogs
+			}));
 		}),
 
 	updateWord: protectedProcedure
 		.input(updateWordSchema)
 		.mutation(async ({ ctx, input }) => {
-			const { wordId, text } = input;
+			const { wordId, text, wordMasterId } = input;
 			const word = await ctx.prisma.word.findUnique({
 				where: { id: wordId },
 				select: { wordBank: { select: { userId: true } } },
@@ -170,8 +202,30 @@ export const vocabRouter = router({
 			if (!word || word.wordBank.userId !== ctx.session.user.id) {
 				throw new TRPCError({ code: "NOT_FOUND", message: "Word not found or access denied." });
 			}
+			
+			const updateData: any = {};
+			if (text) updateData.text = text;
+			if (wordMasterId) {
+				updateData.wordMaster = { connect: { id: wordMasterId } };
+			}
+
 			const updatedWord = await ctx.prisma.word.update({
-				where: { id: wordId }, data: { text: text },
+				where: { id: wordId },
+				data: updateData,
+				// Include the wordMaster relation in the returned object
+				include: {
+					wordMaster: {
+						select: {
+							id: true,
+							baseWord: true,
+							wordType: true,
+							definition: true,
+							sampleSentences: true,
+							translations: true,
+							isDictionaryWord: true
+						}
+					}
+				}
 			});
 			return updatedWord;
 		}),
@@ -250,23 +304,64 @@ export const vocabRouter = router({
 				throw new TRPCError({ code: "BAD_REQUEST", message: "No valid words found in the input." });
 			}
 			try {
-				const wordsWithData = await Promise.all(
-					words.map(async (word) => {
-						const enrichedData = await enrichWord(word);
-						return {
-							text: word,
-							wordType: enrichedData?.wordType,
-							definition: enrichedData?.definition,
-							sampleSentence: enrichedData?.sampleSentence,
-							translation: enrichedData?.translation,
-						};
+				const wordRecords = await Promise.all(
+					words.map(async (wordText) => {
+						try {
+							// Check if word exists in WordMaster (baseWord or variations) using raw SQL for JSON check
+							const existingWords = await ctx.prisma.$queryRaw<Array<{ id: string }>>`
+								SELECT id FROM "WordMaster" WHERE "baseWord" = ${wordText} OR variations @> ${JSON.stringify([wordText])}::jsonb LIMIT 1
+							`;
+							const existingWord = existingWords[0]; // Get the first result if any
+
+							if (existingWord) {
+								return { wordMasterId: existingWord.id };
+							}
+
+							// If not, enrich and create new WordMaster
+							const enrichedData = await enrichWord(wordText);
+							const wordMaster = await ctx.prisma.wordMaster.create({
+								data: {
+									baseWord: wordText,
+									variations: [wordText],
+									wordType: enrichedData?.wordType,
+									definition: enrichedData?.definition,
+									sampleSentences: enrichedData?.sampleSentence ? 
+										{ default: enrichedData.sampleSentence } : {},
+									translations: enrichedData?.translation ?
+										{ default: enrichedData.translation } : {},
+									isDictionaryWord: !!enrichedData
+								}
+							});
+
+							return { wordMasterId: wordMaster.id };
+						} catch (error) {
+							console.error(`Error processing word "${wordText}":`, error);
+							// Create basic WordMaster record if enrichment fails
+							// Create basic WordMaster record if enrichment fails, including default JSON objects
+							const wordMaster = await ctx.prisma.wordMaster.create({
+								data: {
+									baseWord: wordText,
+									variations: [wordText], // Store as JSON array
+									isDictionaryWord: false,
+									sampleSentences: {}, // Default empty JSON
+									translations: {}     // Default empty JSON
+								}
+							});
+							return { wordMasterId: wordMaster.id };
+						}
 					})
 				);
+
+				// Create Word records linking to WordMaster
 				await ctx.prisma.word.createMany({
-					data: wordsWithData.map((wd) => ({ ...wd, wordBankId: input.wordBankId })),
-					skipDuplicates: true,
+					data: wordRecords.map((wr, index) => ({
+						text: words[index], // Add the original text back
+						wordMasterId: wr.wordMasterId,
+						wordBankId: input.wordBankId
+					})),
+					skipDuplicates: true
 				});
-				return { success: true, count: wordsWithData.length };
+				return { success: true, count: words.length };
 			} catch (error) {
 				console.error("Error adding words:", error);
 				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to add words." });
@@ -488,36 +583,48 @@ export const vocabRouter = router({
 				},
 				select: {
 					id: true,
-					text: true,
-					wordType: true,
-					definition: true,
-					sampleSentence: true,
-					translation: true,
+					text: true, // Keep for potential enrichment fallback
+					wordMaster: { // Select the related WordMaster
+						select: {
+							id: true,
+							baseWord: true,
+							wordType: true,
+							definition: true,
+							sampleSentences: true,
+							translations: true,
+						}
+					}
 				}
 			});
 
-			if (!word) {
-				throw new TRPCError({ code: "NOT_FOUND", message: "Word not found or access denied." });
+			if (!word || !word.wordMaster) { // Check if word and wordMaster exist
+				throw new TRPCError({ code: "NOT_FOUND", message: "Word or associated master record not found or access denied." });
 			}
 
-			// Check which hint fields are missing
+			const { wordMaster } = word;
+			const baseWord = wordMaster.baseWord; // Use baseWord from master
+
+			// Check which hint fields are missing in WordMaster
 			const missingFields = [];
-			if (!word.wordType) missingFields.push('wordType');
-			if (!word.definition) missingFields.push('definition');
-			if (!word.sampleSentence) missingFields.push('sampleSentence');
-			if (!word.translation) missingFields.push('translation');
+			if (!wordMaster.wordType) missingFields.push('wordType');
+			if (!wordMaster.definition) missingFields.push('definition');
+			// Check if default sample sentence exists (assuming 'default' key)
+			if (!wordMaster.sampleSentences || !(wordMaster.sampleSentences as any)?.default) missingFields.push('sampleSentence');
+			// Check if default translation exists (assuming 'default' key)
+			if (!wordMaster.translations || !(wordMaster.translations as any)?.default) missingFields.push('translation');
+
 
 			if (missingFields.length > 0) {
-				// Generate missing fields using AI
+				// Generate missing fields using AI based on the baseWord
 				const enrichedData = await enrichWord(
-					word.text,
+					baseWord, // Use baseWord for enrichment
 					ctx.session.user.languagePreference,
 					ctx.session.user.gradeLevel
 				);
 
 				if (enrichedData) {
-					// Prepare update data with only the missing fields
-					const updateData: Record<string, string> = {};
+					// Prepare update data for WordMaster
+					const updateData: any = {}; // Use any for flexibility with JSON fields
 					if (missingFields.includes('wordType') && enrichedData.wordType) {
 						updateData.wordType = enrichedData.wordType;
 					}
@@ -525,39 +632,40 @@ export const vocabRouter = router({
 						updateData.definition = enrichedData.definition;
 					}
 					if (missingFields.includes('sampleSentence') && enrichedData.sampleSentence) {
-						updateData.sampleSentence = enrichedData.sampleSentence;
+						// Update the 'default' sample sentence
+						updateData.sampleSentences = { ...(wordMaster.sampleSentences as any || {}), default: enrichedData.sampleSentence };
 					}
 					if (missingFields.includes('translation') && enrichedData.translation) {
-						updateData.translation = enrichedData.translation;
+						// Update the 'default' translation
+						updateData.translations = { ...(wordMaster.translations as any || {}), default: enrichedData.translation };
 					}
 
-					// Update the word with generated data
+					// Update the WordMaster record
 					if (Object.keys(updateData).length > 0) {
-						await ctx.prisma.word.update({
-							where: { id: wordId },
+						const updatedWordMaster = await ctx.prisma.wordMaster.update({
+							where: { id: wordMaster.id },
 							data: updateData,
 						});
+						// Return the updated hint data
+						return {
+							wordType: updatedWordMaster.wordType || null,
+							definition: updatedWordMaster.definition || null,
+							sampleSentence: (updatedWordMaster.sampleSentences as any)?.default || null,
+							translation: (updatedWordMaster.translations as any)?.default || null,
+						};
 					}
-
-					// Construct and return the final hint data object after potential update
-					const finalHintData = {
-						wordType: word.wordType || enrichedData.wordType || null,
-						definition: word.definition || enrichedData.definition || null,
-						sampleSentence: word.sampleSentence || enrichedData.sampleSentence || null,
-						translation: word.translation || enrichedData.translation || null,
-					};
-					return finalHintData;
 				} else {
 					// Enrichment failed, return existing data but log the failure
-					console.error(`Enrichment failed for word: ${word.text} (ID: ${wordId})`);
-					const { id, text, ...existingHintData } = word;
-					// Return existing data, which might have nulls
-					return existingHintData;
+					console.error(`Enrichment failed for word: ${baseWord} (Master ID: ${wordMaster.id})`);
 				}
 			}
 
-			// No missing fields initially, return existing data
-			const { id, text, ...hintData } = word;
-			return hintData;
+			// No missing fields initially or enrichment failed, return existing data from WordMaster
+			return {
+				wordType: wordMaster.wordType || null,
+				definition: wordMaster.definition || null,
+				sampleSentence: (wordMaster.sampleSentences as any)?.default || null,
+				translation: (wordMaster.translations as any)?.default || null,
+			};
 		}),
 });

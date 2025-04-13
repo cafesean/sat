@@ -71,15 +71,18 @@ export function LearnWords({ words }: LearnWordsProps) {
     <div className="flex flex-col items-center space-y-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-center text-3xl font-semibold">{currentWord.text}</CardTitle>
+          {/* Display baseWord from wordMaster, fallback to text if needed */}
+          <CardTitle className="text-center text-3xl font-semibold">{currentWord.wordMaster?.baseWord || currentWord.text}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 min-h-[150px]">
           {showDetails ? (
             <div className="space-y-2 text-sm text-center">
-              <p><strong>Type:</strong> {currentWord.wordType || 'N/A'}</p>
-              <p><strong>Definition:</strong> {currentWord.definition || 'N/A'}</p>
-              <p><strong>Sample Sentence:</strong> {currentWord.sampleSentence || 'N/A'}</p>
-              <p><strong>Translation:</strong> {currentWord.translation || 'N/A'}</p>
+              <p><strong>Type:</strong> {currentWord.wordMaster?.wordType || 'N/A'}</p>
+              <p><strong>Definition:</strong> {currentWord.wordMaster?.definition || 'N/A'}</p>
+              {/* Assuming 'default' key for sample sentence */}
+              <p><strong>Sample Sentence:</strong> {(currentWord.wordMaster?.sampleSentences as any)?.default || 'N/A'}</p>
+              {/* Assuming 'default' key for translation */}
+              <p><strong>Translation:</strong> {(currentWord.wordMaster?.translations as any)?.default || 'N/A'}</p>
             </div>
           ) : (
             <div className="flex justify-center items-center min-h-[100px]">

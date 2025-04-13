@@ -1,53 +1,68 @@
-import { z } from 'zod';
+import { z } from "zod";
 
-// Schema for creating/updating a word bank
-export const wordBankSchema = z.object({
-  name: z.string().min(2, {
-    message: 'Word bank name must be at least 2 characters.',
-  }),
-  description: z.string().optional(),
-});
-
-export type WordBankInput = z.infer<typeof wordBankSchema>;
-
-// Schema for adding a batch of words
-export const addWordsSchema = z.object({
-  wordBankId: z.string().cuid({ message: 'Invalid word bank selected.' }),
-  wordsText: z.string().min(1, { message: 'Please enter at least one word.' }),
-});
-
-export type AddWordsInput = z.infer<typeof addWordsSchema>;
-
-// Schema for listing words by bank
-export const listWordsByBankSchema = z.object({
+export const WordListItemSchema = z.object({
+  id: z.string().cuid(),
+  text: z.string(),
+  interval: z.number(),
+  easeFactor: z.number(),
+  repetitions: z.number(),
+  nextReviewDate: z.date(),
+  isStarred: z.boolean(),
+  notes: z.string().nullable(),
   wordBankId: z.string().cuid(),
+  wordMaster: z.object({
+    id: z.string().cuid(),
+    baseWord: z.string(),
+    wordType: z.enum(["NOUN","VERB","ADJECTIVE","ADVERB","PRONOUN","PREPOSITION","CONJUNCTION","INTERJECTION","ARTICLE"]).nullable(),
+    definition: z.string().nullable(),
+    sampleSentences: z.record(z.string()).nullable(),
+    translations: z.record(z.string()).nullable(),
+    isDictionaryWord: z.boolean()
+  }),
+  practiceCount: z.number(),
+  _count: z.object({
+    practiceLogs: z.number()
+  }).optional()
 });
 
-// Schema for updating a single word's text
-export const updateWordSchema = z.object({
-  wordId: z.string().cuid(),
-  text: z.string().min(1, { message: 'Word cannot be empty.' }).max(100),
+// Word Bank Schema
+export const wordBankSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional()
 });
 
-export type UpdateWordInput = z.infer<typeof updateWordSchema>;
+// Word CRUD Schemas
+export const addWordsSchema = z.object({
+  wordBankId: z.string().cuid(),
+  wordsText: z.string().min(1)
+});
 
-// Schema for updating word notes
+export const deleteWordSchema = z.object({
+  wordId: z.string().cuid()
+});
+
+export const getWordHistorySchema = z.object({
+  wordId: z.string().cuid()
+});
+
+export const listWordsByBankSchema = z.object({
+  wordBankId: z.string().cuid()
+});
+
+export const toggleWordStarSchema = z.object({
+  wordId: z.string().cuid()
+});
+
 export const updateWordNotesSchema = z.object({
   wordId: z.string().cuid(),
-  notes: z.string().max(1000).nullable(), // Allow null or string, max 1000 chars
+  notes: z.string().nullable()
 });
 
-// Schema for deleting a single word
-export const deleteWordSchema = z.object({
+export const updateWordSchema = z.object({
   wordId: z.string().cuid(),
+  text: z.string().optional(),
+  wordMasterId: z.string().cuid().optional()
 });
 
-// Schema for toggling star status
-export const toggleWordStarSchema = z.object({
-  wordId: z.string().cuid(),
-});
-
-// Schema for fetching word practice history
-export const getWordHistorySchema = z.object({
-  wordId: z.string().cuid(), // Ensure it's a CUID if word IDs are CUIDs
-});
+export type WordListItem = z.infer<typeof WordListItemSchema>;
+export type WordBank = z.infer<typeof wordBankSchema>;

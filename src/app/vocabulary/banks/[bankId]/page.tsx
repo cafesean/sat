@@ -1,6 +1,6 @@
 'use client'
 
-import { ViewNotesDialog } from '@/components/features/vocab/ViewNotesDialog'; // Re-added import
+import { ViewNotesDialog } from '@/components/features/vocab/ViewNotesDialog';
 import { WordHistoryDialog } from '@/components/features/vocab/WordHistoryDialog';
 import {
   AlertDialog,
@@ -24,17 +24,45 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { api, type RouterOutputs } from '@/utils/trpc';
-import { ArrowLeft, ChevronsUpDown, Loader2, NotebookText, Plus, Save, SortAsc, SortDesc, Star, Trash2, X } from 'lucide-react'; // Re-added NotebookText icon
+import { ArrowLeft, ChevronsUpDown, Loader2, NotebookText, Plus, Save, SortAsc, SortDesc, Star, Trash2, X } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
 import React, { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
+import { type JsonValue } from '@prisma/client/runtime/library';
+
 // Define types
 type WordBank = RouterOutputs['vocab']['getById'];
-// Ensure WordListItem type includes isStarred and _count (inferred from backend)
-type WordListItem = RouterOutputs['vocab']['listByBank'][number];
-type WordSortKey = 'text' | 'createdAt' | 'interval';
+
+// Explicitly define WordListItem based on the select in listByBank query
+type WordListItem = {
+  id: string;
+  text: string;
+  interval: number;
+  easeFactor: number;
+  repetitions: number;
+  nextReviewDate: Date;
+  isStarred: boolean;
+  notes: string | null;
+  wordBankId: string;
+  wordMaster: {
+    id: string;
+    baseWord: string;
+    wordType: string | null;
+    definition: string | null;
+    sampleSentences: JsonValue;
+    translations: JsonValue;
+    isDictionaryWord: boolean;
+  };
+  practiceCount: number;
+  _count?: {
+    practiceLogs: number;
+  };
+};
+
+// Update sort keys: 'text' -> 'baseWord', 'createdAt' -> 'id'
+type WordSortKey = 'baseWord' | 'interval' | 'id'; // Corrected sort keys
 type SortDirection = 'asc' | 'desc';
 
 // Helper function to determine mastery level and badge variant
@@ -70,7 +98,8 @@ export default function WordBankDetailPage () {
 
   // State for filtering/sorting words
   const [wordFilterText, setWordFilterText] = useState('');
-  const [wordSortKey, setWordSortKey] = useState<WordSortKey>('createdAt');
+  // Correctly initialize state with the *corrected* WordSortKey type
+  const [wordSortKey, setWordSortKey] = useState<WordSortKey>('id'); // 'id' is now a valid key
   const [wordSortDirection, setWordSortDirection] = useState<SortDirection>('asc');
   const [showStarredOnly, setShowStarredOnly] = useState(false); // State for starred filter
   const [newWordsText, setNewWordsText] = useState(''); // State for the new words textarea
@@ -136,24 +165,25 @@ export default function WordBankDetailPage () {
      }
    });
 
-  // Mutation for updating a word
+  // Mutation for updating a word (Note: Currently updates the temporary 'text' field)
   const updateWordMutation = api.vocab.updateWord.useMutation({
     onSuccess: (updatedWord) => {
-      toast.success(`Word "${updatedWord.text}" updated.`);
+      // Display the baseWord in the toast message if available
+      const displayWord = updatedWord.wordMaster?.baseWord || updatedWord.text;
+      toast.success(`Word "${displayWord}" updated.`);
       setEditingWordId(null); // Exit editing mode
       // Invalidate queries to refetch data
       utils.vocab.listByBank.invalidate({ wordBankId: bankId });
-      // No need to invalidate getById or listWordBanks as only word text changed
     },
     onError: (error) => {
       toast.error(`Failed to update word: ${error.message}`);
-      // Optionally revert the text change or keep editing mode active
     }
   });
 
   const handleEditClick = (word: WordListItem) => {
     setEditingWordId(word.id);
-    setEditingWordText(word.text);
+    // Use baseWord for editing, fallback to text
+    setEditingWordText(word.wordMaster?.baseWord || word.text || '');
   };
 
   const handleCancelEdit = () => {
@@ -161,13 +191,23 @@ export default function WordBankDetailPage () {
     setEditingWordText('');
   };
 
+  // TODO: Decide if editing should update WordMaster.baseWord or just Word.text
+  // Currently, it updates Word.text via the updateWord mutation.
+  // TODO: Decide if editing should update WordMaster.baseWord or just Word.text
+  // Currently, it updates Word.text via the updateWord mutation.
   const handleSaveEdit = () => {
     if (!editingWordId || !editingWordText.trim()) return;
-    if (editingWordText === words?.find(w => w.id === editingWordId)?.text) {
+    const originalWord = words?.find(w => w.id === editingWordId);
+    // Ensure originalWord exists before accessing properties
+    const originalValue = originalWord?.wordMaster?.baseWord ?? originalWord?.text ?? '';
+    // Compare with baseWord, fallback to text
+    if (editingWordText === originalValue) {
       // No change, just cancel edit
       handleCancelEdit();
       return;
     }
+    // For now, update the temporary text field.
+    // If WordMaster needs update, a different mutation is required.
     updateWordMutation.mutate({
       wordId: editingWordId,
       text: editingWordText.trim(),
@@ -195,29 +235,43 @@ export default function WordBankDetailPage () {
       processedWords = processedWords.filter(word => word.isStarred);
     }
 
-    // Filter by Text
+    // Filter by Text (check baseWord and definition)
     if (wordFilterText) {
+      const filterLower = wordFilterText.toLowerCase();
       processedWords = processedWords.filter(word =>
-        word.text.toLowerCase().includes(wordFilterText.toLowerCase()) ||
-        word.definition?.toLowerCase().includes(wordFilterText.toLowerCase()) ||
-        word.sampleSentence?.toLowerCase().includes(wordFilterText.toLowerCase())
+        (word.wordMaster?.baseWord || word.text || '').toLowerCase().includes(filterLower) || // Check baseWord or fallback text
+        (word.wordMaster?.definition || '').toLowerCase().includes(filterLower) // Check definition
+        // Add other fields to filter if needed, e.g., sample sentence, translation
       );
     }
 
     // Sort
     processedWords.sort((a, b) => {
-      let compareA: string | number | Date = a[wordSortKey];
-      let compareB: string | number | Date = b[wordSortKey];
+      let compareA: string | number | undefined;
+      let compareB: string | number | undefined;
 
-      if (wordSortKey === 'createdAt') { // Handle dates (assuming nextReviewDate isn't needed for sorting now)
-        compareA = new Date(compareA);
-        compareB = new Date(compareB);
+      // Use the corrected WordSortKey type here
+      const key = wordSortKey; // No need to cast if type is correct
+
+      switch (key) {
+        case 'baseWord':
+          compareA = (a.wordMaster?.baseWord || a.text || '').toLowerCase();
+          compareB = (b.wordMaster?.baseWord || b.text || '').toLowerCase();
+          break;
+        case 'interval':
+          compareA = a.interval;
+          compareB = b.interval;
+          break;
+        case 'id': // Default sort (like date added)
+        default:
+          compareA = a.id;
+          compareB = b.id;
+          break;
       }
-      if (wordSortKey === 'text') { // Case-insensitive text sort
-         compareA = String(compareA).toLowerCase();
-         compareB = String(compareB).toLowerCase();
-      }
-      // interval is already a number
+
+      // Handle potential undefined values if necessary
+      compareA = compareA ?? '';
+      compareB = compareB ?? '';
 
       let comparison = 0;
       if (compareA > compareB) comparison = 1;
@@ -306,13 +360,15 @@ export default function WordBankDetailPage () {
               className="h-9 flex-grow"
             />
             <div className="flex gap-2">
+              {/* Correct the Select component to use updated WordSortKey values */}
               <Select value={wordSortKey} onValueChange={(value) => setWordSortKey(value as WordSortKey)}>
                 <SelectTrigger className="h-9 w-[140px]">
                   <SelectValue placeholder="Sort by" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="text">Word</SelectItem>
-                  <SelectItem value="createdAt">Date Added</SelectItem>
+                  {/* Use corrected values matching WordSortKey */}
+                  <SelectItem value="baseWord">Word</SelectItem>
+                  <SelectItem value="id">Date Added</SelectItem>
                   <SelectItem value="interval">Mastery</SelectItem>
                 </SelectContent>
               </Select>
@@ -376,9 +432,10 @@ export default function WordBankDetailPage () {
                             <button
                               className="flex items-center gap-2 flex-grow text-left mr-2 overflow-hidden"
                               onClick={() => handleEditClick(word)} // Enable editing on click
-                              title={`Edit "${word.text}"`}
+                              title={`Edit "${word.wordMaster?.baseWord || word.text}"`} // Use baseWord
                             >
-                              <span className="font-medium truncate">{word.text}</span>
+                              {/* Display baseWord, fallback to text */}
+                              <span className="font-medium truncate">{word.wordMaster?.baseWord || word.text}</span>
                               <ChevronsUpDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                             </button>
                           </CollapsibleTrigger>
@@ -387,8 +444,8 @@ export default function WordBankDetailPage () {
                         {/* Right side icons (only show when not editing) */}
                         {!isEditing && (
                           <div className="flex items-center space-x-1 flex-shrink-0">
-                            {/* Pass count safely */}
-                            <WordHistoryDialog wordId={word.id} wordText={word.text} historyCount={word._count?.practiceLogs ?? 0} />
+                            {/* Pass baseWord and count safely */}
+                            <WordHistoryDialog wordId={word.id} wordText={word.wordMaster?.baseWord || word.text} historyCount={word._count?.practiceLogs ?? 0} />
                             {/* Star Button */}
                             <Button
                               variant="ghost"
@@ -415,7 +472,7 @@ export default function WordBankDetailPage () {
                                 e.stopPropagation(); // Prevent collapsible trigger
                                 setWordToDelete(word);
                               }}
-                              title={`Delete "${word.text}"`}
+                              title={`Delete "${word.wordMaster?.baseWord || word.text}"`} // Use baseWord
                             >
                               <Trash2 className="h-3 w-3" />
                             </Button>
@@ -423,14 +480,23 @@ export default function WordBankDetailPage () {
                         )}
                       </div>
                       <CollapsibleContent className="pt-3 mt-2 border-t w-full">
-                        <div className="space-y-1.5 text-xs">
-                          {word.definition && <p><strong>Def:</strong> {word.definition}</p>}
-                          {word.sampleSentence && <p><strong>Ex:</strong> <em>{word.sampleSentence}</em></p>}
-                          {word.translation && <p><strong>Trans:</strong> {word.translation}</p>}
-                          {!word.definition && !word.sampleSentence && !word.translation && (
-                            <p className="text-muted-foreground italic">No details available.</p>
-                          )}
-                        </div>
+                        {/* Check if wordMaster exists before trying to display details */}
+                        {word.wordMaster ? (
+                          <div className="space-y-1.5 text-xs">
+                            {/* Access details via wordMaster */}
+                            {word.wordMaster.definition && <p><strong>Def:</strong> {word.wordMaster.definition}</p>}
+                            {/* Assuming 'default' key for sample sentence */}
+                            {(word.wordMaster.sampleSentences as any)?.default && <p><strong>Ex:</strong> <em>{(word.wordMaster.sampleSentences as any).default}</em></p>}
+                            {/* Assuming 'default' key for translation */}
+                            {(word.wordMaster.translations as any)?.default && <p><strong>Trans:</strong> {(word.wordMaster.translations as any).default}</p>}
+                            {/* Check if any details exist in wordMaster */}
+                            {!word.wordMaster.definition && !(word.wordMaster.sampleSentences as any)?.default && !(word.wordMaster.translations as any)?.default && (
+                              <p className="text-muted-foreground italic">No details available.</p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-muted-foreground italic text-xs">Word details not available.</p>
+                        )}
                       </CollapsibleContent>
                     </div>
                   </Collapsible>
@@ -477,7 +543,8 @@ export default function WordBankDetailPage () {
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete the word
-              <span className="font-semibold"> "{wordToDelete?.text}"</span> and its practice history.
+              {/* Display baseWord, fallback to text */}
+              <span className="font-semibold"> "{wordToDelete?.wordMaster?.baseWord || wordToDelete?.text}"</span> and its practice history.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

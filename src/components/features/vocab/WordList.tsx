@@ -4,15 +4,15 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { api, type RouterOutputs } from '@/utils/trpc';
+import { api } from '@/utils/trpc';
 import { BookOpen, Loader2, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { WordDetailDialog } from './WordDetailDialog';
 
-type WordItem = RouterOutputs['vocab']['listByBank'][number];
+import type { WordListItem } from '@/schemas/vocab.schema';
 
 interface WordListProps {
-  initialWords: WordItem[];
+  initialWords: WordListItem[];
   bankId: string;
 }
 
@@ -29,7 +29,17 @@ export function WordList({ initialWords, bankId }: WordListProps) {
       setWords(currentWords =>
         currentWords.map(w =>
           w.id === updatedWord.id
-            ? { ...w, ...updatedWord } // Merge updated data, keeping existing fields like _count
+            ? {
+                ...w,
+                ...updatedWord,
+                wordMaster: updatedWord.wordMaster ? {
+                  ...w.wordMaster,
+                  ...updatedWord.wordMaster,
+                  wordType: updatedWord.wordMaster.wordType as "NOUN" | "VERB" | "ADJECTIVE" | "ADVERB" | "PRONOUN" | "PREPOSITION" | "CONJUNCTION" | "INTERJECTION" | "ARTICLE" | null,
+                  sampleSentences: updatedWord.wordMaster.sampleSentences as Record<string, string> | null,
+                  translations: updatedWord.wordMaster.translations as Record<string, string> | null
+                } : w.wordMaster
+              }
             : w
         )
       );
@@ -54,7 +64,7 @@ export function WordList({ initialWords, bankId }: WordListProps) {
     }
   });
 
-  const handleEditClick = (word: WordItem) => {
+  const handleEditClick = (word: WordListItem) => {
     setEditingWordId(word.id);
     setEditValue(word.text);
   };
@@ -134,7 +144,7 @@ export function WordList({ initialWords, bankId }: WordListProps) {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete the word "{word.text}".
+                    This action cannot be undone. This will permanently delete the word "{word.wordMaster?.baseWord || 'Unknown word'}".
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
