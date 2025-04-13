@@ -20,14 +20,15 @@ enum UserRole {
 model User {
   id            String    @id @default(cuid())
   name          String?
-  email         String?   @unique
+  email         String    @unique // Ensure non-nullable and unique for password login
   emailVerified DateTime?
   image         String?
+  hashedPassword String?   // Added for password authentication
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-  role          UserRole  @default(USER) // Add role field
-  languagePreference String @default("en") // e.g., "en", "zh"
-  gradeLevel    Int?      // e.g., 9, 10, 11, 12
+  role          UserRole  @default(USER)
+  languagePreference String @default("en")
+  gradeLevel    Int?
 
   // Relations needed later for app features
   wordBanks     WordBank[]

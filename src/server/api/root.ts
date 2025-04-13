@@ -1,4 +1,5 @@
 import { adminRouter } from "./routers/admin"; // Import admin router
+import { authRouter } from "./routers/auth"; // Import the new auth router
 import { userRouter } from "./routers/user";
 import { vocabRouter } from "./routers/vocab";
 import { router } from "./trpc";
@@ -11,6 +12,7 @@ import { router } from "./trpc";
  * All routers added in /api/routers should be manually added here.
  */
 export const appRouter = router({
+  auth: authRouter, // Add the auth router
   user: userRouter,
   vocab: vocabRouter,
   admin: adminRouter, // Add admin router

@@ -1,7 +1,9 @@
 import { prisma } from '@/lib/db/prisma'; // Use the singleton instance
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import { UserRole } from '@prisma/client'; // Import UserRole enum
+import bcrypt from 'bcryptjs'; // Import bcrypt
 import { type NextAuthOptions, type User as NextAuthUser } from 'next-auth'; // Import User type
+import CredentialsProvider from 'next-auth/providers/credentials'; // Import CredentialsProvider
 import EmailProvider from 'next-auth/providers/email'; // Enable Email provider
 import GoogleProvider from 'next-auth/providers/google';
 
@@ -21,18 +23,56 @@ declare module 'next-auth' {
   // }
 }
 
-
 export const authOptions: NextAuthOptions = {
   // Configure one or more authentication providers
   adapter: PrismaAdapter(prisma),
   providers: [
-    // Example: Google Provider (Ensure GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are in .env)
+    // Credentials Provider for Email/Password
+    CredentialsProvider({
+      name: 'Credentials',
+      credentials: {
+        email: { label: "Email", type: "email", placeholder: "jsmith@example.com" },
+        password: { label: "Password", type: "password" }
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          console.log('Missing credentials');
+          return null;
+        }
+
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email },
+        });
+
+        if (!user || !user.hashedPassword) {
+          // User not found or doesn't have a password set (maybe magic link only)
+          console.log('User not found or no password set for:', credentials.email);
+          return null;
+        }
+
+        const isValidPassword = await bcrypt.compare(
+          credentials.password,
+          user.hashedPassword
+        );
+
+        if (!isValidPassword) {
+          console.log('Invalid password attempt for:', credentials.email);
+          return null;
+        }
+
+        console.log('Credentials valid for:', credentials.email);
+        // Return user object without password
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { hashedPassword, ...userWithoutPassword } = user;
+        return userWithoutPassword;
+      }
+    }),
+    // Google Provider
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!, // The '!' asserts that the value is non-null
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
-    // Email Provider (Requires email server setup in .env)
-    // IMPORTANT: Ensure EMAIL_SERVER_* and EMAIL_FROM variables are set in your .env file
+    // Email Provider (Magic Link)
     EmailProvider({
       server: {
         host: process.env.EMAIL_SERVER_HOST,

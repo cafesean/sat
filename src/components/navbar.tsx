@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils';
 import { api } from '@/utils/trpc';
 import { UserRole } from '@prisma/client';
 import { Moon, PlayCircle, Sun } from 'lucide-react'; // Add Moon, Sun
-import { signIn, signOut, useSession } from 'next-auth/react';
+import { signOut, useSession } from 'next-auth/react'; // Removed signIn
 import { useTheme } from 'next-themes'; // Import useTheme
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -91,9 +91,12 @@ const Navbar = () => {
             <UserNav session={session} />
           </>
         ) : (
-          <Button variant='outline' size='sm' onClick={() => signIn()}>
-            Sign In
-          </Button>
+          // Link to the login page instead of triggering signIn directly
+          <Link href="/login" passHref>
+             <Button variant='outline' size='sm'>
+               Sign In
+             </Button>
+           </Link>
         )}
       </div>
     </nav>
