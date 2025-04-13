@@ -12,7 +12,7 @@ import {
 	getWordHistorySchema,
 	listWordsByBankSchema,
 	toggleWordStarSchema,
-
+	updateWordNotesSchema, // Add schema import
 	updateWordSchema,
 	wordBankSchema
 } from "@/schemas/vocab.schema";
@@ -21,6 +21,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 
+// Vocab Router
 export const vocabRouter = router({
 	// --- Word Bank CRUD ---
 	createWordBank: protectedProcedure
@@ -133,12 +134,24 @@ export const vocabRouter = router({
 			const words = await ctx.prisma.word.findMany({
 				where: { wordBankId: input.wordBankId },
 				select: {
-					id: true, text: true, definition: true, sampleSentence: true,
-					translation: true, interval: true, createdAt: true, updatedAt: true,
-					wordBankId: true, easeFactor: true, repetitions: true, nextReviewDate: true,
+					// Ensure all fields needed by components are selected
+					id: true,
+					text: true,
+					wordType: true, // Needed for LearnWords
+					definition: true, // Needed for LearnWords
+					sampleSentence: true, // Needed for LearnWords
+					translation: true, // Needed for LearnWords
+					interval: true,
+					createdAt: true,
+					updatedAt: true,
+					wordBankId: true,
+					easeFactor: true,
+					repetitions: true,
+					nextReviewDate: true,
 					isStarred: true,
+					notes: true, // Needed for LearnWords & ViewNotesDialog
 					_count: {
-						select: { practiceLogs: true }
+						select: { practiceLogs: true } // Needed for WordHistoryDialog
 					}
 				},
 				orderBy: { createdAt: "asc" },
@@ -159,6 +172,28 @@ export const vocabRouter = router({
 			}
 			const updatedWord = await ctx.prisma.word.update({
 				where: { id: wordId }, data: { text: text },
+			});
+			return updatedWord;
+		}),
+
+	updateWordNotes: protectedProcedure
+		.input(updateWordNotesSchema) // Use the new schema
+		.mutation(async ({ ctx, input }) => {
+			const { wordId, notes } = input;
+			// Verify ownership
+			const word = await ctx.prisma.word.findUnique({
+				where: { id: wordId },
+				select: { wordBank: { select: { userId: true } } },
+			});
+			if (!word || word.wordBank.userId !== ctx.session.user.id) {
+				throw new TRPCError({ code: "NOT_FOUND", message: "Word not found or access denied." });
+			}
+			// Update notes
+			// Update notes
+			const updatedWord = await ctx.prisma.word.update({
+				where: { id: wordId },
+				data: { notes: notes }, // Update only the notes field
+				select: { id: true, notes: true }, // Return updated notes
 			});
 			return updatedWord;
 		}),
@@ -444,7 +479,7 @@ export const vocabRouter = router({
 		.input(z.object({ wordId: z.string().cuid() }))
 		.query(async ({ ctx, input }) => {
 			const { wordId } = input;
-			const wordWithOwnerCheck = await ctx.prisma.word.findUnique({
+			const word = await ctx.prisma.word.findUnique({
 				where: {
 					id: wordId,
 					wordBank: {
@@ -453,6 +488,7 @@ export const vocabRouter = router({
 				},
 				select: {
 					id: true,
+					text: true,
 					wordType: true,
 					definition: true,
 					sampleSentence: true,
@@ -460,11 +496,68 @@ export const vocabRouter = router({
 				}
 			});
 
-			if (!wordWithOwnerCheck) {
+			if (!word) {
 				throw new TRPCError({ code: "NOT_FOUND", message: "Word not found or access denied." });
 			}
 
-			const { id, ...hintData } = wordWithOwnerCheck;
+			// Check which hint fields are missing
+			const missingFields = [];
+			if (!word.wordType) missingFields.push('wordType');
+			if (!word.definition) missingFields.push('definition');
+			if (!word.sampleSentence) missingFields.push('sampleSentence');
+			if (!word.translation) missingFields.push('translation');
+
+			if (missingFields.length > 0) {
+				// Generate missing fields using AI
+				const enrichedData = await enrichWord(
+					word.text,
+					ctx.session.user.languagePreference,
+					ctx.session.user.gradeLevel
+				);
+
+				if (enrichedData) {
+					// Prepare update data with only the missing fields
+					const updateData: Record<string, string> = {};
+					if (missingFields.includes('wordType') && enrichedData.wordType) {
+						updateData.wordType = enrichedData.wordType;
+					}
+					if (missingFields.includes('definition') && enrichedData.definition) {
+						updateData.definition = enrichedData.definition;
+					}
+					if (missingFields.includes('sampleSentence') && enrichedData.sampleSentence) {
+						updateData.sampleSentence = enrichedData.sampleSentence;
+					}
+					if (missingFields.includes('translation') && enrichedData.translation) {
+						updateData.translation = enrichedData.translation;
+					}
+
+					// Update the word with generated data
+					if (Object.keys(updateData).length > 0) {
+						await ctx.prisma.word.update({
+							where: { id: wordId },
+							data: updateData,
+						});
+					}
+
+					// Construct and return the final hint data object after potential update
+					const finalHintData = {
+						wordType: word.wordType || enrichedData.wordType || null,
+						definition: word.definition || enrichedData.definition || null,
+						sampleSentence: word.sampleSentence || enrichedData.sampleSentence || null,
+						translation: word.translation || enrichedData.translation || null,
+					};
+					return finalHintData;
+				} else {
+					// Enrichment failed, return existing data but log the failure
+					console.error(`Enrichment failed for word: ${word.text} (ID: ${wordId})`);
+					const { id, text, ...existingHintData } = word;
+					// Return existing data, which might have nulls
+					return existingHintData;
+				}
+			}
+
+			// No missing fields initially, return existing data
+			const { id, text, ...hintData } = word;
 			return hintData;
 		}),
 });

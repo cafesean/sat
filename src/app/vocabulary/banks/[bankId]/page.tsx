@@ -1,5 +1,6 @@
 'use client'
 
+import { ViewNotesDialog } from '@/components/features/vocab/ViewNotesDialog'; // Re-added import
 import { WordHistoryDialog } from '@/components/features/vocab/WordHistoryDialog';
 import {
   AlertDialog,
@@ -23,7 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { api, type RouterOutputs } from '@/utils/trpc';
-import { ArrowLeft, ChevronsUpDown, Loader2, Plus, Save, SortAsc, SortDesc, Star, Trash2, X } from 'lucide-react'; // Added Star icon
+import { ArrowLeft, ChevronsUpDown, Loader2, NotebookText, Plus, Save, SortAsc, SortDesc, Star, Trash2, X } from 'lucide-react'; // Re-added NotebookText icon
 import { useSession } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
 import React, { useMemo, useState } from 'react';
@@ -279,9 +280,21 @@ export default function WordBankDetailPage () {
       </Button>
 
       <Card>
-        <CardHeader>
-          <CardTitle>{wordBank.name}</CardTitle>
-          {wordBank.description && <CardDescription>{wordBank.description}</CardDescription>}
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>{wordBank.name}</CardTitle>
+            {wordBank.description && <CardDescription>{wordBank.description}</CardDescription>}
+          </div>
+          <div className="flex gap-2"> {/* Wrap buttons */}
+            <ViewNotesDialog bankId={bankId}>
+              <Button variant="secondary">
+                <NotebookText className="mr-2 h-4 w-4" /> View Notes
+              </Button>
+            </ViewNotesDialog>
+            <Button onClick={() => router.push(`/vocabulary/learn/${bankId}`)}>
+              Learn Words
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {/* Filter/Sort Controls */}
@@ -374,8 +387,8 @@ export default function WordBankDetailPage () {
                         {/* Right side icons (only show when not editing) */}
                         {!isEditing && (
                           <div className="flex items-center space-x-1 flex-shrink-0">
-                            {/* Removed Mastery Badge */}
-                            <WordHistoryDialog wordId={word.id} wordText={word.text} historyCount={word._count.practiceLogs} />
+                            {/* Pass count safely */}
+                            <WordHistoryDialog wordId={word.id} wordText={word.text} historyCount={word._count?.practiceLogs ?? 0} />
                             {/* Star Button */}
                             <Button
                               variant="ghost"

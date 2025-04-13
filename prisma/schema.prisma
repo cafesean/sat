@@ -109,6 +109,7 @@ model Word {
 
   practiceLogs      WordPracticeLog[]
   isStarred         Boolean   @default(false) // Added for starring words
+  notes             String?   // User-added notes for the word
 
   @@unique([wordBankId, text]) // Ensure unique words within a bank
 }

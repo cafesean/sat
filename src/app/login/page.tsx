@@ -8,10 +8,11 @@ import { Separator } from "@/components/ui/separator";
 import { signIn } from 'next-auth/react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { Suspense, useState, type FormEvent } from 'react'; // Import Suspense
 import { toast } from 'sonner';
 
-export default function LoginPage() {
+// Renamed the original component
+function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isCredentialsLoading, setIsCredentialsLoading] = useState(false);
@@ -169,5 +170,14 @@ export default function LoginPage() {
         </CardFooter>
       </Card>
     </div>
+  );
+}
+
+// New default export component wrapping LoginForm with Suspense
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center items-center min-h-screen"><p>Loading...</p></div>}>
+      <LoginForm />
+    </Suspense>
   );
 }

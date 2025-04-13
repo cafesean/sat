@@ -28,15 +28,19 @@ const safetySettings = [
 /**
  * Enriches a word with definition, sample sentence, translation, and word type using Gemini.
  */
-export async function enrichWord(word: string): Promise<{ definition: string; sampleSentence: string; translation: string; wordType: string } | null> {
+export async function enrichWord(
+  word: string,
+  languagePreference?: string,
+  gradeLevel?: number | null
+): Promise<{ definition: string; sampleSentence: string; translation: string; wordType: string } | null> {
   if (!genAI) return null; // Return null if API key is missing
 
   const prompt = `
     For the English word "${word}", provide the following in JSON format:
     1.  "wordType": The primary part of speech (e.g., "noun", "verb", "adjective", "adverb").
-    2.  "definition": A concise definition suitable for an SAT student.
-    3.  "sampleSentence": A clear sample sentence using the word in context.
-    4.  "translation": The Chinese translation of the word.
+    2.  "definition": A concise definition suitable for ${gradeLevel ? `a grade ${gradeLevel} student` : 'an SAT student'}.
+    3.  "sampleSentence": A clear sample sentence using the word in context${gradeLevel ? ` at a grade ${gradeLevel} reading level` : ''}.
+    4.  "translation": The ${languagePreference || 'Chinese'} translation of the word.
 
     Example JSON format:
     {
