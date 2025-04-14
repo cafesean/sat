@@ -3,7 +3,6 @@
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea'; // Re-import Textarea
 import { useToast } from '@/hooks/use-toast'; // Use Shadcn toast
 import { api } from '@/utils/trpc';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -116,26 +115,26 @@ export const WordBankForm: React.FC<WordBankFormProps> = ({ initialData, onSucce
             <FormItem>
               <FormLabel>Word Bank Name</FormLabel>
               <FormControl>
-                <Input placeholder="e.g., SAT High Frequency" {...field} disabled={isPending} />
+                <Input placeholder="ex. 50 Biology Words, 101 Tough SAT Words..." {...field} disabled={isPending} />
               </FormControl>
               <FormDescription>A descriptive name for your word bank.</FormDescription>
               <FormMessage />
             </FormItem>
           )}
         />
-        <FormField
+        {/* <FormField
           control={form.control}
           name="description"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Description (Optional)</FormLabel>
               <FormControl>
-                <Textarea placeholder="e.g., Words commonly found in the SAT reading section" {...field} disabled={isPending} />
+                <Textarea placeholder="e.g., 50 Biology Words, 101 Tough SAT Words..." {...field} disabled={isPending} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
-        />
+        /> */}
         {/* Button Row */}
         <div className="flex justify-end gap-2">
           {/* Cancel Button */}

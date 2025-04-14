@@ -1,5 +1,31 @@
 import { z } from "zod";
 
+
+export const NewWordListItemSchema = z.object({
+  text: z.string(),
+  interval: z.number(),
+  easeFactor: z.number(),
+  repetitions: z.number(),
+  nextReviewDate: z.date(),
+  isStarred: z.boolean(),
+  notes: z.string().nullable(),
+  wordBankId: z.string().cuid(),
+  wordMaster: z.object({
+    id: z.string().cuid(),
+    baseWord: z.string(),
+    wordType: z.enum(["NOUN","VERB","ADJECTIVE","ADVERB","PRONOUN","PREPOSITION","CONJUNCTION","INTERJECTION","ARTICLE"]).nullable(),
+    definition: z.string().nullable(),
+    sampleSentences: z.record(z.string()).nullable(),
+    translations: z.record(z.string()).nullable(),
+    isDictionaryWord: z.boolean()
+  }),
+  practiceCount: z.number(),
+  _count: z.object({
+    practiceLogs: z.number()
+  }).optional()
+});
+
+
 export const WordListItemSchema = z.object({
   id: z.string().cuid(),
   text: z.string(),
