@@ -70,7 +70,9 @@ export default function VocabularyPracticeSessionPage () {
   const [feedbackData, setFeedbackData] = useState<{ isCorrect: boolean, feedback: string } | null>(null)
   const [isSessionComplete, setIsSessionComplete] = useState(false) // State to track completion
   const [wordsAnsweredCount, setWordsAnsweredCount] = useState(0); // State for word counter
-  const [isHintPopoverOpen, setIsHintPopoverOpen] = useState(false); // State for hint popover
+  const [isHintPopoverOpen, setIsHintPopoverOpen] = useState(false);
+  const [hintUsed, setHintUsed] = useState(false);
+  const [isPracticeMode] = useState(true); // Always true for practice sessions
 
   // Fetch the next word for the session
   const {
@@ -120,7 +122,7 @@ export default function VocabularyPracticeSessionPage () {
     }
   })
 
-  const handleSentenceSubmit = (ease: EaseLevel) => {
+  const handleSentenceSubmit = () => {
     if (!currentWord) {
       toast.error('No current word to practice.')
       return
@@ -130,15 +132,13 @@ export default function VocabularyPracticeSessionPage () {
       return
     }
 
-    const easeMap: Record<EaseLevel, number> = { AGAIN: 1, HARD: 2, GOOD: 3, EASY: 4 };
-    const easeNumber = easeMap[ease];
-
     submitAnswerMutation.mutate({
       practiceSessionId: sessionId,
       wordId: currentWord.id,
       userSentence: userSentence.trim(),
-      easeChosen: easeNumber
+      easeChosen: hintUsed ? 1 : 3 // Mark as AGAIN if hint was used, otherwise GOOD
     })
+    setHintUsed(false); // Reset hint tracking
   }
 
   const handleNextWord = () => {
@@ -239,7 +239,10 @@ export default function VocabularyPracticeSessionPage () {
             <CardTitle className="text-3xl font-bold">{currentWord?.text}</CardTitle>
             {/* Hint Button & Popover */}
             {currentWord && (
-              <Popover open={isHintPopoverOpen} onOpenChange={setIsHintPopoverOpen}>
+              <Popover open={isHintPopoverOpen} onOpenChange={(open) => {
+                setIsHintPopoverOpen(open);
+                if (open) setHintUsed(true);
+              }}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm">
                     <Lightbulb className="mr-2 h-4 w-4" /> Hint
@@ -290,10 +293,13 @@ export default function VocabularyPracticeSessionPage () {
               )
             : (
             <div className="flex flex-wrap justify-center sm:justify-end gap-2 w-full">
-              <Button variant="destructive" onClick={() => handleSentenceSubmit('AGAIN')} disabled={submitAnswerMutation.isPending}>Again</Button>
-              <Button variant="secondary" onClick={() => handleSentenceSubmit('HARD')} disabled={submitAnswerMutation.isPending}>Hard</Button>
-              <Button variant="secondary" onClick={() => handleSentenceSubmit('GOOD')} disabled={submitAnswerMutation.isPending}>Good</Button>
-              <Button variant="default" onClick={() => handleSentenceSubmit('EASY')} disabled={submitAnswerMutation.isPending}>Easy</Button>
+              <Button
+                onClick={handleSentenceSubmit}
+                disabled={submitAnswerMutation.isPending}
+                className="w-full"
+              >
+                Submit Answer
+              </Button>
             </div>
               )}
         </CardFooter>

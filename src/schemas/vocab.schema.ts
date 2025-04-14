@@ -10,6 +10,10 @@ export const NewWordListItemSchema = z.object({
   isStarred: z.boolean(),
   notes: z.string().nullable(),
   wordBankId: z.string().cuid(),
+  mastery: z.number(),
+  nextDueAtReviewCount: z.number(),
+  timesSeen: z.number(),
+  successRate: z.number(),
   wordMaster: z.object({
     id: z.string().cuid(),
     baseWord: z.string(),
@@ -36,6 +40,10 @@ export const WordListItemSchema = z.object({
   isStarred: z.boolean(),
   notes: z.string().nullable(),
   wordBankId: z.string().cuid(),
+  mastery: z.number(),
+  nextDueAtReviewCount: z.number(),
+  timesSeen: z.number(),
+  successRate: z.number(),
   wordMaster: z.object({
     id: z.string().cuid(),
     baseWord: z.string(),
@@ -92,3 +100,14 @@ export const updateWordSchema = z.object({
 
 export type WordListItem = z.infer<typeof WordListItemSchema>;
 export type WordBank = z.infer<typeof wordBankSchema>;
+
+// Word Rating Schema
+export const rateWordSchema = z.object({
+  wordId: z.string().cuid(),
+  ease: z.number().min(1).max(4) // 1=Again, 2=Hard, 3=Good, 4=Easy
+});
+
+export const rateWordReviewCountSchema = z.object({
+  wordId: z.string().cuid(),
+  correct: z.boolean() // Whether user got the word right
+});

@@ -8,6 +8,7 @@ declare module 'next-auth' {
       role: UserRole;
       gradeLevel?: number | null;
       languagePreference?: string;
+      // reviewCount removed
     } & DefaultSession['user'];
   }
 
@@ -20,6 +21,7 @@ declare module 'next-auth' {
     gradeLevel?: number | null;
     languagePreference?: string;
     hashedPassword?: string | null;
+    // reviewCount removed
   }
 }
 
@@ -29,6 +31,7 @@ declare module 'next-auth/jwt' {
     role: UserRole;
     gradeLevel?: number | null;
     languagePreference?: string;
+    // reviewCount removed
   }
 }
 

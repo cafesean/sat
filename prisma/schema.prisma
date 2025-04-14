@@ -87,19 +87,23 @@ model WordBankWords {
 }
 
 model Word {
-  id             String            @id @default(cuid())
-  wordBankId     String
-  interval       Int               @default(1)
-  easeFactor     Float             @default(2.5)
-  repetitions    Int               @default(0)
-  nextReviewDate DateTime          @default(now())
-  isStarred      Boolean           @default(false)
-  notes          String?
-  wordMasterId   String
-  text           String            @default("")
-  wordBank       WordBank          @relation(fields: [wordBankId], references: [id], onDelete: Cascade)
-  wordMaster     WordMaster        @relation(fields: [wordMasterId], references: [id], onDelete: Cascade)
-  practiceLogs   WordPracticeLog[]
+  id                   String            @id @default(cuid())
+  wordBankId           String
+  interval             Int               @default(1)
+  easeFactor           Float             @default(2.5)
+  repetitions          Int               @default(0)
+  nextReviewDate       DateTime          @default(now())
+  isStarred            Boolean           @default(false)
+  notes                String?
+  wordMasterId         String
+  text                 String            @default("")
+  mastery              Int               @default(0)
+  nextDueAtReviewCount Int               @default(0)
+  timesSeen            Int               @default(0)
+  successRate          Float             @default(0)
+  wordBank             WordBank          @relation(fields: [wordBankId], references: [id], onDelete: Cascade)
+  wordMaster           WordMaster        @relation(fields: [wordMasterId], references: [id], onDelete: Cascade)
+  practiceLogs         WordPracticeLog[]
 
   @@unique([wordBankId, wordMasterId])
 }
@@ -113,6 +117,7 @@ model WordPracticeLog {
   isCorrect         Boolean
   aiFeedback        String?
   easeChosen        Int
+  hintUsed          Boolean         @default(false)
   practiceSession   PracticeSession @relation(fields: [practiceSessionId], references: [id], onDelete: Cascade)
   word              Word            @relation(fields: [wordId], references: [id], onDelete: Cascade)
 }
@@ -177,6 +182,7 @@ model WordBank {
   createdAt        DateTime          @default(now())
   updatedAt        DateTime @updatedAt
   userId           String
+  reviewCount      Int               @default(0) // Added reviewCount
   practiceSessions PracticeSession[]
   words            Word[]
   User             User              @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+export enum PracticeType {
+  VOCABULARY = 'VOCABULARY',
+  GRAMMAR = 'GRAMMAR',
+  LISTENING = 'LISTENING'
+}
+
 export const startVocabSessionSchema = z.object({
   wordBankId: z.string().cuid(), // Expect a single CUID for the bank
 });

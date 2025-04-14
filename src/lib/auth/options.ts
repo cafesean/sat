@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/db/prisma';
+import { prisma } from '@/lib/db/prisma'; // Corrected import
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import { UserRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
@@ -10,7 +10,8 @@ import GoogleProvider from 'next-auth/providers/google';
 
 export const authOptions: NextAuthOptions = {
   // Configure one or more authentication providers
-  adapter: PrismaAdapter(prisma) as any, // Temporary cast to any to bypass type issues
+  // Ensure prisma instance is passed correctly. The 'as any' might hide underlying type issues.
+  adapter: PrismaAdapter(prisma!), // Use non-null assertion if confident prisma is defined
   providers: [
     // Credentials Provider for Email/Password
     CredentialsProvider({
@@ -22,6 +23,11 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
           console.log('Missing credentials');
+          return null;
+        }
+        // Ensure prisma is available before using it
+        if (!prisma) {
+          console.error("Prisma client is not available in authorize callback");
           return null;
         }
 
@@ -46,10 +52,14 @@ export const authOptions: NextAuthOptions = {
         }
 
         console.log('Credentials valid for:', credentials.email);
-        // Return user object without password
+        // Return user object without password, ensuring all required fields are present
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { hashedPassword, ...userWithoutPassword } = user;
-        return userWithoutPassword;
+        const { hashedPassword, ...userToReturn } = user;
+        // Explicitly ensure reviewCount is included (even though it should be from the spread)
+        return {
+          ...userToReturn,
+          reviewCount: user.reviewCount ?? 0 // Ensure reviewCount is included and has a default
+        };
       }
     }),
     // Google Provider
@@ -86,16 +96,23 @@ export const authOptions: NextAuthOptions = {
         // For both database and JWT sessions
         const userId = user?.id || token.sub;
         if (!userId) return session;
+
+        // Ensure prisma is available
+        if (!prisma) {
+           console.error("Prisma client is not available in session callback");
+           return session; // Return session unmodified if prisma is unavailable
+        }
         
         const userFromDb = await prisma.user.findUnique({
           where: { id: userId },
-          select: { 
+          select: {
             id: true,
             name: true,
             email: true,
-            role: true, 
-            gradeLevel: true, 
-            languagePreference: true 
+            role: true,
+            gradeLevel: true,
+            languagePreference: true,
+            // reviewCount removed from select
           },
         });
 
@@ -106,6 +123,7 @@ export const authOptions: NextAuthOptions = {
           session.user.role = userFromDb.role ?? UserRole.USER;
           session.user.gradeLevel = userFromDb.gradeLevel;
           session.user.languagePreference = userFromDb.languagePreference;
+          // reviewCount assignment removed
         }
       }
       return session;
@@ -116,6 +134,7 @@ export const authOptions: NextAuthOptions = {
         token.role = user.role;
         token.gradeLevel = user.gradeLevel;
         token.languagePreference = user.languagePreference;
+        // reviewCount assignment removed
       }
       return token;
     },

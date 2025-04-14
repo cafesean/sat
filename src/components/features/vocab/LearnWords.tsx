@@ -21,6 +21,25 @@ export function LearnWords({ words }: LearnWordsProps) {
   const [isNoteSaved, setIsNoteSaved] = useState(true); // Track if the current note state is saved
   const utils = api.useUtils();
 
+  const rateWordMutation = api.vocab.rateWord.useMutation({
+    onSuccess: () => {
+      toast.success('Rating recorded!');
+      handleNext();
+    },
+    onError: (error) => {
+      toast.error(`Failed to record rating: ${error.message}`);
+    }
+  });
+
+  const handleWordRating = (ease: 'AGAIN' | 'HARD' | 'GOOD' | 'EASY') => {
+    if (!currentWord) return;
+    const easeMap = { AGAIN: 1, HARD: 2, GOOD: 3, EASY: 4 };
+    rateWordMutation.mutate({
+      wordId: currentWord.id,
+      ease: easeMap[ease]
+    });
+  };
+
   const currentWord = words[currentIndex];
 
   // Effect to update note when currentWord changes
@@ -95,34 +114,41 @@ export function LearnWords({ words }: LearnWordsProps) {
           )}
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
-           {/* Notes Section */}
-           <div className="w-full space-y-2">
-             <label htmlFor={`notes-${currentWord.id}`} className="text-sm font-medium text-muted-foreground">My Notes</label>
-             <Textarea
-               id={`notes-${currentWord.id}`}
-               placeholder="Add your personal notes here..."
-               value={note}
-               onChange={(e) => {
-                 setNote(e.target.value);
-                 setIsNoteSaved(false); // Mark as unsaved when text changes
-               }}
-               rows={3}
-               className={`w-full`}
-             />
-             <Button
-               size="sm"
-               onClick={handleSaveNote}
-               disabled={saveNoteMutation.isPending || isNoteSaved}
-               className="w-full"
-             >
-               {saveNoteMutation.isPending ? (
-                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-               ) : (
-                 <Save className="mr-2 h-4 w-4" />
-               )}
-               Save Note
-             </Button>
-           </div>
+          {/* Rating Buttons */}
+          <div className="flex flex-wrap justify-center gap-2 w-full">
+            <Button variant="destructive" onClick={() => handleWordRating('AGAIN')}>Again</Button>
+            <Button variant="secondary" onClick={() => handleWordRating('HARD')}>Hard</Button>
+            <Button variant="secondary" onClick={() => handleWordRating('GOOD')}>Good</Button>
+            <Button variant="default" onClick={() => handleWordRating('EASY')}>Easy</Button>
+          </div>
+          {/* Notes Section */}
+          <div className="w-full space-y-2">
+            <label htmlFor={`notes-${currentWord.id}`} className="text-sm font-medium text-muted-foreground">My Notes</label>
+            <Textarea
+              id={`notes-${currentWord.id}`}
+              placeholder="Add your personal notes here..."
+              value={note}
+              onChange={(e) => {
+                setNote(e.target.value);
+                setIsNoteSaved(false); // Mark as unsaved when text changes
+              }}
+              rows={3}
+              className={`w-full`}
+            />
+            <Button
+              size="sm"
+              onClick={handleSaveNote}
+              disabled={saveNoteMutation.isPending || isNoteSaved}
+              className="w-full"
+            >
+              {saveNoteMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="mr-2 h-4 w-4" />
+              )}
+              Save Note
+            </Button>
+          </div>
           {/* Navigation */}
           <div className="flex justify-between w-full">
             <Button onClick={handlePrevious} disabled={currentIndex === 0} variant="outline">

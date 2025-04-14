@@ -109,7 +109,7 @@ export async function gradeSentence(
     Analyze the user's sentence. Does it demonstrate a clear and correct understanding of the word "${word}" in context${gradeLevel ? ` appropriate for a grade ${gradeLevel} student` : ''}?
     Provide your response in JSON format with two keys:
     1.  "isCorrect": boolean (true if the usage is clearly correct, false otherwise)
-    2.  "feedback": string (a brief explanation for the user, e.g., "Good usage!" or "The sentence doesn't clearly show understanding of the word's meaning.")
+    2.  "feedback": string (a brief explanation for the user, e.g., "Good usage!" or "The sentence doesn't clearly show understanding of the word's meaning." Also, evaluate the sentence quality, and provide concise, friendly feedback only if constructive.
 
     Example JSON format:
     {
