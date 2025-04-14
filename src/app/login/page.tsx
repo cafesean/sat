@@ -38,7 +38,15 @@ function LoginForm() {
         setIsCredentialsLoading(false);
       } else if (result?.ok) {
         toast.success('Login successful!');
-        router.push(callbackUrl);
+        try {
+          const decodedUrl = decodeURIComponent(callbackUrl);
+          console.log('Redirecting to:', decodedUrl);
+          router.push(decodedUrl);
+        } catch (error) {
+          console.error('Redirect failed:', error);
+          toast.error('Login successful but redirect failed. Please try again.');
+          router.push('/dashboard'); // Fallback redirect
+        }
       } else {
         // Handle unexpected scenarios
         toast.error('An unexpected error occurred during login.');
