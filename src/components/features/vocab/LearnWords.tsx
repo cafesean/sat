@@ -18,13 +18,16 @@ export function LearnWords({ words }: LearnWordsProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showDetails, setShowDetails] = useState(false);
   const [note, setNote] = useState(''); // Initialize empty
+  const [isNoteSaved, setIsNoteSaved] = useState(true); // Track if the current note state is saved
   const utils = api.useUtils();
 
   const currentWord = words[currentIndex];
 
   // Effect to update note when currentWord changes
   useEffect(() => {
-    setNote(currentWord?.notes || '');
+    const initialNote = currentWord?.notes || '';
+    setNote(initialNote);
+    setIsNoteSaved(true); // Reset saved state when word changes
     setShowDetails(false); // Reset showDetails when word changes
   }, [currentWord]);
 
@@ -33,6 +36,7 @@ export function LearnWords({ words }: LearnWordsProps) {
   const saveNoteMutation = api.vocab.updateWordNotes.useMutation({
     onSuccess: (updatedWord) => {
       toast.success('Note saved!');
+      setIsNoteSaved(true); // Mark as saved after successful mutation
       // Optimistically update the local words array
       const updatedWords = words.map(w =>
         w.id === updatedWord.id ? { ...w, notes: updatedWord.notes } : w
@@ -76,7 +80,7 @@ export function LearnWords({ words }: LearnWordsProps) {
         </CardHeader>
         <CardContent className="space-y-4 min-h-[150px]">
           {showDetails ? (
-            <div className="space-y-2 text-sm text-center">
+            <div className="space-y-2 text-base text-center">
               <p><strong>Type:</strong> {currentWord.wordMaster?.wordType || 'N/A'}</p>
               <p><strong>Definition:</strong> {currentWord.wordMaster?.definition || 'N/A'}</p>
               {/* Assuming 'default' key for sample sentence */}
@@ -98,14 +102,17 @@ export function LearnWords({ words }: LearnWordsProps) {
                id={`notes-${currentWord.id}`}
                placeholder="Add your personal notes here..."
                value={note}
-               onChange={(e) => setNote(e.target.value)}
+               onChange={(e) => {
+                 setNote(e.target.value);
+                 setIsNoteSaved(false); // Mark as unsaved when text changes
+               }}
                rows={3}
-               className="w-full"
+               className={`w-full`}
              />
              <Button
                size="sm"
                onClick={handleSaveNote}
-               disabled={saveNoteMutation.isPending || note === (currentWord.notes || '')}
+               disabled={saveNoteMutation.isPending || isNoteSaved}
                className="w-full"
              >
                {saveNoteMutation.isPending ? (

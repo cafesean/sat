@@ -1,3 +1,4 @@
+import type { WordListItem } from '@/app/vocabulary/banks/[bankId]/page';
 import { enrichWord, gradeSentence } from "@/lib/api/gemini";
 import { calculateNextReview } from "@/lib/srs/sm2";
 import {
@@ -16,12 +17,46 @@ import {
 	updateWordSchema,
 	wordBankSchema
 } from "@/schemas/vocab.schema";
-import { PracticeType } from "@prisma/client";
+import type { PracticeSession, WordPracticeLog } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 
 // Vocab Router
+// Helper function for overall stats calculation
+// Use PrismaClient type for the prisma instance
+async function calculateOverallStats(prisma: PrismaClient, userId: string) {
+	const practiceSessionsCount = await prisma.practiceSession.count({
+		where: { userId: userId, type: 'VOCABULARY' } // Replaced with string literal
+	});
+
+	const allUserWords = await prisma.word.findMany({
+		where: { wordBank: { userId: userId } },
+		select: { interval: true }
+	});
+
+	const masteredWordsCount = allUserWords.filter((w: { interval: number }) => w.interval > 30).length;
+
+	// For overall accuracy, we need practice logs
+	const logs = await prisma.wordPracticeLog.findMany({
+		where: { practiceSession: { userId: userId, type: 'VOCABULARY' } },
+		select: { isCorrect: true }
+	});
+
+	const totalLogs = logs.length;
+	const correctLogs = logs.filter((log: { isCorrect: boolean | null }) => log.isCorrect).length;
+	const overallAccuracy = totalLogs > 0 ? Math.round((correctLogs / totalLogs) * 100) : 0;
+
+	return {
+		practiceSessionsCount,
+		masteredWordsCount,
+		overallAccuracy,
+		totalWordsCount: allUserWords.length // Add total word count as well
+	};
+}
+
+
 export const vocabRouter = router({
 	// --- Word Bank CRUD ---
 	createWordBank: protectedProcedure
@@ -61,23 +96,45 @@ export const vocabRouter = router({
 			const wordBanks = await ctx.prisma.wordBank.findMany({
 				where: { userId: ctx.session.user.id },
 				include: {
-					words: { select: { interval: true } },
+					words: { select: { interval: true } }, // Keep for mastery calc
+					// Include the latest practice session to get the timestamp
+					practiceSessions: {
+						orderBy: { createdAt: 'desc' },
+						take: 1,
+						select: { createdAt: true }
+					}
 				},
 				orderBy: { createdAt: "desc" },
 			});
-			const wordBanksWithMastery = wordBanks.map((bank) => {
+			// Define the expected type based on the Prisma query
+			// Define the expected type based on the Prisma query
+			type BankWithRelations = Prisma.WordBankGetPayload<{
+				include: {
+					words: { select: { interval: true } };
+					practiceSessions: { select: { createdAt: true } };
+				}
+			}>;
+			const wordBanksWithMastery = wordBanks.map((bank: BankWithRelations) => {
 				const totalWords = bank.words.length;
 				if (totalWords === 0) {
-					return { ...bank, wordCount: 0, masteryPercentage: 0 };
+					// eslint-disable-next-line @typescript-eslint/no-unused-vars
+					const { words, practiceSessions, ...bankWithoutRelations } = bank;
+					return {
+						...bankWithoutRelations,
+						wordCount: 0,
+						masteryPercentage: 0,
+						lastPracticedAt: practiceSessions[0]?.createdAt ?? null
+					};
 				}
-				const masteredCount = bank.words.filter((word) => word.interval > 30).length;
+				const masteredCount = bank.words.filter((word: { interval: number }) => word.interval > 30).length;
 				const masteryPercentage = Math.round((masteredCount / totalWords) * 100);
 				// eslint-disable-next-line @typescript-eslint/no-unused-vars
-				const { words, ...bankWithoutWords } = bank;
+				const { words, practiceSessions, ...bankWithoutRelations } = bank;
 				return {
-					...bankWithoutWords,
+					...bankWithoutRelations,
 					wordCount: totalWords,
 					masteryPercentage: masteryPercentage,
+					lastPracticedAt: practiceSessions[0]?.createdAt ?? null // Get timestamp or null
 				};
 			});
 			return wordBanksWithMastery;
@@ -91,13 +148,31 @@ export const vocabRouter = router({
 		}
 	}),
 
+	// --- Overall Stats ---
+	getOverallStats: protectedProcedure
+		.query(async ({ ctx }) => {
+			try {
+				return await calculateOverallStats(ctx.prisma, ctx.session.user.id);
+			} catch (error) {
+				console.error("Error fetching overall stats:", error);
+				throw new TRPCError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to retrieve overall statistics.",
+					cause: error,
+				});
+			}
+		}),
+
 	getById: protectedProcedure
 		.input(z.object({ id: z.string().cuid() }))
 		.query(async ({ ctx, input }) => {
 			const wordBank = await ctx.prisma.wordBank.findUnique({
 				where: { id: input.id, userId: ctx.session.user.id },
 				include: {
-					words: {
+					_count: {
+						select: { words: true }
+					},
+					words: { // Keep this if you still need noteCount calculation separately
 						select: {
 							notes: true
 						}
@@ -107,11 +182,34 @@ export const vocabRouter = router({
 			if (!wordBank) {
 				throw new TRPCError({ code: "NOT_FOUND", message: "Word bank not found." });
 			}
-			const noteCount = wordBank.words.filter(w => w.notes).length;
+			const noteCount = wordBank.words.filter((w: { notes: string | null }) => w.notes).length;
 			return {
 				...wordBank,
 				noteCount
 			};
+		}),
+	
+	// Procedure to get a single word by ID (NEW)
+	getWordById: protectedProcedure
+		.input(z.object({ id: z.string().cuid() }))
+		.query(async ({ ctx, input }) => {
+			const word = await ctx.prisma.word.findUnique({
+				where: {
+					id: input.id,
+					// Ensure user owns the word bank this word belongs to
+					wordBank: { userId: ctx.session.user.id }
+				},
+				include: {
+					wordMaster: true, // Include details needed for the modal
+					// Add other includes if necessary (e.g., _count for practiceLogs?)
+				}
+			});
+
+			if (!word) {
+				throw new TRPCError({ code: "NOT_FOUND", message: "Word not found or access denied." });
+			}
+			// Return the word data, potentially transforming it if needed
+			return word;
 		}),
 
 	update: protectedProcedure
@@ -187,7 +285,7 @@ export const vocabRouter = router({
 			});
 
 			// Transform the result to match the WordListItem type
-			return words.map(word => ({
+			return words.map((word: WordListItem) => ({
 				id: word.id,
 				text: word.text,
 				interval: word.interval,
@@ -196,9 +294,9 @@ export const vocabRouter = router({
 				nextReviewDate: word.nextReviewDate,
 				isStarred: word.isStarred,
 				notes: word.notes,
-				wordBankId: word.wordBank.id,
+				wordBankId: word.wordBankId,
 				wordMaster: word.wordMaster,
-				practiceCount: word._count.practiceLogs
+				practiceCount: word._count?.practiceLogs ?? 0
 			}));
 		}),
 
@@ -310,13 +408,13 @@ export const vocabRouter = router({
 			if (!wordBank) {
 				throw new TRPCError({ code: "NOT_FOUND", message: "Word bank not found or access denied." });
 			}
-			const words = input.wordsText.split(/\s*[\n,]\s*/).map(w => w.trim()).filter(w => w.length > 0);
+			const words = input.wordsText.split(/\s*[\n,]\s*/).map((w: string) => w.trim()).filter((w: string) => w.length > 0);
 			if (words.length === 0) {
 				throw new TRPCError({ code: "BAD_REQUEST", message: "No valid words found in the input." });
 			}
 			try {
 				const wordRecords = await Promise.all(
-					words.map(async (wordText) => {
+					words.map(async (wordText: string) => {
 						try {
 							// Check if word exists in WordMaster (baseWord or variations) using raw SQL for JSON check
 							const existingWords = await ctx.prisma.$queryRaw<Array<{ id: string }>>`
@@ -365,7 +463,7 @@ export const vocabRouter = router({
 
 				// Create Word records linking to WordMaster
 				await ctx.prisma.word.createMany({
-					data: wordRecords.map((wr, index) => ({
+					data: wordRecords.map((wr: {wordMasterId: string}, index: number) => ({
 						text: words[index], // Add the original text back
 						wordMasterId: wr.wordMasterId,
 						wordBankId: input.wordBankId
@@ -392,7 +490,7 @@ export const vocabRouter = router({
 					throw new TRPCError({ code: "NOT_FOUND", message: "Word bank not found or access denied." });
 				}
 				const session = await ctx.prisma.practiceSession.create({
-					data: { userId: ctx.session.user.id, type: PracticeType.VOCABULARY, wordBankId: input.wordBankId },
+					data: { userId: ctx.session.user.id, type: 'VOCABULARY', wordBankId: input.wordBankId },
 				});
 				return { practiceSessionId: session.id };
 			} catch (error) {
@@ -406,7 +504,7 @@ export const vocabRouter = router({
 		.mutation(async ({ ctx }) => {
 			try {
 				const session = await ctx.prisma.practiceSession.create({
-					data: { userId: ctx.session.user.id, type: PracticeType.VOCABULARY },
+					data: { userId: ctx.session.user.id, type: 'VOCABULARY' },
 				});
 				return { practiceSessionId: session.id };
 			} catch (error) {
@@ -431,7 +529,7 @@ export const vocabRouter = router({
 
 			const practicedWordIds = (await ctx.prisma.wordPracticeLog.findMany({
 				where: { practiceSessionId }, select: { wordId: true },
-			})).map(log => log.wordId);
+			})).map((log: {wordId: string}) => log.wordId);
 
 			const whereClause: any = {
 				nextReviewDate: { lte: new Date() },
@@ -521,7 +619,7 @@ export const vocabRouter = router({
 			if (session.type !== PracticeType.VOCABULARY) { throw new TRPCError({ code: "BAD_REQUEST", message: "Session is not a vocabulary practice session." }); }
 
 			const totalWords = session.vocabLogs.length;
-			const correctCount = session.vocabLogs.filter(log => log.isCorrect).length;
+			const correctCount = session.vocabLogs.filter((log: {isCorrect: boolean}) => log.isCorrect).length;
 			const accuracy = totalWords > 0 ? (correctCount / totalWords) * 100 : 0;
 
 			return {
@@ -539,7 +637,7 @@ export const vocabRouter = router({
 			const { cursor } = input;
 			const items = await ctx.prisma.practiceSession.findMany({
 				take: limit + 1,
-				where: { userId: ctx.session.user.id, type: PracticeType.VOCABULARY },
+				where: { userId: ctx.session.user.id, type: 'VOCABULARY' },
 				cursor: cursor ? { id: cursor } : undefined,
 				orderBy: { startTime: 'desc' },
         include: {
@@ -552,7 +650,11 @@ export const vocabRouter = router({
 				const nextItem = items.pop();
 				nextCursor = nextItem!.id;
 			}
-			const sessions = items.map(s => ({
+			const sessions = items.map((s: PracticeSession & {
+				vocabLogs: WordPracticeLog[];
+				wordBank: { name: string };
+				_count?: { vocabLogs: number };
+			}) => ({
 				id: s.id, startTime: s.startTime, endTime: s.endTime,
 				wordBankId: s.wordBankId,
 				wordBankName: s.wordBank?.name ?? null,
@@ -591,7 +693,7 @@ export const vocabRouter = router({
 					where: { wordBank: { userId } }
 				}),
 				ctx.prisma.practiceSession.count({
-					where: { userId, type: PracticeType.VOCABULARY }
+					where: { userId, type: 'VOCABULARY' }
 				}),
 				ctx.prisma.word.count({
 					where: { 
@@ -708,3 +810,4 @@ export const vocabRouter = router({
 			};
 		}),
 });
+

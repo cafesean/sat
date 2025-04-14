@@ -1,7 +1,7 @@
 'use client'
 
+import { AddWordsModal } from '@/components/features/vocab/AddWordsModal'; // Import the modal
 import { ViewNotesDialog } from '@/components/features/vocab/ViewNotesDialog';
-import { WordHistoryDialog } from '@/components/features/vocab/WordHistoryDialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,20 +14,25 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+// Remove Collapsible imports, no longer used directly here
+// import {
+//   Collapsible,
+//   CollapsibleContent,
+//   CollapsibleTrigger,
+// } from "@/components/ui/collapsible";
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from '@/components/ui/skeleton';
-import { Textarea } from '@/components/ui/textarea';
+import useLocalStorage from '@/hooks/useLocalStorage'; // Import useLocalStorage
 import { api, type RouterOutputs } from '@/utils/trpc';
-import { ArrowLeft, ChevronsUpDown, Loader2, NotebookText, Plus, Save, SortAsc, SortDesc, Star, Trash2, X } from 'lucide-react';
+// Import the new view components
+import { WordCardLargeGrid } from '@/components/features/vocab/WordCardLargeGrid';
+import { WordCardSmallGrid } from '@/components/features/vocab/WordCardSmallGrid';
+import { WordListItemView } from '@/components/features/vocab/WordListItemView';
+import { ArrowLeft, Grid, List, Loader2, NotebookText, Plus, SortAsc, SortDesc, Star, View } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { type JsonValue } from '@prisma/client/runtime/library';
@@ -36,11 +41,12 @@ import { type JsonValue } from '@prisma/client/runtime/library';
 type WordBank = RouterOutputs['vocab']['getById'] & {
   _count?: {
     notes: number;
+    words?: number; // Add words count
   };
 };
 
 // Explicitly define WordListItem based on the select in listByBank query
-type WordListItem = {
+export type WordListItem = {
   id: string;
   text: string;
   interval: number;
@@ -106,41 +112,18 @@ export default function WordBankDetailPage () {
   const [wordSortKey, setWordSortKey] = useState<WordSortKey>('id'); // 'id' is now a valid key
   const [wordSortDirection, setWordSortDirection] = useState<SortDirection>('asc');
   const [showStarredOnly, setShowStarredOnly] = useState(false); // State for starred filter
-  const [newWordsText, setNewWordsText] = useState(''); // State for the new words textarea
-  const [editingWordId, setEditingWordId] = useState<string | null>(null); // Track which word is being edited
-  const [editingWordText, setEditingWordText] = useState<string>(''); // Track the temporary edit value
+  // const [newWordsText, setNewWordsText] = useState(''); // Removed state for old add words UI
+  // Remove state related to inline editing, now handled in WordCard components
+  // const [editingWordId, setEditingWordId] = useState<string | null>(null);
+  // const [editingWordText, setEditingWordText] = useState<string>('');
   const [wordToDelete, setWordToDelete] = useState<WordListItem | null>(null); // State for delete confirmation
+  const [viewMode, setViewMode] = useLocalStorage<'large-grid' | 'small-grid' | 'list'>('wordBankDetailViewMode', 'large-grid'); // Add view mode state
 
   // tRPC utils for cache invalidation
   const utils = api.useUtils();
 
-  // Mutation for adding words
-  const addWordsMutation = api.vocab.addBatch.useMutation({
-    onSuccess: () => {
-      toast.success('Words added successfully!');
-      setNewWordsText(''); // Clear textarea
-      // Invalidate queries to refetch data
-      utils.vocab.listByBank.invalidate({ wordBankId: bankId });
-      utils.vocab.getById.invalidate({ id: bankId }); // To update word count if displayed
-      utils.vocab.listWordBanks.invalidate(); // To update mastery/count on dashboard
-    },
-    onError: (error) => {
-      toast.error(`Failed to add words: ${error.message}`);
-    }
-  });
-
-  const handleAddWords = () => {
-    if (!newWordsText.trim()) {
-      toast.warning('Please enter words to add.');
-      return;
-    }
-    // Pass the raw text directly, backend handles splitting
-    addWordsMutation.mutate({
-      wordBankId: bankId,
-      wordsText: newWordsText
-    });
-  };
-
+  // Removed mutation for old add words UI
+  // Removed handler for old add words UI
   // Mutation for deleting a word
   const deleteWordMutation = api.vocab.deleteWord.useMutation({
     onSuccess: (data) => {
@@ -157,73 +140,17 @@ export default function WordBankDetailPage () {
     }
   });
 
-  // Mutation for toggling star status
-  const toggleStarMutation = api.vocab.toggleStar.useMutation({
-     onSuccess: (updatedWord) => {
-       toast.success(`Word ${updatedWord.isStarred ? 'starred' : 'unstarred'}.`);
-       // Optimistic update or invalidate cache
-       utils.vocab.listByBank.invalidate({ wordBankId: bankId });
-     },
-     onError: (error) => {
-       toast.error(`Failed to update star status: ${error.message}`);
-     }
-   });
+  // Remove mutations and handlers related to inline editing, now handled in WordCard components
+  // const toggleStarMutation = ...
+  // const updateWordMutation = ...
+  // const handleEditClick = ...
+  // const handleCancelEdit = ...
+  // const handleSaveEdit = ...
+  // const handleEditKeyDown = ...
 
-  // Mutation for updating a word (Note: Currently updates the temporary 'text' field)
-  const updateWordMutation = api.vocab.updateWord.useMutation({
-    onSuccess: (updatedWord) => {
-      // Display the baseWord in the toast message if available
-      const displayWord = updatedWord.wordMaster?.baseWord || updatedWord.text;
-      toast.success(`Word "${displayWord}" updated.`);
-      setEditingWordId(null); // Exit editing mode
-      // Invalidate queries to refetch data
-      utils.vocab.listByBank.invalidate({ wordBankId: bankId });
-    },
-    onError: (error) => {
-      toast.error(`Failed to update word: ${error.message}`);
-    }
-  });
-
-  const handleEditClick = (word: WordListItem) => {
-    setEditingWordId(word.id);
-    // Use baseWord for editing, fallback to text
-    setEditingWordText(word.wordMaster?.baseWord || word.text || '');
-  };
-
-  const handleCancelEdit = () => {
-    setEditingWordId(null);
-    setEditingWordText('');
-  };
-
-  // TODO: Decide if editing should update WordMaster.baseWord or just Word.text
-  // Currently, it updates Word.text via the updateWord mutation.
-  // TODO: Decide if editing should update WordMaster.baseWord or just Word.text
-  // Currently, it updates Word.text via the updateWord mutation.
-  const handleSaveEdit = () => {
-    if (!editingWordId || !editingWordText.trim()) return;
-    const originalWord = words?.find(w => w.id === editingWordId);
-    // Ensure originalWord exists before accessing properties
-    const originalValue = originalWord?.wordMaster?.baseWord ?? originalWord?.text ?? '';
-    // Compare with baseWord, fallback to text
-    if (editingWordText === originalValue) {
-      // No change, just cancel edit
-      handleCancelEdit();
-      return;
-    }
-    // For now, update the temporary text field.
-    // If WordMaster needs update, a different mutation is required.
-    updateWordMutation.mutate({
-      wordId: editingWordId,
-      text: editingWordText.trim(),
-    });
-  };
-
-  const handleEditKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter') {
-      handleSaveEdit();
-    } else if (event.key === 'Escape') {
-      handleCancelEdit();
-    }
+  // Handler for delete request from child components
+  const handleDeleteRequest = (word: WordListItem) => {
+    setWordToDelete(word);
   };
 
 
@@ -231,7 +158,7 @@ export default function WordBankDetailPage () {
   const filteredAndSortedWords = useMemo(() => {
     if (!words) return [];
     // Ensure words have the isStarred property (handle potential type mismatch)
-    let processedWords = words.map(w => ({ ...w, isStarred: w.isStarred ?? false })) as (WordListItem & { isStarred: boolean })[];
+    let processedWords = words.map((w: WordListItem) => ({ ...w, isStarred: w.isStarred ?? false })) as (WordListItem & { isStarred: boolean })[];
 
 
     // Filter by Starred Status
@@ -332,10 +259,17 @@ export default function WordBankDetailPage () {
 
   return (
     <div className="container mx-auto p-4 space-y-4">
-      <Button variant="outline" size="sm" onClick={() => router.push('/vocabulary')}>
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        Back to Word Banks
-      </Button>
+      <div className="flex justify-between items-center">
+        <Button variant="outline" size="sm" onClick={() => router.push('/vocabulary')}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Word Banks
+        </Button>
+        <AddWordsModal bankId={bankId}>
+          <Button variant="outline">
+            <Plus className="mr-2 h-4 w-4" /> Add Words
+          </Button>
+        </AddWordsModal>
+      </div>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -359,24 +293,24 @@ export default function WordBankDetailPage () {
           </div>
           <div className="flex gap-2"> {/* Wrap buttons */}
             <ViewNotesDialog bankId={bankId}>
-              <Button variant="secondary">
-                <NotebookText className="mr-2 h-4 w-4" /> 
-                View Notes
+              <Button variant="secondary" className="relative">
+                <NotebookText className="h-5 w-5 md:h-4 md:w-4 md:mr-2" />
+                <span className="hidden md:inline">View Notes</span>
                 {wordBank.noteCount > 0 && (
-                  <span className="ml-2 bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs">
+                  <span className="absolute -top-2 -right-2 bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs">
                     {wordBank.noteCount}
                   </span>
                 )}
               </Button>
             </ViewNotesDialog>
-            {filteredAndSortedWords.length === 0 ? (
+            {wordBank?._count?.words === 0 ? (
               <Button variant="secondary" onClick={() => router.push(`/vocabulary/edit/${bankId}`)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Words
               </Button>
             ) : (
               <Button onClick={() => router.push(`/vocabulary/learn/${bankId}`)}>
-                Learn Words
+                Practice
               </Button>
             )}
           </div>
@@ -417,154 +351,77 @@ export default function WordBankDetailPage () {
                 <Star className={`h-4 w-4 ${showStarredOnly ? 'text-yellow-500 fill-yellow-400' : ''}`} />
               </Button>
             </div>
+            {/* View Mode Toggle Buttons */}
+            <div className="flex items-center gap-1 rounded-md bg-muted p-1 ml-2">
+               <Button
+                 variant={viewMode === 'large-grid' ? 'secondary' : 'ghost'}
+                 size="sm" onClick={() => setViewMode('large-grid')} className="h-7 px-2" aria-label="Large grid view">
+                 <View className="h-4 w-4" /> {/* Using View for large grid */}
+               </Button>
+               <Button
+                 variant={viewMode === 'small-grid' ? 'secondary' : 'ghost'}
+                 size="sm" onClick={() => setViewMode('small-grid')} className="h-7 px-2" aria-label="Small grid view">
+                 <Grid className="h-4 w-4" />
+               </Button>
+               <Button
+                 variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                 size="sm" onClick={() => setViewMode('list')} className="h-7 px-2" aria-label="List view">
+                 <List className="h-4 w-4" />
+               </Button>
+             </div>
           </div>
 
-          {/* Word List */}
-          {filteredAndSortedWords && filteredAndSortedWords.length > 0
-            ? (
-            <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {filteredAndSortedWords.map((word) => { // Use inferred type now
-                const mastery = getMasteryInfo(word.interval);
-                const isEditing = editingWordId === word.id;
-                return (
-                  <Collapsible key={word.id} asChild>
-                    {/* Use a div instead of li if direct child needed for Collapsible */}
-                    {/* Add relative positioning and padding-left */}
-                    <div className="border rounded-md px-4 py-3 flex flex-col relative pl-6">
-                      {/* Mastery Bar */}
-                      <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-md ${
-                        mastery.variant === 'destructive' ? 'bg-red-500' :
-                        mastery.variant === 'secondary' ? 'bg-yellow-400' :
-                        mastery.variant === 'outline' ? 'bg-green-400' :
-                        'bg-blue-500' // default for Mastered
-                      }`}></div>
-                      <div className="flex items-center justify-between w-full gap-2"> {/* Added gap */}
-                        {/* Word Text or Input */}
-                        {isEditing ? (
-                          <div className="flex-grow flex items-center gap-1">
-                            <Input
-                              value={editingWordText}
-                              onChange={(e) => setEditingWordText(e.target.value)}
-                              onKeyDown={handleEditKeyDown}
-                              onBlur={handleSaveEdit} // Save on blur
-                              autoFocus
-                              className="h-7 px-1.5 text-sm flex-grow" // Smaller height, padding, text
-                              disabled={updateWordMutation.isPending}
-                            />
-                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleSaveEdit} disabled={updateWordMutation.isPending} title="Save">
-                              {updateWordMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin"/> : <Save className="h-3 w-3" />}
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCancelEdit} disabled={updateWordMutation.isPending} title="Cancel">
-                              <X className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <CollapsibleTrigger asChild>
-                            <button
-                              className="flex items-center gap-2 flex-grow text-left mr-2 overflow-hidden"
-                              onClick={() => handleEditClick(word)} // Enable editing on click
-                              title={`Edit "${word.wordMaster?.baseWord || word.text}"`} // Use baseWord
-                            >
-                              {/* Display baseWord, fallback to text */}
-                              <span className="font-medium truncate">{word.wordMaster?.baseWord || word.text}</span>
-                              <ChevronsUpDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                            </button>
-                          </CollapsibleTrigger>
-                        )}
+          {/* Word List - Conditional Rendering based on viewMode */}
+          {filteredAndSortedWords && filteredAndSortedWords.length > 0 ? (
+            <>
+              {/* Large Grid View */}
+              {viewMode === 'large-grid' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredAndSortedWords.map((word) => (
+                    <WordCardLargeGrid
+                      key={word.id}
+                      word={word}
+                      bankId={bankId}
+                      onDeleteRequest={handleDeleteRequest} // Pass delete handler
+                    />
+                  ))}
+                </div>
+              )}
 
-                        {/* Right side icons (only show when not editing) */}
-                        {!isEditing && (
-                          <div className="flex items-center space-x-2 flex-shrink-0">
-                            {/* Pass baseWord and count safely */}
-                            <WordHistoryDialog wordId={word.id} wordText={word.wordMaster?.baseWord || word.text} historyCount={word._count?.practiceLogs ?? 0} />
-                            {/* Star Button */}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className={`h-6 w-6 ${word.isStarred ? 'text-yellow-400 hover:text-yellow-500' : 'text-muted-foreground hover:text-yellow-400'}`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleStarMutation.mutate({ wordId: word.id });
-                              }}
-                              title={word.isStarred ? 'Unstar word' : 'Star word'}
-                              disabled={toggleStarMutation.isPending && toggleStarMutation.variables?.wordId === word.id}
-                            >
-                              {toggleStarMutation.isPending && toggleStarMutation.variables?.wordId === word.id
-                                ? <Loader2 className="h-3 w-3 animate-spin" />
-                                : <Star className={`h-3 w-3 ${word.isStarred ? 'fill-current' : ''}`} />
-                              }
-                            </Button>
-                            {/* Delete Button */}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-destructive hover:text-destructive"
-                              onClick={(e) => {
-                                e.stopPropagation(); // Prevent collapsible trigger
-                                setWordToDelete(word);
-                              }}
-                              title={`Delete "${word.wordMaster?.baseWord || word.text}"`} // Use baseWord
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                      <CollapsibleContent className="pt-3 mt-2 border-t w-full">
-                        {/* Check if wordMaster exists before trying to display details */}
-                        {word.wordMaster ? (
-                          <div className="space-y-1.5 text-xs">
-                            {/* Access details via wordMaster */}
-                            {word.wordMaster.definition && <p><strong>Def:</strong> {word.wordMaster.definition}</p>}
-                            {/* Assuming 'default' key for sample sentence */}
-                            {(word.wordMaster.sampleSentences as any)?.default && <p><strong>Ex:</strong> <em>{(word.wordMaster.sampleSentences as any).default}</em></p>}
-                            {/* Assuming 'default' key for translation */}
-                            {(word.wordMaster.translations as any)?.default && <p><strong>Trans:</strong> {(word.wordMaster.translations as any).default}</p>}
-                            {/* Check if any details exist in wordMaster */}
-                            {!word.wordMaster.definition && !(word.wordMaster.sampleSentences as any)?.default && !(word.wordMaster.translations as any)?.default && (
-                              <p className="text-muted-foreground italic">No details available.</p>
-                            )}
-                          </div>
-                        ) : (
-                          <p className="text-muted-foreground italic text-xs">Word details not available.</p>
-                        )}
-                      </CollapsibleContent>
-                    </div>
-                  </Collapsible>
-                );
-              })}
-            </ul>
-              )
-            : (
+              {/* Small Grid View */}
+              {viewMode === 'small-grid' && (
+                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                   {filteredAndSortedWords.map((word) => (
+                     <WordCardSmallGrid
+                       key={word.id}
+                       word={word}
+                       bankId={bankId}
+                     />
+                   ))}
+                 </div>
+               )}
+
+              {/* List View */}
+              {viewMode === 'list' && (
+                 <div className="space-y-1 border rounded-md">
+                   {filteredAndSortedWords.map((word) => (
+                     <WordListItemView
+                       key={word.id}
+                       word={word}
+                       bankId={bankId}
+                     />
+                   ))}
+                 </div>
+               )}
+            </>
+          ) : (
             <p className="text-muted-foreground text-center py-6">
               {wordFilterText ? 'No words match your filter.' : 'No words added to this bank yet.'}
             </p>
-              )}
+          )}
+          {/* End Conditional Rendering */}
 
-          {/* Add New Words Section */}
-          <div className="mt-6 pt-6 border-t">
-            <h3 className="text-lg font-medium mb-2">Add New Words</h3>
-            <p className="text-sm text-muted-foreground mb-3">
-              Enter words separated by commas or new lines. Definitions and examples will be generated automatically.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <Textarea
-                placeholder="Enter words here..."
-                value={newWordsText}
-                onChange={(e) => setNewWordsText(e.target.value)}
-                className="min-h-[60px] flex-grow"
-                disabled={addWordsMutation.isPending}
-                rows={5}
-              />
-              <Button
-                onClick={handleAddWords}
-                disabled={addWordsMutation.isPending || !newWordsText.trim()}
-                className="sm:self-end" // Align button nicely on larger screens
-              >
-                {addWordsMutation.isPending ? 'Adding...' : <><Plus className="mr-2 h-4 w-4" /> Add Word(s)</>}
-              </Button>
-            </div>
-          </div>
+          {/* Old Add New Words Section Removed */}
         </CardContent>
       </Card>
 

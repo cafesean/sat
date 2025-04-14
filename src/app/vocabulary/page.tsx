@@ -1,5 +1,6 @@
 'use client'
 
+import { AddWordsModal } from "@/components/features/vocab/AddWordsModal"; // Import the new modal
 import { PracticeHistoryTabContent } from "@/components/features/vocab/PracticeHistoryTabContent";
 import { WordBankListItem as WordBankListItemComponent } from "@/components/features/vocab/WordBankListItem";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import useLocalStorage from "@/hooks/useLocalStorage"; // Import the custom hook
 import { api, type RouterOutputs } from "@/utils/trpc";
+import { format } from 'date-fns'; // Import format function
 import { AlertCircle, BookText, Grid, History, List, Pencil, Play, Plus, Settings, SortAsc, SortDesc } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -16,7 +18,8 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 // Infer type for word bank list item
-type WordBankListItem = RouterOutputs['vocab']['listWordBanks'][number]
+// Infer type for word bank list item - now includes lastPracticedAt
+type WordBankListItem = RouterOutputs['vocab']['listWordBanks'][number] & { lastPracticedAt?: Date | null };
 type SortKey = 'name' | 'createdAt' | 'masteryPercentage';
 type SortDirection = 'asc' | 'desc';
 
@@ -164,7 +167,7 @@ export default function VocabularyPage() {
                     description={bank.description}
                     wordCount={bank.wordCount}
                     masteryPercentage={bank.masteryPercentage}
-                    lastPracticed="Never" // Placeholder
+                    lastPracticedAt={bank.lastPracticedAt} // Pass the correct prop
                   />
                 ))}
                 {/* Create New Bank Card (Grid) */}
@@ -217,14 +220,14 @@ function WordBankCard({
   title,
   description,
   wordCount,
-  lastPracticed,
+  lastPracticedAt, // Use the new prop name
   masteryPercentage,
 }: {
   id: string
   title: string
   description?: string | null
   wordCount: number
-  lastPracticed: string
+  lastPracticedAt?: Date | null // Update prop type
   masteryPercentage: number
 }) {
   const router = useRouter();
@@ -257,7 +260,7 @@ function WordBankCard({
           <span className="text-2xl font-bold text-muted-foreground">{wordCount}</span>
         </CardTitle>
         <CardDescription className="line-clamp-3 h-[3.75rem] mt-1"> {/* Added margin-top */}
-          {description || `Last practiced: ${lastPracticed}`} {/* Removed word count from here */}
+          {description || `Last practiced: ${lastPracticedAt ? format(new Date(lastPracticedAt), 'PP') : 'Never'}`} {/* Format date */}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex-grow pt-2"> {/* Reduced padding-top */}
@@ -273,18 +276,26 @@ function WordBankCard({
       </CardContent>
      </Link>
       <CardFooter className="flex justify-between items-center pt-4">
-        <Button
-          variant="default"
-          // Apply bright color class - using cyan as an example
-          className="w-full flex-grow mr-2 bg-cyan-500 hover:bg-cyan-600 text-white"
-          onClick={handleStartPractice}
-          disabled={startSessionMutation.isPending}
-        >
-          {startSessionMutation.isPending
-            ? 'Starting...'
-            : <><Play className="mr-2 h-4 w-4" /> Practice</>
-          }
-        </Button>
+        {wordCount === 0 ? (
+          <AddWordsModal bankId={id}>
+            <Button variant="outline" className="w-full border-cyan-500 text-cyan-500 hover:bg-cyan-500/10 hover:text-cyan-600 flex-grow mr-2">
+              <Plus className="mr-2 h-4 w-4" /> Add Words
+            </Button>
+          </AddWordsModal>
+        ) : (
+          <Button
+            variant="default"
+            // Apply bright color class - using cyan as an example
+            className="w-full flex-grow mr-2 bg-cyan-500 hover:bg-cyan-600 text-white"
+            onClick={handleStartPractice}
+            disabled={startSessionMutation.isPending}
+          >
+            {startSessionMutation.isPending
+              ? 'Starting...'
+              : <><Play className="mr-2 h-4 w-4" /> Practice</>
+            }
+          </Button>
+        )}
         <Link href={`/vocabulary/banks/${id}`} passHref>
           <Button variant="outline" size="sm" title="Manage Words">
              <Settings className="h-4 w-4" />

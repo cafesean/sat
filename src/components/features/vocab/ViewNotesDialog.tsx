@@ -1,5 +1,6 @@
 'use client'
 
+import type { WordListItem } from '@/app/vocabulary/banks/[bankId]/page.tsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { api, type RouterOutputs } from '@/utils/trpc';
 import { Loader2 } from 'lucide-react';
@@ -25,7 +26,7 @@ export function ViewNotesDialog({ bankId, children }: ViewNotesDialogProps) {
   );
 
   // Filter words that actually have notes
-  const wordsHavingNotes = wordsWithNotes?.filter(word => word.notes && word.notes.trim() !== '');
+  const wordsHavingNotes = wordsWithNotes?.filter((word: { notes: string | null }) => word.notes && word.notes.trim() !== '');
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -51,7 +52,7 @@ export function ViewNotesDialog({ bankId, children }: ViewNotesDialogProps) {
           )}
           {!isLoading && !error && wordsHavingNotes && wordsHavingNotes.length > 0 && (
             <ul className="space-y-3">
-              {wordsHavingNotes.map((word) => (
+              {wordsHavingNotes.map((word: WordListItem) => (
                 <li key={word.id} className="border-b pb-3 last:border-b-0">
                   <p className="font-semibold">{word.text}</p>
                   {/* Ensure notes are displayed correctly, handling potential null/undefined */}
