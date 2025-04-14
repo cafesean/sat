@@ -33,7 +33,11 @@ import { toast } from 'sonner';
 import { type JsonValue } from '@prisma/client/runtime/library';
 
 // Define types
-type WordBank = RouterOutputs['vocab']['getById'];
+type WordBank = RouterOutputs['vocab']['getById'] & {
+  _count?: {
+    notes: number;
+  };
+};
 
 // Explicitly define WordListItem based on the select in listByBank query
 type WordListItem = {
@@ -335,19 +339,46 @@ export default function WordBankDetailPage () {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>{wordBank.name}</CardTitle>
+          <div className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2">
+              {wordBank.name}
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-6 w-6"
+                onClick={() => router.push(`/vocabulary/edit/${bankId}`)}
+                title="Edit word bank"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </Button>
+            </CardTitle>
             {wordBank.description && <CardDescription>{wordBank.description}</CardDescription>}
           </div>
           <div className="flex gap-2"> {/* Wrap buttons */}
             <ViewNotesDialog bankId={bankId}>
               <Button variant="secondary">
-                <NotebookText className="mr-2 h-4 w-4" /> View Notes
+                <NotebookText className="mr-2 h-4 w-4" /> 
+                View Notes
+                {wordBank.noteCount > 0 && (
+                  <span className="ml-2 bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs">
+                    {wordBank.noteCount}
+                  </span>
+                )}
               </Button>
             </ViewNotesDialog>
-            <Button onClick={() => router.push(`/vocabulary/learn/${bankId}`)}>
-              Learn Words
-            </Button>
+            {filteredAndSortedWords.length === 0 ? (
+              <Button variant="secondary" onClick={() => router.push(`/vocabulary/edit/${bankId}`)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Words
+              </Button>
+            ) : (
+              <Button onClick={() => router.push(`/vocabulary/learn/${bankId}`)}>
+                Learn Words
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -443,7 +474,7 @@ export default function WordBankDetailPage () {
 
                         {/* Right side icons (only show when not editing) */}
                         {!isEditing && (
-                          <div className="flex items-center space-x-1 flex-shrink-0">
+                          <div className="flex items-center space-x-2 flex-shrink-0">
                             {/* Pass baseWord and count safely */}
                             <WordHistoryDialog wordId={word.id} wordText={word.wordMaster?.baseWord || word.text} historyCount={word._count?.practiceLogs ?? 0} />
                             {/* Star Button */}
@@ -523,6 +554,7 @@ export default function WordBankDetailPage () {
                 onChange={(e) => setNewWordsText(e.target.value)}
                 className="min-h-[60px] flex-grow"
                 disabled={addWordsMutation.isPending}
+                rows={5}
               />
               <Button
                 onClick={handleAddWords}

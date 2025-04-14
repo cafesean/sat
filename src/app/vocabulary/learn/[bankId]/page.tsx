@@ -3,7 +3,7 @@
 import { LearnWords } from '@/components/features/vocab/LearnWords';
 import { Button } from '@/components/ui/button';
 import { api } from '@/utils/trpc';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
 
@@ -55,7 +55,7 @@ export default function LearnWordsPage() {
       {words.length > 0 ? (
         <LearnWords words={words} />
       ) : (
-        <p className="text-muted-foreground">No words in this bank to learn.</p>
+        <Button onClick={() => router.push(`/vocabulary/edit/${bankId}`)}><Plus className="mr-2 h-4 w-4" />Add Words</Button>
       )}
     </div>
   );

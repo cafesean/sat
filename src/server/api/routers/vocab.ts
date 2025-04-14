@@ -96,11 +96,22 @@ export const vocabRouter = router({
 		.query(async ({ ctx, input }) => {
 			const wordBank = await ctx.prisma.wordBank.findUnique({
 				where: { id: input.id, userId: ctx.session.user.id },
+				include: {
+					words: {
+						select: {
+							notes: true
+						}
+					}
+				}
 			});
 			if (!wordBank) {
 				throw new TRPCError({ code: "NOT_FOUND", message: "Word bank not found." });
 			}
-			return wordBank;
+			const noteCount = wordBank.words.filter(w => w.notes).length;
+			return {
+				...wordBank,
+				noteCount
+			};
 		}),
 
 	update: protectedProcedure
@@ -567,6 +578,34 @@ export const vocabRouter = router({
 				select: { id: true, timestamp: true, userSentence: true, isCorrect: true, aiFeedback: true, easeChosen: true },
 			});
 			return history;
+		}),
+
+	// --- User Stats ---
+	getPracticeStats: protectedProcedure
+		.input(z.object({ userId: z.string() }))
+		.query(async ({ ctx }) => {
+			const userId = ctx.session.user.id;
+			
+			const [totalWords, sessionsCompleted, masteredWords] = await Promise.all([
+				ctx.prisma.word.count({
+					where: { wordBank: { userId } }
+				}),
+				ctx.prisma.practiceSession.count({
+					where: { userId, type: PracticeType.VOCABULARY }
+				}),
+				ctx.prisma.word.count({
+					where: { 
+						wordBank: { userId },
+						interval: { gt: 30 } // Words with interval > 30 days are considered mastered
+					}
+				})
+			]);
+
+			return {
+				totalWords,
+				sessionsCompleted,
+				masteredWords
+			};
 		}),
 
 	// --- Get Word Hint ---

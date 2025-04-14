@@ -113,23 +113,30 @@ export function WordList({ initialWords, bankId }: WordListProps) {
             )}
           </div>
 
-          <div className="flex gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground"
-              title="Learn this word"
-              onClick={() => {/* Will implement learn functionality */}}
-            >
-              <BookOpen className="h-4 w-4" />
-            </Button>
+          <div className="flex gap-4">
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground"
+                title="Learn this word"
+                onClick={() => {/* Will implement learn functionality */}}
+              >
+                <BookOpen className="h-4 w-4" />
+              </Button>
+              {word._count?.practiceLogs && word._count.practiceLogs > 0 ? (
+                <span className="text-xs bg-primary/10 text-primary rounded-full px-1.5 py-0.5">
+                  {word._count.practiceLogs}
+                </span>
+              ) : null}
+            </div>
 
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
                   disabled={deleteMutation.isPending && deleteMutation.variables?.wordId === word.id}
                   title="Delete word"
                 >

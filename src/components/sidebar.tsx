@@ -1,43 +1,54 @@
-import { cn } from '@/lib/utils'; // Assuming Shadcn setup created this
+import { auth } from '@/auth';
+import { cn } from '@/lib/utils';
+import { BookOpenIcon, HomeIcon } from 'lucide-react';
 import Link from 'next/link';
 
-// Placeholder icons (replace with actual icons later, e.g., from lucide-react)
-const HomeIcon = () => <span>🏠</span>
-const BookOpenIcon = () => <span>📖</span>
-const PencilIcon = () => <span>✏️</span>
-const LayoutDashboardIcon = () => <span>📊</span>
-
-const Sidebar = ({ className }: { className?: string }) => {
-  // TODO: Add logic to highlight active link based on current route (usePathname)
-  // This would require making it a 'use client' component.
-
-  const navItems = [
-    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboardIcon },
-    { href: '/vocabulary', label: 'Vocabulary', icon: BookOpenIcon },
-    { href: '/reading-writing', label: 'Reading & Writing', icon: PencilIcon },
-  ]
+const Sidebar = async ({ className }: { className?: string }) => {
+  const session = await auth();
 
   return (
-    <aside className={cn('w-64 border-r p-4 hidden md:block', className)}> {/* Hidden on mobile by default */}
+    <aside className={cn('w-64 border-r p-4 hidden md:block', className)}>
       <div className='flex flex-col space-y-2'>
         <Link href='/' className='text-lg font-semibold mb-4'>
-          SAT Study App {/* Consistent with Navbar */}
+          SAT Study App
         </Link>
-        {navItems.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className='flex items-center space-x-2 px-2 py-1.5 rounded-md text-sm hover:bg-accent hover:text-accent-foreground'
-            // Add active class logic here later
-          >
-            <item.icon />
-            <span>{item.label}</span>
-          </Link>
-        ))}
+        <Link
+          href='/'
+          className='flex items-center space-x-2 px-2 py-1.5 rounded-md text-sm hover:bg-accent hover:text-accent-foreground'
+        >
+          <HomeIcon className="h-4 w-4" />
+          <span>Home</span>
+        </Link>
+        {session && (
+          <>
+            <Link
+              href='/vocabulary'
+              className='flex items-center space-x-2 px-2 py-1.5 rounded-md text-sm hover:bg-accent hover:text-accent-foreground'
+            >
+              <BookOpenIcon className="h-4 w-4" />
+              <span>Vocabulary</span>
+            </Link>
+          </>
+        )}
+        {!session && (
+          <>
+            <Link
+              href='/login'
+              className='flex items-center space-x-2 px-2 py-1.5 rounded-md text-sm hover:bg-accent hover:text-accent-foreground'
+            >
+              <span>Login</span>
+            </Link>
+            <Link
+              href='/signup'
+              className='flex items-center space-x-2 px-2 py-1.5 rounded-md text-sm hover:bg-accent hover:text-accent-foreground'
+            >
+              <span>Sign Up</span>
+            </Link>
+          </>
+        )}
       </div>
     </aside>
-    // TODO: Add mobile sidebar using Shadcn Sheet component triggered from Navbar
-  )
-}
+  );
+};
 
-export default Sidebar
+export default Sidebar;

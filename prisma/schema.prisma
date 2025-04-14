@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,34 +7,23 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRole {
-  USER
-  ADMIN
-}
-
-// --- NextAuth.js Models ---
-
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique // Ensure non-nullable and unique for password login
-  emailVerified DateTime?
-  image         String?
-  hashedPassword String?   // Added for password authentication
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  role          UserRole  @default(USER)
-  languagePreference String @default("en")
-  gradeLevel    Int?
-
-  // Relations needed later for app features
-  wordBanks     WordBank[]
-  practiceSessions PracticeSession[]
-  answerAttempts AnswerAttempt[]
-
-  // Relations for NextAuth
-  accounts      Account[]
-  sessions      Session[]
+  id                 String            @id @default(cuid())
+  name               String?
+  email              String            @unique
+  emailVerified      DateTime?
+  image              String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  role               UserRole          @default(USER)
+  gradeLevel         Int?
+  languagePreference String            @default("en")
+  hashedPassword     String?
+  accounts           Account[]
+  answerAttempts     AnswerAttempt[]
+  practiceSessions   PracticeSession[]
+  sessions           Session[]
+  WordBank           WordBank[]
 }
 
 model Account {
@@ -46,15 +32,14 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -75,76 +60,132 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-// --- Application Specific Models (Add in later sprints) ---
-
 model WordMaster {
-  id              String   @id @default(cuid())
-  baseWord        String
-  variations      Json     // JSON array of word forms
-  language        String   @default("en")
-  wordType        String?  // noun/verb/adjective/etc.
-  definition      String?
-  sampleSentences Json     // JSON object with grade-level sentences
-  translations    Json     // JSON object with translations by language
-  isDictionaryWord Boolean @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  words          Word[]    // Relation to Word model
+  id               String   @id @default(cuid())
+  baseWord         String
+  variations       Json
+  language         String   @default("en")
+  wordType         String?
+  definition       String?
+  sampleSentences  Json
+  translations     Json
+  isDictionaryWord Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  words            Word[]
 
   @@unique([baseWord, language])
 }
 
-model WordBank {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  wordReferences WordBankWords[]
-  practiceSessions PracticeSession[]
-  words       Word[]   // Relation to Word model
-}
-
 model WordBankWords {
-  id          String   @id @default(cuid())
-  wordBankId  String
-  wordBank    WordBank @relation(fields: [wordBankId], references: [id], onDelete: Cascade)
-  words       Json     // JSON array of word references
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  wordBankId String
+  words      Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  wordBank   WordBank @relation(fields: [wordBankId], references: [id], onDelete: Cascade)
 }
 
 model Word {
-  id                String    @id @default(cuid())
-  text              String    @default("") // Temporary field for backward compatibility
-  wordMasterId      String
-  wordMaster        WordMaster @relation(fields: [wordMasterId], references: [id], onDelete: Cascade)
-  wordBankId        String
-  wordBank          WordBank  @relation(fields: [wordBankId], references: [id], onDelete: Cascade)
-  interval          Int       @default(1)
-  easeFactor        Float     @default(2.5)
-  repetitions       Int       @default(0)
-  nextReviewDate    DateTime  @default(now())
-  isStarred         Boolean   @default(false)
-  notes             String?
-  practiceLogs      WordPracticeLog[]
+  id             String            @id @default(cuid())
+  wordBankId     String
+  interval       Int               @default(1)
+  easeFactor     Float             @default(2.5)
+  repetitions    Int               @default(0)
+  nextReviewDate DateTime          @default(now())
+  isStarred      Boolean           @default(false)
+  notes          String?
+  wordMasterId   String
+  text           String            @default("")
+  wordBank       WordBank          @relation(fields: [wordBankId], references: [id], onDelete: Cascade)
+  wordMaster     WordMaster        @relation(fields: [wordMasterId], references: [id], onDelete: Cascade)
+  practiceLogs   WordPracticeLog[]
 
-  @@unique([wordBankId, wordMasterId]) // Ensure unique word references within a bank
+  @@unique([wordBankId, wordMasterId])
 }
 
 model WordPracticeLog {
-  id                String    @id @default(cuid())
+  id                String          @id @default(cuid())
   wordId            String
-  word              Word      @relation(fields: [wordId], references: [id], onDelete: Cascade)
   practiceSessionId String
+  timestamp         DateTime        @default(now())
+  userSentence      String
+  isCorrect         Boolean
+  aiFeedback        String?
+  easeChosen        Int
   practiceSession   PracticeSession @relation(fields: [practiceSessionId], references: [id], onDelete: Cascade)
-  timestamp         DateTime  @default(now())
-  userSentence      String    // Sentence user provided
-  isCorrect         Boolean   // Based on AI grading
-  aiFeedback        String?   // Explanation from AI
-  easeChosen        Int       // User feedback on difficulty (e.g., 1=Again, 2=Hard, 3=Good, 4=Easy) - used by SRS
+  word              Word            @relation(fields: [wordId], references: [id], onDelete: Cascade)
+}
+
+model PracticeSession {
+  id             String            @id @default(cuid())
+  userId         String
+  type           PracticeType
+  startTime      DateTime          @default(now())
+  endTime        DateTime?
+  score          Float?
+  difficulty     Int?
+  createdAt      DateTime          @default(now())
+  wordBankId     String?
+  answerAttempts AnswerAttempt[]
+  passage        Passage?
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wordBank       WordBank?         @relation(fields: [wordBankId], references: [id])
+  vocabLogs      WordPracticeLog[]
+}
+
+model Passage {
+  id                String          @id @default(cuid())
+  content           String
+  difficulty        Int
+  createdAt         DateTime        @default(now())
+  practiceSessionId String          @unique
+  practiceSession   PracticeSession @relation(fields: [practiceSessionId], references: [id], onDelete: Cascade)
+  questions         Question[]
+}
+
+model Question {
+  id             String          @id @default(cuid())
+  passageId      String
+  questionText   String
+  type           QuestionType    @default(MULTIPLE_CHOICE)
+  options        String[]
+  correctAnswer  String
+  explanation    String?
+  createdAt      DateTime        @default(now())
+  answerAttempts AnswerAttempt[]
+  passage        Passage         @relation(fields: [passageId], references: [id], onDelete: Cascade)
+}
+
+model AnswerAttempt {
+  id                String          @id @default(cuid())
+  practiceSessionId String
+  questionId        String
+  userId            String
+  selectedAnswer    String
+  isCorrect         Boolean
+  timestamp         DateTime        @default(now())
+  practiceSession   PracticeSession @relation(fields: [practiceSessionId], references: [id], onDelete: Cascade)
+  question          Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model WordBank {
+  id               String            @id @default(cuid())
+  name             String
+  description      String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime @updatedAt
+  userId           String
+  practiceSessions PracticeSession[]
+  words            Word[]
+  User             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wordReferences   WordBankWords[]
+}
+
+enum UserRole {
+  USER
+  ADMIN
 }
 
 enum PracticeType {
@@ -152,62 +193,6 @@ enum PracticeType {
   READING_WRITING
 }
 
-model PracticeSession {
-  id            String    @id @default(cuid())
-  userId        String
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type          PracticeType
-  startTime     DateTime  @default(now())
-  endTime       DateTime?
-  score         Float?    // Overall score (e.g., percentage for R&W)
-  difficulty    Int?      // For R&W (1-5)
-  createdAt     DateTime  @default(now())
-  wordBankId    String?   // Link to specific bank if session started from one
-  wordBank      WordBank? @relation(fields: [wordBankId], references: [id], onDelete: SetNull) // Add relation
-
-  // Relations
-  vocabLogs     WordPracticeLog[] // If type is VOCABULARY
-  passage       Passage?          // If type is READING_WRITING
-  answerAttempts AnswerAttempt[]  // If type is READING_WRITING
-}
-
-model Passage {
-  id                String    @id @default(cuid())
-  content           String    @db.Text // The reading passage text
-  difficulty        Int       // Difficulty level it was generated for
-  createdAt         DateTime  @default(now())
-  practiceSessionId String    @unique // One passage per R&W session
-  practiceSession   PracticeSession @relation(fields: [practiceSessionId], references: [id], onDelete: Cascade)
-  questions         Question[]
-}
-
 enum QuestionType {
-  MULTIPLE_CHOICE // Add others if needed
-}
-
-model Question {
-  id          String       @id @default(cuid())
-  passageId   String
-  passage     Passage      @relation(fields: [passageId], references: [id], onDelete: Cascade)
-  questionText String
-  type        QuestionType @default(MULTIPLE_CHOICE)
-  options     String[]     // Array of multiple-choice options
-  correctAnswer String     // The correct option text
-  explanation String?      // Explanation for the correct answer (AI generated)
-  createdAt   DateTime     @default(now())
-
-  answerAttempts AnswerAttempt[]
-}
-
-model AnswerAttempt {
-  id                String    @id @default(cuid())
-  practiceSessionId String
-  practiceSession   PracticeSession @relation(fields: [practiceSessionId], references: [id], onDelete: Cascade)
-  questionId        String
-  question          Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  userId            String
-  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  selectedAnswer    String
-  isCorrect         Boolean
-  timestamp         DateTime  @default(now())
+  MULTIPLE_CHOICE
 }

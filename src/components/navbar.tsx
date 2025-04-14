@@ -32,8 +32,7 @@ const Navbar = () => {
 
   const navLinks = [
     { href: '/dashboard', label: 'Dashboard' },
-    { href: '/vocabulary', label: 'Vocabulary' },
-    { href: '/reading-writing', label: 'Reading & Writing' },
+    { href: '/vocabulary', label: 'Vocabulary' }
   ];
 
   return (
