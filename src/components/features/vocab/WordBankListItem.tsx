@@ -66,10 +66,10 @@ export function WordBankListItem({
             size="icon" // Icon only for compactness
             onClick={handleStartPractice}
             disabled={startSessionMutation.isPending}
-            title="Practice this bank"
+            title="Learn this bank"
           >
             <Play className="h-4 w-4" />
-            <span className="sr-only">Practice</span>
+            <span className="sr-only">Learn</span>
             {/* Removed loading text for icon button */}
           </Button>
           <Link href={`/vocabulary/banks/${id}`} passHref>

@@ -1,11 +1,10 @@
 'use client'
 
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/utils/trpc';
-import { BookOpen, Loader2, Trash2 } from 'lucide-react';
+import { BookOpen, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { WordDetailDialog } from './WordDetailDialog';
 
@@ -86,7 +85,7 @@ export function WordList({ initialWords, bankId }: WordListProps) {
       {words.map((word) => (
         <div key={word.id} className="flex items-center justify-between gap-2 p-3 border rounded-md bg-background hover:bg-muted/50 group">
           <div className="flex items-center gap-2 flex-grow">
-            <WordDetailDialog word={word} />
+            <WordDetailDialog />
             {editingWordId === word.id ? (
               <div className="flex-grow flex items-center gap-2">
                 <Input
@@ -130,7 +129,7 @@ export function WordList({ initialWords, bankId }: WordListProps) {
                 </span>
               ) : null}
             </div>
-
+{/*
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
@@ -165,6 +164,7 @@ export function WordList({ initialWords, bankId }: WordListProps) {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+*/}
           </div>
         </div>
       ))}

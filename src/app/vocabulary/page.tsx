@@ -81,14 +81,16 @@ export default function VocabularyPage() {
       </div>
 
       {/* Progress Overview Section - Placeholder */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Overall Progress</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground">Progress metrics coming soon...</p>
-        </CardContent>
-      </Card>
+            {/*
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle>Overall Progress</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">Progress metrics coming soon...</p>
+              </CardContent>
+            </Card>
+            */}
 
       {/* Word Banks Section */}
       <div className="mt-8 mb-8">

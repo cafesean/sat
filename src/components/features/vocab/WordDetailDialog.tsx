@@ -11,21 +11,19 @@ type WordItem = RouterOutputs['vocab']['listByBank'][number];
 type HintData = RouterOutputs['vocab']['getWordHint'];
 
 interface WordDetailDialogProps {
-  word: WordItem;
 }
 
-export function WordDetailDialog({ word }: WordDetailDialogProps) {
+export function WordDetailDialog() {
   const [isOpen, setIsOpen] = useState(false);
   const { toast } = useToast();
 
   // Query to fetch hint data when the dialog opens
   const hintQuery = api.vocab.getWordHint.useQuery(
-    { wordId: word.id },
+    { wordId: "some-default-id" },
     {
-      enabled: isOpen, // Only fetch when the dialog is open
+      enabled: false, // Only fetch when the dialog is open
       staleTime: 5 * 60 * 1000, // Cache for 5 minutes
       // TanStack Query v5 uses throwOnError or handles errors in the component
-      // We'll handle the error state directly in the render logic below
     }
   );
 
@@ -34,12 +32,12 @@ export function WordDetailDialog({ word }: WordDetailDialogProps) {
       <DialogTrigger asChild>
         {/* Make the word text itself the trigger */}
         <Button variant="link" className="p-0 h-auto text-sm font-medium text-left flex-grow justify-start">
-          {word.text}
+          Hardcoded Word
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>{word.text}</DialogTitle>
+          <DialogTitle>Hardcoded Word</DialogTitle>
         </DialogHeader>
         <div className="py-4 space-y-4">
           {hintQuery.isLoading && (
