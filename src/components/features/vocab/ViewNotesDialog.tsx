@@ -1,32 +1,58 @@
 'use client'
 
-import type { WordListItem } from '@/app/vocabulary/banks/[bankId]/page.tsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { api, type RouterOutputs } from '@/utils/trpc';
-import { Loader2 } from 'lucide-react';
-import { useState } from 'react';
+import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
+import { useWords } from '@/hooks/useWords'; // Import useWords instead of useNotes
+import { CSSProperties, useMemo, useState } from 'react'; // Import useMemo, CSSProperties
+import { FixedSizeList as ListWindow } from 'react-window'; // Import react-window
 
-type WordItem = RouterOutputs['vocab']['listByBank'][number];
+// Define a type for the aggregated note structure
+interface AggregatedNote {
+  wordId: string;
+  wordText: string; // Add word text for context
+  noteId: string; // Use note content as key? Or generate one? Let's assume note content is unique enough for key for now, or use wordId+index
+  content: string;
+}
 
 interface ViewNotesDialogProps {
-  bankId: string;
+  bankId: string; // Keep bankId to fetch words
   children: React.ReactNode; // Trigger element
 }
 
 export function ViewNotesDialog({ bankId, children }: ViewNotesDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
+  // Fetch words for the bank using useWords hook
+  const { words, isLoading: isLoadingWords, error: wordsError } = useWords(bankId);
 
-  // Fetch words, assuming listByBank now correctly includes 'notes'
-  const { data: wordsWithNotes, isLoading, error } = api.vocab.listByBank.useQuery(
-    { wordBankId: bankId },
-    {
-      enabled: isOpen, // Only fetch when dialog is open
-      staleTime: 1 * 60 * 1000, // Cache for 1 minute
-    }
-  );
+  // Aggregate notes from the fetched words
+  const aggregatedNotes = useMemo(() => {
+    if (!words) return [];
+    const notesList: AggregatedNote[] = [];
+    words.forEach(word => {
+      if (word.notes && word.notes.trim() !== '') {
+        notesList.push({
+          wordId: word.id,
+          wordText: word.wordMaster?.baseWord || word.text, // Get word text
+          noteId: `${word.id}-note`, // Create a unique key
+          content: word.notes,
+        });
+      }
+    });
+    return notesList;
+  }, [words]);
 
-  // Filter words that actually have notes
-  const wordsHavingNotes = wordsWithNotes?.filter((word: { notes: string | null }) => word.notes && word.notes.trim() !== '');
+  // --- Virtualization Renderer ---
+  const NoteItem = ({ index, style, data }: { index: number; style: CSSProperties, data: AggregatedNote[] }) => {
+    const note = data[index];
+    return (
+      <div style={style} className="border-b pb-3 mb-3 last:border-b-0"> {/* Apply style and spacing */}
+         <p className="font-semibold text-sm">{note.wordText}</p> {/* Show word */}
+         <p className="text-sm text-muted-foreground whitespace-pre-wrap">{note.content}</p>
+      </div>
+    );
+  };
+  // --- End Virtualization Renderer ---
+
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -35,31 +61,33 @@ export function ViewNotesDialog({ bankId, children }: ViewNotesDialogProps) {
       </DialogTrigger>
       <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Consolidated Notes</DialogTitle>
+          <DialogTitle>Notes for Word Bank</DialogTitle> {/* Updated Title */}
         </DialogHeader>
-        <div className="py-4 space-y-4">
-          {isLoading && (
-            <div className="flex items-center justify-center p-4">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-muted-foreground">Loading notes...</span>
+        <div className="py-4"> {/* Remove space-y-4 */}
+          {isLoadingWords && (
+            <div className="space-y-2"> {/* Skeleton for loading words */}
+               <Skeleton className="h-4 w-1/4" />
+               <Skeleton className="h-8 w-full" />
+               <Skeleton className="h-4 w-1/4 mt-2" />
+               <Skeleton className="h-8 w-full" />
             </div>
           )}
-          {error && (
-            <p className="text-sm text-destructive text-center">Error loading notes: {error.message}</p>
+          {wordsError && (
+            <p className="text-sm text-destructive text-center">Error loading words: {typeof wordsError === 'string' ? wordsError : 'Unknown error'}</p>
           )}
-          {!isLoading && !error && (!wordsHavingNotes || wordsHavingNotes.length === 0) && (
+          {!isLoadingWords && !wordsError && aggregatedNotes.length === 0 && (
             <p className="text-sm text-muted-foreground text-center">No notes found for words in this bank.</p>
           )}
-          {!isLoading && !error && wordsHavingNotes && wordsHavingNotes.length > 0 && (
-            <ul className="space-y-3">
-              {wordsHavingNotes.map((word: WordListItem) => (
-                <li key={word.id} className="border-b pb-3 last:border-b-0">
-                  <p className="font-semibold">{word.text}</p>
-                  {/* Ensure notes are displayed correctly, handling potential null/undefined */}
-                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{word.notes ?? ''}</p>
-                </li>
-              ))}
-            </ul>
+          {!isLoadingWords && !wordsError && aggregatedNotes.length > 0 && (
+             <ListWindow
+               height={450} // Adjust height as needed within the dialog
+               itemCount={aggregatedNotes.length}
+               itemSize={70} // Estimate height: word text + note text + padding/margin
+               width="100%"
+               itemData={aggregatedNotes}
+             >
+               {NoteItem}
+             </ListWindow>
           )}
         </div>
       </DialogContent>

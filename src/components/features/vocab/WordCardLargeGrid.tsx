@@ -4,9 +4,11 @@ import { type WordListItem } from '@/app/vocabulary/banks/[bankId]/page';
 import { WordHistoryDialog } from '@/components/features/vocab/WordHistoryDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { db, queueMutation } from '@/lib/storage'; // Import db and queueMutation
 // Remove Textarea import
 import { api } from '@/utils/trpc';
 import { Loader2, Save, Star, Trash2, X } from 'lucide-react';
+import { useSession } from 'next-auth/react'; // Import useSession
 import React, { useState } from 'react';
 import { toast } from 'sonner';
 import { WordInteractionModal } from './WordInteractionModal'; // Import modal
@@ -33,6 +35,8 @@ export function WordCardLargeGrid({ word, bankId, onDeleteRequest }: WordCardLar
   // Remove note saved state
   // const [isNoteSaved, setIsNoteSaved] = useState(true);
   const utils = api.useUtils();
+  const { data: session } = useSession(); // Get session
+  const userId = session?.user?.id; // Get userId
 
   // Removed effect for note state
 
@@ -140,12 +144,46 @@ export function WordCardLargeGrid({ word, bankId, onDeleteRequest }: WordCardLar
             <Button
               variant="ghost" size="icon"
               className={`h-6 w-6 ${word.isStarred ? 'text-yellow-400 hover:text-yellow-500' : 'text-muted-foreground hover:text-yellow-400'}`}
-              onClick={(e) => { e.stopPropagation(); toggleStarMutation.mutate({ wordId: word.id }); }}
+              onClick={async (e) => { // Make async
+                e.stopPropagation();
+                if (!userId) {
+                  toast.error("Cannot toggle star: User not logged in.");
+                  return;
+                }
+                const newStarStatus = !word.isStarred;
+                try {
+                  // 1. Optimistic local DB update
+                  await db.words.update(word.id, { isStarred: newStarStatus });
+                  console.log("Locally updated star status in IndexedDB (Large Grid).");
+
+                  // 2. Invalidate list query to update UI
+                  // Use await to ensure invalidation happens before potential online call
+                  await utils.vocab.listByBank.invalidate({ wordBankId: bankId });
+
+                  // 3. Check online status and act
+                  if (navigator.onLine) {
+                    toggleStarMutation.mutate({ wordId: word.id });
+                  } else {
+                    await queueMutation({
+                      type: 'word/toggleStar',
+                      payload: { wordId: word.id },
+                      userId
+                    });
+                    toast.info("Offline: Star toggle queued.");
+                  }
+                } catch (localError: any) {
+                  console.error("Failed to update star status locally (Large Grid):", localError);
+                  toast.error(`Local star update failed: ${localError.message}`);
+                  // Attempt to invalidate again to potentially revert UI if cache holds old state
+                  await utils.vocab.listByBank.invalidate({ wordBankId: bankId });
+                }
+              }}
               title={word.isStarred ? 'Unstar word' : 'Star word'}
+              // Disable only during the online mutation call
               disabled={toggleStarMutation.isPending && toggleStarMutation.variables?.wordId === word.id}
             >
               {toggleStarMutation.isPending && toggleStarMutation.variables?.wordId === word.id
-                ? <Loader2 className="h-3 w-3 animate-spin" />
+                ? <Loader2 className="h-3 w-3 animate-spin" /> // Show loader only for online mutation
                 : <Star className={`h-3 w-3 ${word.isStarred ? 'fill-current' : ''}`} />
               }
             </Button>

@@ -10,8 +10,8 @@ import { useState } from 'react';
 type WordItem = RouterOutputs['vocab']['listByBank'][number];
 type HintData = RouterOutputs['vocab']['getWordHint'];
 
-interface WordDetailDialogProps {
-}
+// interface WordDetailDialogProps {
+// }
 
 export function WordDetailDialog() {
   const [isOpen, setIsOpen] = useState(false);

@@ -13,7 +13,9 @@ import {
 import { Label } from '@/components/ui/label'; // Import Label
 import { Skeleton } from '@/components/ui/skeleton'; // For loading state
 import { Textarea } from '@/components/ui/textarea';
+import { db, queueMutation } from '@/lib/storage'; // Import db, queueMutation AND updateWord
 import { api } from '@/utils/trpc';
+import { useSession } from 'next-auth/react'; // Import useSession
 // Remove VisuallyHidden import
 import { Loader2, Save, Star } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -40,6 +42,8 @@ export function WordInteractionModal({ wordId, bankId, children, onModalClose }:
   const [note, setNote] = useState('');
   const [isNoteSaved, setIsNoteSaved] = useState(true);
   const utils = api.useUtils();
+  const { data: session } = useSession(); // Get session data
+  const userId = session?.user?.id; // Extract userId
 
   // --- Query to fetch the specific word's data ---
   // NOTE: Assumes a `getWordById` query exists. If not, it needs to be created.
@@ -83,10 +87,14 @@ export function WordInteractionModal({ wordId, bankId, children, onModalClose }:
        // Invalidate queries to update UI elsewhere
        utils.vocab.listByBank.invalidate({ wordBankId: bankId });
        utils.vocab.getWordById.invalidate({ id: wordId }); // Update data for this modal
+       // Don't invalidate getWordById here, do it after local update below
+       // utils.vocab.getWordById.invalidate({ id: wordId });
        utils.vocab.listWordBanks.invalidate(); // Update dashboard if needed
      },
-     onError: (error) => {
-       toast.error(`Failed to update star status: ${error.message}`);
+     onError: (error, variables) => {
+       toast.error(`Online star toggle failed: ${error.message}`);
+       // TODO: Consider reverting optimistic update if online toggle fails
+       // This requires more complex state management or refetching the original state.
      }
   });
 
@@ -96,9 +104,39 @@ export function WordInteractionModal({ wordId, bankId, children, onModalClose }:
     setIsNoteSaved(false);
   };
 
-  const handleSaveNote = () => {
+  const handleSaveNote = async () => { // Make async for queueing
     if (!currentWord || note === (currentWord.notes || '')) return;
-    saveNoteMutation.mutate({ wordId: currentWord.id, notes: note });
+    if (!userId) {
+      toast.error("User not logged in.");
+      return;
+    }
+
+    // Optimistic UI update (mark as saved immediately)
+    // Note: This doesn't update the underlying 'currentWord' data instantly,
+    // relies on invalidation or refetch after online success/sync.
+    setIsNoteSaved(true);
+
+    try {
+      if (navigator.onLine) {
+        // Attempt online save
+        saveNoteMutation.mutate({ wordId: currentWord.id, notes: note });
+      } else {
+        // Queue if offline
+        await queueMutation({
+          type: 'note/update', // Use a specific type for note updates
+          payload: { wordId: currentWord.id, notes: note },
+          userId
+        });
+        toast.info("Offline: Note update queued.");
+        // Manually invalidate local query to reflect optimistic save?
+        // Or rely on background sync to eventually invalidate.
+        // For now, just queue it. The UI state 'note' already reflects the change.
+      }
+    } catch (error: any) {
+      console.error("Failed to queue note update:", error);
+      toast.error(`Failed to queue note update: ${error.message}`);
+      setIsNoteSaved(false); // Revert optimistic save state on queueing error
+    }
   };
 
   const handleOpenChange = (open: boolean) => {
@@ -130,12 +168,48 @@ export function WordInteractionModal({ wordId, bankId, children, onModalClose }:
                   variant="ghost"
                   size="icon"
                   className={`h-7 w-7 ${currentWord.isStarred ? 'text-yellow-400 hover:text-yellow-500' : 'text-muted-foreground hover:text-yellow-400'}`}
-                  onClick={(e) => {
+                  onClick={async (e) => { // Make async
                     e.stopPropagation();
-                    toggleStarMutation.mutate({ wordId: currentWord.id });
+                    if (!currentWord || !userId) {
+                      toast.error("Cannot toggle star: Word data or user session missing.");
+                      return;
+                    }
+
+                    // 1. Optimistic local update
+                    const newStarStatus = !currentWord.isStarred;
+
+                    try {
+                      // Use Dexie's update method to modify only the isStarred field
+                      await db.words.update(currentWord.id, { isStarred: newStarStatus });
+                      console.log("Locally updated star status in IndexedDB.");
+
+                      // Invalidate the query to refetch from local DB and update modal UI
+                      await utils.vocab.getWordById.invalidate({ id: wordId });
+
+                      // 2. Check online status and act
+                      if (navigator.onLine) {
+                        // Attempt online toggle
+                        toggleStarMutation.mutate({ wordId: currentWord.id });
+                      } else {
+                        // Queue if offline
+                        await queueMutation({
+                          type: 'word/toggleStar', // Define a type for this action
+                          payload: { wordId: currentWord.id }, // Only need ID for backend
+                           userId
+                         });
+                         toast.info("Offline: Star toggle queued.");
+                         // Invalidate after queueing too, to reflect local DB change
+                         await utils.vocab.getWordById.invalidate({ id: wordId });
+                       }
+                     } catch (localError: any) {
+                       console.error("Failed to update star status locally:", localError);
+                      toast.error(`Local star update failed: ${localError.message}`);
+                      // No easy UI revert here as we rely on query invalidation
+                    }
                   }}
                   title={currentWord.isStarred ? 'Unstar word' : 'Star word'}
-                  disabled={toggleStarMutation.isPending}
+                  // Disable button only during the tRPC mutation call (online case)
+                  disabled={toggleStarMutation.isPending && toggleStarMutation.variables?.wordId === currentWord.id}
                 >
                   {toggleStarMutation.isPending
                     ? <Loader2 className="h-4 w-4 animate-spin" />

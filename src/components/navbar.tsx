@@ -1,18 +1,18 @@
 'use client' // Needed for useSession, useState, etc.
 
 import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
+    Avatar,
+    AvatarFallback,
+    AvatarImage,
 } from "@/components/ui/avatar"; // Import Avatar components
 import { Button } from '@/components/ui/button';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"; // Import Dropdown components
 import { cn } from '@/lib/utils';
 import { api } from '@/utils/trpc';
@@ -45,7 +45,7 @@ const Navbar = () => {
         {session && (
           <div className="hidden md:flex items-center gap-2">
             {navLinks.map((link) => (
-              <Link key={link.href} href={link.href}>
+              <Link key={link.href} href={link.href} prefetch={true}>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -90,7 +90,7 @@ const Navbar = () => {
           </>
         ) : (
           // Link to the login page instead of triggering signIn directly
-          <Link href="/login" passHref>
+          <Link href="/login" passHref prefetch={true}>
              <Button variant='outline' size='sm'>
                Sign In
              </Button>
@@ -169,10 +169,11 @@ function UserNav({ session }: { session: any }) { // Use 'any' for now, refine l
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {/* Add other items like Profile, Settings later if needed */}
-        {/* <DropdownMenuItem>Profile</DropdownMenuItem> */}
+        <Link href="/profile" passHref prefetch={true}>
+          <DropdownMenuItem>My Profile</DropdownMenuItem>
+        </Link>
         {user?.role === UserRole.ADMIN && (
-           <Link href='/admin/users' passHref>
+           <Link href='/admin/users' passHref prefetch={true}>
              <DropdownMenuItem>Admin Panel</DropdownMenuItem>
            </Link>
         )}

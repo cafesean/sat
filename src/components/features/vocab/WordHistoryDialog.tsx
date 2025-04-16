@@ -14,10 +14,11 @@ import {
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getPracticeLogsByWord } from '@/lib/storage';
 import { api, type RouterOutputs } from '@/utils/trpc';
 import { format } from 'date-fns'; // For formatting timestamps
 import { History } from 'lucide-react'; // Icon for the trigger button
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 // Define type for a single history log item
 type HistoryLog = RouterOutputs['vocab']['getWordPracticeHistory'][number];
@@ -38,12 +39,40 @@ const easeLevelMap: { [key: number]: string } = {
 
 export function WordHistoryDialog ({ wordId, wordText, historyCount }: WordHistoryDialogProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [history, setHistory] = useState<HistoryLog[] | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Fetch history only when the dialog is open
-  const { data: history, isLoading, error } = api.vocab.getWordPracticeHistory.useQuery(
-    { wordId },
-    { enabled: isOpen } // Only fetch when dialog is open
-  )
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    async function fetchHistory() {
+      setIsLoading(true);
+      setError(null);
+      try {
+        // Try IndexedDB first
+        const localHistory = await getPracticeLogsByWord(wordId);
+        if (localHistory && localHistory.length > 0) {
+          setHistory(localHistory as any);
+          setIsLoading(false);
+          return;
+        }
+        // Fallback to tRPC
+        const { data } = await api.vocab.getWordPracticeHistory.useQuery({ wordId });
+        if (!cancelled && data) {
+          setHistory(data as any);
+        } else if (!cancelled) {
+          setError('No history found.');
+        }
+      } catch (e: any) {
+        setError('Failed to load history.');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchHistory();
+    return () => { cancelled = true; };
+  }, [isOpen, wordId]);
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -78,16 +107,16 @@ export function WordHistoryDialog ({ wordId, wordText, historyCount }: WordHisto
             </div>
           )}
           {error && (
-            <p className="text-red-500 py-4">Error loading history: {error.message}</p>
+            <p className="text-red-500 py-4">Error loading history: {error}</p>
           )}
           {!isLoading && !error && history && history.length > 0 && (
             <div className="space-y-3 py-2">
-              {history.map((log: HistoryLog) => (
+              {history.map((log: any) => (
                 <div key={log.id} className="p-3 border rounded-md text-sm">
                   <p className="text-xs text-muted-foreground mb-1">
-                    {format(new Date(log.timestamp), 'PPpp')} {/* Format timestamp */}
+                    {log.timestamp ? format(new Date(log.timestamp), 'PPpp') : ''}
                   </p>
-                  <p className="mb-1"><strong>Sentence:</strong> {log.userSentence}</p>
+                  <p className="mb-1"><strong>Sentence:</strong> {log.userSentence ?? ''}</p>
                   <p className={`font-medium ${log.isCorrect ? 'text-green-600' : 'text-red-600'}`}>
                     <strong>Result:</strong> {log.isCorrect ? 'Correct' : 'Incorrect'}
                   </p>
@@ -97,9 +126,9 @@ export function WordHistoryDialog ({ wordId, wordText, historyCount }: WordHisto
               ))}
             </div>
           )}
-           {!isLoading && !error && (!history || history.length === 0) && (
-             <p className="text-muted-foreground py-4 text-center">No practice history found for this word.</p>
-           )}
+          {!isLoading && !error && (!history || history.length === 0) && (
+            <p className="text-muted-foreground py-4 text-center">No practice history found for this word.</p>
+          )}
         </ScrollArea>
         <DialogFooter>
           <DialogClose asChild>

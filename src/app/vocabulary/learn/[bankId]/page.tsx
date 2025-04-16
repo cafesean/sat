@@ -2,7 +2,8 @@
 
 import { LearnWords } from '@/components/features/vocab/LearnWords';
 import { Button } from '@/components/ui/button';
-import { api } from '@/utils/trpc';
+import { useWordBanks } from '@/hooks/useWordBanks';
+import { useWords } from '@/hooks/useWords';
 import { ArrowLeft, Loader2, Plus } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
@@ -13,19 +14,12 @@ export default function LearnWordsPage() {
   const { status } = useSession();
   const bankId = params.bankId as string;
 
-  // Fetch word bank details (optional, could just fetch words)
-  const { data: wordBank, isLoading: isLoadingBank, error: bankError } = api.vocab.getById.useQuery(
-    { id: bankId },
-    { enabled: status === 'authenticated' && !!bankId }
-  );
+  // Use offline-first hooks
+  const { wordBanks, isLoading: isLoadingBanks, error: banksError } = useWordBanks('');
+  const { words, isLoading: isLoadingWords, error: wordsError } = useWords(bankId);
+  const wordBank = wordBanks?.find(b => b.id === bankId);
 
-  // Fetch words for learning
-  const { data: words, isLoading: isLoadingWords, error: wordsError } = api.vocab.listByBank.useQuery(
-    { wordBankId: bankId },
-    { enabled: status === 'authenticated' && !!bankId }
-  );
-
-  if (status === 'loading' || isLoadingBank || isLoadingWords) {
+  if (status === 'loading' || isLoadingBanks || isLoadingWords) {
     return (
       <div className="container mx-auto p-4 flex justify-center items-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -37,8 +31,9 @@ export default function LearnWordsPage() {
     return <div className="container mx-auto p-4">Please sign in to learn words.</div>;
   }
 
-  if (bankError || wordsError) {
-    return <div className="container mx-auto p-4 text-red-500">Error loading data: {bankError?.message || wordsError?.message}</div>;
+  // Only show error if there is truly no data to display
+  if (((banksError && (!wordBanks || wordBanks.length === 0)) || (wordsError && (!words || words.length === 0)))) {
+    return <div className="container mx-auto p-4 text-red-500">Error loading data: {banksError || wordsError}</div>;
   }
 
   if (!wordBank || !words) {
@@ -53,7 +48,18 @@ export default function LearnWordsPage() {
       </Button>
       <h1 className="text-2xl font-bold">Learn Words: {wordBank.name}</h1>
       {words.length > 0 ? (
-        <LearnWords words={words} />
+        <LearnWords words={words.map(word => ({
+          ...word,
+          interval: 0,
+          easeFactor: 0,
+          repetitions: 0,
+          nextReviewDate: '',
+          isStarred: false,
+          notes: null,
+          mastery: 0,
+          nextDueAtReviewCount: 0,
+          practiceCount: 0,
+        }))} />
       ) : (
         <Button onClick={() => router.push(`/vocabulary/edit/${bankId}`)}><Plus className="mr-2 h-4 w-4" />Add Words</Button>
       )}

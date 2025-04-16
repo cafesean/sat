@@ -1,59 +1,43 @@
 'use client'
 
-import { Button } from '@/components/ui/button'; // Re-add Button import
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog'; // Import Dialog components
-import { ScrollArea } from '@/components/ui/scroll-area'; // Import ScrollArea
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'; // Import Dialog components
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+// Remove usePracticeLogs import
 import { api, type RouterOutputs } from '@/utils/trpc';
-import { format } from 'date-fns';
-import { AlertCircle, BookText } from 'lucide-react'; // Import Loader2
-import { useState } from 'react'; // Import useState
+import { format, formatDistanceToNow } from 'date-fns'; // Import date-fns utils
+import { AlertCircle, Loader2 } from 'lucide-react';
+import { useMemo, useState } from 'react'; // Import Fragment, useMemo
 
 // Infer types
 type PracticeSessionItem = RouterOutputs['vocab']['listPracticeSessions']['sessions'][number];
 type SessionSummary = RouterOutputs['vocab']['getVocabSessionSummary'];
 
-// Helper component to display individual history item
+// Update PracticeHistoryItem to use PracticeSessionItem type
 function PracticeHistoryItem ({ session, onReviewClick }: { session: PracticeSessionItem, onReviewClick: (sessionId: string) => void }) {
-  const bankName = session.wordBankName ?? 'Quick Practice';
+  const startTime = session.startTime ? new Date(session.startTime) : null;
 
   return (
     <Card>
-      {/* More compact layout */}
       <CardContent className="p-3 flex items-center justify-between gap-3">
-        {/* Session Info */}
-        <div className="flex-grow overflow-hidden"> {/* Prevent text overflow */}
-          <p className="font-medium text-sm truncate" title={format(new Date(session.startTime), 'PPpp')}>
-            {format(new Date(session.startTime), 'PPp')} {/* Shorter date format */}
-          </p>
-          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5 truncate" title={bankName}>
-            <BookText className="h-3 w-3 flex-shrink-0" />
-            {bankName}
-          </p>
+        <div className="flex-grow overflow-hidden">
+           <p className="font-medium text-sm truncate">
+             {session.wordBankName ? `Bank: ${session.wordBankName}` : 'Quick Practice'}
+           </p>
+           {startTime && (
+             <p className="text-xs text-muted-foreground" title={format(startTime, 'PPpp')}>
+               {formatDistanceToNow(startTime, { addSuffix: true })}
+             </p>
+           )}
+           <p className="text-xs text-muted-foreground">
+             Words Studied: {session.wordsStudied ?? 0}
+           </p>
+           {/* Accuracy might not be directly available, calculate if needed or remove */}
+           {/* {session.accuracy !== undefined && <p className="text-xs text-muted-foreground">Accuracy: {session.accuracy}%</p>} */}
         </div>
-        {/* Stats */}
-        <div className="flex items-center gap-3 sm:gap-4 text-center flex-shrink-0">
-          <div>
-            <p className="text-xs text-muted-foreground">Words</p>
-            <p className="font-medium text-sm">{session.wordsStudied}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Acc.</p>
-            <p className="font-medium text-sm">{session.accuracy}%</p>
-          </div>
-        </div>
-        {/* Review Button */}
         <div className="flex-shrink-0">
-          {/* Trigger the modal instead of linking */}
           <Button variant="outline" size="sm" onClick={() => onReviewClick(session.id)}>
             Review
           </Button>
@@ -65,7 +49,11 @@ function PracticeHistoryItem ({ session, onReviewClick }: { session: PracticeSes
 
 // Component to display session summary inside the dialog
 function SessionReviewContent({ sessionId }: { sessionId: string }) {
-  const { data: summary, isLoading, error } = api.vocab.getVocabSessionSummary.useQuery({ practiceSessionId: sessionId });
+  // Use the specific query hook for session summary
+  const { data: summary, isLoading, error } = api.vocab.getVocabSessionSummary.useQuery(
+    { practiceSessionId: sessionId },
+    { enabled: !!sessionId } // Enable only when sessionId is present
+  );
 
   if (isLoading) {
     return <div className="py-4"><Skeleton className="h-20 w-full" /></div>;
@@ -83,10 +71,10 @@ function SessionReviewContent({ sessionId }: { sessionId: string }) {
   return (
     <ScrollArea className="h-[450px] pr-4">
       <div className="space-y-3 py-2">
-        {summary.logs.map((log) => (
+        {summary.logs.map((log: any) => ( // Use 'any' for log type if structure varies or use inferred type
           <div key={log.id} className="p-3 border rounded-md text-sm">
-            <p className="mb-1"><strong>Word:</strong> {log.word?.text ?? 'N/A'}</p> {/* Assuming word text is needed - adjust query if not */}
-            <p className="mb-1"><strong>Your Sentence:</strong> {log.userSentence}</p>
+            <p className="mb-1"><strong>Word:</strong> {log.word?.text ?? 'N/A'}</p>
+            <p className="mb-1"><strong>Your Sentence:</strong> {log.userSentence ?? ''}</p>
             <p className={`font-medium ${log.isCorrect ? 'text-green-600' : 'text-red-600'}`}>
               <strong>Result:</strong> {log.isCorrect ? 'Correct' : 'Incorrect'}
             </p>
@@ -99,30 +87,31 @@ function SessionReviewContent({ sessionId }: { sessionId: string }) {
   );
 }
 
-
-// Main component to fetch and display history
+// Main component to fetch and display practice SESSIONS
 export function PracticeHistoryTabContent() {
-  const [reviewSessionId, setReviewSessionId] = useState<string | null>(null); // State for review dialog
+  const [reviewSessionId, setReviewSessionId] = useState<string | null>(null);
 
-  // Using useInfiniteQuery for potential pagination later
+  // Use useInfiniteQuery for practice sessions
   const {
-    data,
+    data: sessionPages,
     isLoading,
     error,
     fetchNextPage,
     hasNextPage,
-    isFetchingNextPage,
+    isFetchingNextPage
   } = api.vocab.listPracticeSessions.useInfiniteQuery(
-    { limit: 10 }, // Initial limit
+    { limit: 15 }, // Fetch 15 sessions per page
     {
       getNextPageParam: (lastPage) => lastPage.nextCursor,
-      // refetchOnWindowFocus: false, // Optional: disable refetch on focus
+      refetchOnWindowFocus: false,
     }
   );
 
-  const sessions = data?.pages.flatMap((page) => page.sessions) ?? [];
+  // Combine pages into a single list
+  const sessions = useMemo(() => sessionPages?.pages.flatMap(page => page.sessions) ?? [], [sessionPages]);
 
-  if (isLoading) {
+  // Initial loading state
+  if (isLoading && sessions.length === 0) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-[80px] w-full" />
@@ -132,56 +121,57 @@ export function PracticeHistoryTabContent() {
     )
   }
 
-  if (error) {
+  // Error state
+  if (error && sessions.length === 0) {
     return (
       <div className="text-destructive flex items-center gap-2 p-4 border border-destructive/50 bg-destructive/10 rounded-md">
         <AlertCircle className="h-5 w-5" />
-        <span>Error loading practice history: {error.message}</span>
+        <span>Error loading practice sessions: {error.message}</span>
       </div>
     )
   }
 
-  const handleReviewClick = (sessionId: string) => {
-    setReviewSessionId(sessionId);
-  };
-
+  // Render the list of sessions
   return (
     <>
-      <div className="space-y-3"> {/* Reduced spacing */}
+      <div className="space-y-3">
         {sessions.length > 0 ? (
           sessions.map((session) => (
-            <PracticeHistoryItem key={session.id} session={session} onReviewClick={handleReviewClick} />
+            // Use the existing PracticeHistoryItem component, passing session data
+            <PracticeHistoryItem
+              key={session.id}
+              session={session} // Pass the whole session object
+              onReviewClick={() => setReviewSessionId(session.id)}
+            />
           ))
         ) : (
-        <p className="text-muted-foreground text-center py-8">No practice history found.</p>
-      )}
-      {hasNextPage && (
-        <Button
-          variant="outline"
-          onClick={() => fetchNextPage()}
-          disabled={isFetchingNextPage}
-          className="w-full"
-        >
-          {isFetchingNextPage ? 'Loading more...' : 'Load More'}
-        </Button>
-      )}
+          // Show message only if not loading initially
+          !isLoading && <p className="text-muted-foreground text-center py-8">No practice sessions found.</p>
+        )}
+        {/* Load More Button - uses props from useInfiniteQuery */}
+        {hasNextPage && (
+          <div className="pt-4 text-center">
+            <Button
+              onClick={() => fetchNextPage()}
+              disabled={isFetchingNextPage}
+              variant="outline"
+              size="sm"
+            >
+              {isFetchingNextPage ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Load More
+            </Button>
+          </div>
+        )}
       </div>
-
-      {/* Review Dialog */}
+      {/* Session Review Dialog */}
       <Dialog open={!!reviewSessionId} onOpenChange={(open) => !open && setReviewSessionId(null)}>
-        <DialogContent className="sm:max-w-[650px]">
+        <DialogContent className="sm:max-w-lg max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Session Review</DialogTitle>
-            <DialogDescription>
-              Detailed review of your practice session.
-            </DialogDescription>
           </DialogHeader>
           {reviewSessionId && <SessionReviewContent sessionId={reviewSessionId} />}
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button type="button" variant="secondary">Close</Button>
-            </DialogClose>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

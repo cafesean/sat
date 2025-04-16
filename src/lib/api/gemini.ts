@@ -101,7 +101,7 @@ export async function gradeSentence(
    if (!genAI) return { isCorrect: false, feedback: "AI grading is disabled (API key missing)." }; // Return default if API key is missing
 
   // Construct the prompt, adding grade level context if provided
-  let prompt = `
+  const prompt = `
     Word: "${word}"
     User's Sentence: "${sentence}"
     ${gradeLevel ? `Assume the user is in grade ${gradeLevel}.` : ''}

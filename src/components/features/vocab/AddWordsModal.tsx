@@ -13,8 +13,12 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { queueMutation } from '@/lib/storage'; // Import queueMutation
+// Remove useWords import as we'll use addBatch directly
+// import { useWords } from '@/hooks/useWords';
 import { api } from '@/utils/trpc';
 import { Loader2 } from 'lucide-react';
+import { useSession } from 'next-auth/react'; // Import useSession
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -28,6 +32,10 @@ export function AddWordsModal({ bankId, children, onWordsAdded }: AddWordsModalP
   const [isOpen, setIsOpen] = useState(false);
   const [wordsText, setWordsText] = useState('');
   const utils = api.useUtils();
+  const { data: session } = useSession(); // Get session
+  const userId = session?.user?.id; // Get userId
+  // Remove useWords hook call
+  // const { add: addWord } = useWords(bankId);
 
   const addWordsMutation = api.vocab.addBatch.useMutation({
     onSuccess: () => {
@@ -45,15 +53,43 @@ export function AddWordsModal({ bankId, children, onWordsAdded }: AddWordsModalP
     },
   });
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!wordsText.trim()) {
       toast.warning('Please enter words to add.');
       return;
     }
-    addWordsMutation.mutate({
-      wordBankId: bankId,
-      wordsText: wordsText.trim(),
-    });
+    if (!userId) {
+      toast.error("User not logged in.");
+      return;
+    }
+
+    const payload = { wordBankId: bankId, wordsText: wordsText.trim() };
+
+    // Check online status
+    if (navigator.onLine) {
+      // Call tRPC mutation directly if online
+      addWordsMutation.mutate(payload);
+    } else {
+      // Queue if offline
+      try {
+        await queueMutation({
+          type: 'word/addBatch', // Use a new type for batch add
+          payload: payload,
+          userId
+        });
+        toast.info("Offline: Adding words queued.");
+        // Close modal and clear text optimistically for offline queueing
+        setWordsText('');
+        setIsOpen(false);
+        onWordsAdded?.(); // Call callback
+      } catch (error: any) {
+        console.error("Failed to queue word batch add:", error);
+        toast.error(`Failed to queue adding words: ${error.message}`);
+      }
+    }
+    // Note: Local DB update for words happens on the backend via addBatch
+    // and will be synced back via the useWords hook's fetch/sync logic.
+    // No need for the manual loop calling useWords.add here.
   };
 
   // Reset text when dialog is closed
