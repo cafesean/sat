@@ -2,9 +2,7 @@
 
 import { AddWordsModal } from '@/components/features/vocab/AddWordsModal';
 import { ViewNotesDialog } from '@/components/features/vocab/ViewNotesDialog';
-import { WordCardLargeGrid } from '@/components/features/vocab/WordCardLargeGrid';
-import { WordCardSmallGrid } from '@/components/features/vocab/WordCardSmallGrid';
-import { WordListItemView } from '@/components/features/vocab/WordListItemView';
+import { WordCard } from '@/components/features/vocab/WordCard';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -84,7 +82,7 @@ export default function WordBankDetailPage () {
     { id: bankId },
     { enabled: status === 'authenticated' && !!bankId }
   )
-  const { words, isLoading: isLoadingWords, error: wordsError, remove: removeWord } = useWords(bankId);
+  const { words, isLoading: isLoadingWords, error: wordsError, remove: removeWord, update: updateWord } = useWords(bankId);
   const { logs: practiceLogs, isLoading: isLoadingLogs, error: logsError } = usePracticeLogs(bankId);
 
   const [wordFilterText, setWordFilterText] = useState('');
@@ -158,23 +156,37 @@ export default function WordBankDetailPage () {
 
   // --- Virtualization Renderers ---
   const LargeGridItem = ({ columnIndex, rowIndex, style, data }: { columnIndex: number; rowIndex: number; style: CSSProperties; data: typeof filteredAndSortedWords }) => {
-    const index = rowIndex * 3 + columnIndex; // Assuming 3 columns
+    const index = rowIndex * 3 + columnIndex;
     if (index >= data.length) return null;
     const word = data[index];
     return (
       <div style={style} className="p-2">
-        <WordCardLargeGrid key={word.id} word={word} bankId={bankId} onDeleteRequest={handleDeleteRequest} />
+        <WordCard
+          key={word.id}
+          word={word}
+          bankId={bankId}
+          onDeleteRequest={handleDeleteRequest}
+          updateWord={updateWord}
+          viewMode="large-grid"
+        />
       </div>
     );
   };
 
   const SmallGridItem = ({ columnIndex, rowIndex, style, data }: { columnIndex: number; rowIndex: number; style: CSSProperties; data: typeof filteredAndSortedWords }) => {
-    const index = rowIndex * 5 + columnIndex; // Assuming 5 columns
+    const index = rowIndex * 5 + columnIndex;
     if (index >= data.length) return null;
     const word = data[index];
     return (
       <div style={style} className="p-1">
-        <WordCardSmallGrid key={word.id} word={word} bankId={bankId} />
+        <WordCard
+          key={word.id}
+          word={word}
+          bankId={bankId}
+          onDeleteRequest={handleDeleteRequest}
+          updateWord={updateWord}
+          viewMode="small-grid"
+        />
       </div>
     );
   };
@@ -183,7 +195,14 @@ export default function WordBankDetailPage () {
     const word = data[index];
     return (
       <div style={style}>
-        <WordListItemView key={word.id} word={word} bankId={bankId} />
+        <WordCard
+          key={word.id}
+          word={word}
+          bankId={bankId}
+          onDeleteRequest={handleDeleteRequest}
+          updateWord={updateWord}
+          viewMode="list"
+        />
       </div>
     );
   };

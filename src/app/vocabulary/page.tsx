@@ -1,6 +1,5 @@
 'use client'
 
-import { AddWordsModal } from "@/components/features/vocab/AddWordsModal";
 import { PracticeHistoryTabContent } from "@/components/features/vocab/PracticeHistoryTabContent";
 import { WordBankListItem as WordBankListItemComponent } from "@/components/features/vocab/WordBankListItem";
 import { Button } from "@/components/ui/button";
@@ -8,77 +7,56 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import useLocalStorage from "@/hooks/useLocalStorage";
-import { useWordBanks } from '@/hooks/useWordBanks';
-import { api } from '@/utils/trpc';
-import { format } from 'date-fns';
+import useLocalStorage from "@/hooks/useLocalStorage"; // Import the custom hook
+import { api, type RouterOutputs } from "@/utils/trpc";
 import { AlertCircle, BookText, Grid, History, List, Pencil, Play, Plus, Settings, SortAsc, SortDesc } from "lucide-react";
-import { useSession } from 'next-auth/react';
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CSSProperties, useMemo, useState } from "react"; // Import CSSProperties
-import { FixedSizeGrid as GridWindow, FixedSizeList as ListWindow } from 'react-window'; // Import react-window components
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
-// Type alias for clarity
-type WordBankItem = NonNullable<ReturnType<typeof useWordBanks>['wordBanks']>[number];
-
+// Infer type for word bank list item
+type WordBankListItem = RouterOutputs['vocab']['listWordBanks'][number]
 type SortKey = 'name' | 'createdAt' | 'masteryPercentage';
 type SortDirection = 'asc' | 'desc';
 
 export default function VocabularyPage() {
+  // Use useLocalStorage for viewMode persistence
   const [viewMode, setViewMode] = useLocalStorage<'grid' | 'list'>('vocabViewMode', 'grid');
   const [filterText, setFilterText] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('createdAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
-  const { data: session } = useSession();
-  const userId = session?.user?.id;
-  const { wordBanks, isLoading, error } = useWordBanks(userId || '');
+  // Fetch word banks
+  const { data: wordBanks, isLoading: isLoadingBanks, error: banksError } = api.vocab.listWordBanks.useQuery()
 
   // Client-side filtering and sorting
   const filteredAndSortedBanks = useMemo(() => {
     if (!wordBanks) return [];
-    let banks = [...wordBanks].map(bank => ({
-      ...bank,
-      wordCount: bank.wordCount ?? 0,
-      masteryPercentage: bank.masteryPercentage ?? 0,
-      lastPracticedAt: bank.lastPracticedAt ?? null,
-      reviewCount: (bank as any).reviewCount ?? 0,
-    }));
+    let banks = [...wordBanks];
 
+    // Filter
     if (filterText) {
       banks = banks.filter(bank =>
         bank.name.toLowerCase().includes(filterText.toLowerCase()) ||
-        (bank.description && bank.description.toLowerCase().includes(filterText.toLowerCase()))
+        bank.description?.toLowerCase().includes(filterText.toLowerCase())
       );
     }
 
+    // Sort
     banks.sort((a, b) => {
-      let compareA = a[sortKey as keyof typeof a] as string | number | Date | null | undefined;
-      let compareB = b[sortKey as keyof typeof b] as string | number | Date | null | undefined;
-      const valA = compareA === null || compareA === undefined ? -Infinity : compareA;
-      const valB = compareB === null || compareB === undefined ? -Infinity : compareB;
+      let compareA: string | number | Date = a[sortKey];
+      let compareB: string | number | Date = b[sortKey];
 
       if (sortKey === 'createdAt') {
-         const dateA = valA instanceof Date ? valA : (typeof valA === 'string' ? new Date(valA) : new Date(0));
-         const dateB = valB instanceof Date ? valB : (typeof valB === 'string' ? new Date(valB) : new Date(0));
-         compareA = dateA.getTime();
-         compareB = dateB.getTime();
-      } else if (sortKey === 'masteryPercentage') {
-         compareA = typeof valA === 'number' ? valA : 0;
-         compareB = typeof valB === 'number' ? valB : 0;
-      } else if (sortKey === 'name') {
-         compareA = String(valA).toLowerCase();
-         compareB = String(valB).toLowerCase();
-      } else {
-         compareA = valA;
-         compareB = valB;
+        compareA = new Date(compareA);
+        compareB = new Date(compareB);
       }
 
       let comparison = 0;
       if (compareA > compareB) comparison = 1;
       else if (compareA < compareB) comparison = -1;
+
       return sortDirection === 'desc' ? comparison * -1 : comparison;
     });
 
@@ -89,47 +67,6 @@ export default function VocabularyPage() {
     setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
   }
 
-  // --- Virtualization Renderers ---
-  const GridItem = ({ columnIndex, rowIndex, style, data }: { columnIndex: number; rowIndex: number; style: CSSProperties; data: typeof filteredAndSortedBanks }) => {
-    const index = rowIndex * 3 + columnIndex; // Assuming 3 columns
-    if (index >= data.length) return null;
-    const bank = data[index];
-    return (
-      <div style={style} className="p-3"> {/* Apply style and padding */}
-        <WordBankCard
-          key={bank.id}
-          id={bank.id}
-          title={bank.name}
-          description={bank.description}
-          wordCount={bank.wordCount}
-          masteryPercentage={bank.masteryPercentage}
-          lastPracticedAt={bank.lastPracticedAt ? new Date(bank.lastPracticedAt) : null}
-        />
-      </div>
-    );
-  };
-
-  const ListItem = ({ index, style, data }: { index: number; style: CSSProperties, data: typeof filteredAndSortedBanks }) => {
-    const bank = data[index];
-    return (
-      <div style={style}> {/* Apply style */}
-        <WordBankListItemComponent
-          key={bank.id}
-          {...bank}
-          reviewCount={bank.reviewCount}
-          wordCount={bank.wordCount}
-          masteryPercentage={bank.masteryPercentage}
-          lastPracticedAt={bank.lastPracticedAt ? new Date(bank.lastPracticedAt) : new Date(0)}
-          createdAt={bank.createdAt ? new Date(bank.createdAt) : new Date()}
-          updatedAt={bank.updatedAt ? new Date(bank.updatedAt) : new Date()}
-          description={bank.description ?? null}
-        />
-      </div>
-    );
-  };
-  // --- End Virtualization Renderers ---
-
-
   return (
     <main className="container mx-auto px-4 py-8">
       {/* Header */}
@@ -139,6 +76,16 @@ export default function VocabularyPage() {
           <p className="text-muted-foreground mt-1">Manage your word banks and track your progress.</p>
         </div>
       </div>
+
+      {/* Progress Overview Section - Placeholder */}
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle>Overall Progress</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground">Progress metrics coming soon...</p>
+        </CardContent>
+      </Card>
 
       {/* Word Banks Section */}
       <div className="mt-8 mb-8">
@@ -181,7 +128,7 @@ export default function VocabularyPage() {
         </div>
 
         {/* Loading State */}
-        {isLoading && (
+        {isLoadingBanks && (
           <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-2"}>
             {viewMode === 'grid' ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[200px] w-full" />)
              : Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[60px] w-full" />)}
@@ -189,41 +136,39 @@ export default function VocabularyPage() {
         )}
 
         {/* Error State */}
-        {error && (
+        {banksError && (
           <div className="text-destructive flex items-center gap-2 p-4 border border-destructive/50 bg-destructive/10 rounded-md">
             <AlertCircle className="h-5 w-5" />
-            <span>Error loading word banks: {error}</span>
+            <span>Error loading word banks: {banksError.message}</span>
           </div>
         )}
 
-        {/* Content Area - Virtualized */}
-        {!isLoading && !error && (
+        {/* Content Area */}
+        {!isLoadingBanks && !banksError && (
           <>
             {filteredAndSortedBanks.length === 0 && !filterText && (
-               <p className="text-muted-foreground text-center py-8">No word banks created yet. Create one below!</p>
+              <p className="text-muted-foreground text-center py-8">No word banks created yet. Create one below!</p>
             )}
-             {filteredAndSortedBanks.length === 0 && filterText && (
-               <p className="text-muted-foreground text-center py-8">No word banks match your filter.</p>
+            {filteredAndSortedBanks.length === 0 && filterText && (
+              <p className="text-muted-foreground text-center py-8">No word banks match your filter.</p>
             )}
 
-            {/* Grid View - Virtualized */}
-            {viewMode === 'grid' && filteredAndSortedBanks.length > 0 && (
-              <GridWindow
-                className="grid-container"
-                columnCount={3} // TODO: Make responsive
-                columnWidth={300} // TODO: Adjust based on actual card size + gap
-                height={600} // TODO: Make responsive or use AutoSizer
-                rowCount={Math.ceil(filteredAndSortedBanks.length / 3)}
-                rowHeight={240} // TODO: Adjust based on actual card size + gap
-                width={920} // TODO: Make responsive or use AutoSizer
-                itemData={filteredAndSortedBanks}
-              >
-                {GridItem}
-              </GridWindow>
-            )}
-            {/* Render Create New Bank Card separately below the grid */}
+            {/* Grid View */}
             {viewMode === 'grid' && (
-                <Card className="flex flex-col items-center justify-center border-dashed min-h-[200px] mt-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredAndSortedBanks.map((bank) => (
+                  <WordBankCard
+                    key={bank.id}
+                    id={bank.id}
+                    title={bank.name}
+                    description={bank.description}
+                    wordCount={bank.wordCount}
+                    masteryPercentage={bank.masteryPercentage}
+                    lastPracticed="Never" // Placeholder
+                  />
+                ))}
+                {/* Create New Bank Card (Grid) */}
+                <Card className="flex flex-col items-center justify-center h-full border-dashed min-h-[200px]">
                   <CardContent className="pt-6 text-center">
                     <Plus className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
                     <p className="text-muted-foreground">Create a new word bank</p>
@@ -232,32 +177,23 @@ export default function VocabularyPage() {
                     </Link>
                   </CardContent>
                 </Card>
-            )}
-
-            {/* List View - Virtualized */}
-            {viewMode === 'list' && filteredAndSortedBanks.length > 0 && (
-              <div className="border rounded-md overflow-hidden"> {/* Container for list + button */}
-                <ListWindow
-                  height={600} // TODO: Make responsive or use AutoSizer
-                  itemCount={filteredAndSortedBanks.length}
-                  itemSize={75} // TODO: Adjust based on actual item height
-                  width="100%"
-                  itemData={filteredAndSortedBanks}
-                >
-                  {ListItem}
-                </ListWindow>
               </div>
             )}
-             {/* Render Create New Bank Button separately below the list */}
-             {viewMode === 'list' && (
-                 <div className="pt-2">
-                   <Link href="/vocabulary/create-bank" className="block">
-                      <Button variant="outline" className="w-full">
-                        <Plus className="mr-2 h-4 w-4" /> Create New Bank
-                      </Button>
-                   </Link>
-                 </div>
-             )}
+
+            {/* List View */}
+            {viewMode === 'list' && (
+              <div className="space-y-2">
+                {filteredAndSortedBanks.map((bank) => (
+                  <WordBankListItemComponent key={bank.id} {...bank} />
+                ))}
+                {/* Create New Bank Button (List) */}
+                <Link href="/vocabulary/create-bank" className="block pt-2">
+                  <Button variant="outline" className="w-full">
+                    <Plus className="mr-2 h-4 w-4" /> Create New Bank
+                  </Button>
+                </Link>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -275,31 +211,30 @@ export default function VocabularyPage() {
   )
 }
 
-// WordBankCard Component (Refactored) - Keep as is
+// WordBankCard Component (Refactored)
 function WordBankCard({
   id,
   title,
   description,
   wordCount,
-  lastPracticedAt,
+  lastPracticed,
   masteryPercentage,
 }: {
   id: string
   title: string
   description?: string | null
   wordCount: number
-  lastPracticedAt?: Date | null
+  lastPracticed: string
   masteryPercentage: number
 }) {
   const router = useRouter();
   const startSessionMutation = api.vocab.startVocabSession.useMutation({
-    onSuccess: (data: any) => {
+    onSuccess: (data) => {
       toast.success('Practice session started!');
       router.push(`/vocabulary/practice/${data.practiceSessionId}`);
     },
     onError: (error) => {
-      console.error("startSessionMutation Error:", error);
-      toast.error(`Error: ${error.message}`);
+      toast.error(`Failed to start session: ${error.message}`);
     }
   });
 
@@ -318,13 +253,14 @@ function WordBankCard({
             <BookText className="h-5 w-5" />
             {title}
           </span>
+          {/* Larger Word Count */}
           <span className="text-2xl font-bold text-muted-foreground">{wordCount}</span>
         </CardTitle>
-        <CardDescription className="line-clamp-3 h-[3.75rem] mt-1">
-          {description || `Last practiced: ${lastPracticedAt ? format(lastPracticedAt, 'PP') : 'Never'}`}
+        <CardDescription className="line-clamp-3 h-[3.75rem] mt-1"> {/* Added margin-top */}
+          {description || `Last practiced: ${lastPracticed}`} {/* Removed word count from here */}
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex-grow pt-2">
+      <CardContent className="flex-grow pt-2"> {/* Reduced padding-top */}
         <div className="space-y-1">
           <div className="flex justify-between text-sm font-medium">
             <span>Mastery</span>
@@ -337,25 +273,18 @@ function WordBankCard({
       </CardContent>
      </Link>
       <CardFooter className="flex justify-between items-center pt-4">
-        {wordCount === 0 ? (
-          <AddWordsModal bankId={id}>
-            <Button variant="outline" className="w-full border-cyan-500 text-cyan-500 hover:bg-cyan-500/10 hover:text-cyan-600 flex-grow mr-2">
-              <Plus className="mr-2 h-4 w-4" /> Add Words
-            </Button>
-          </AddWordsModal>
-        ) : (
-          <Button
-            variant="default"
-            className="w-full flex-grow mr-2 bg-cyan-500 hover:bg-cyan-600 text-white"
-            onClick={handleStartPractice}
-            disabled={startSessionMutation.isPending}
-          >
-            {startSessionMutation.isPending
-              ? 'Starting...'
-              : <><Play className="mr-2 h-4 w-4" /> Practice</>
-            }
-          </Button>
-        )}
+        <Button
+          variant="default"
+          // Apply bright color class - using cyan as an example
+          className="w-full flex-grow mr-2 bg-cyan-500 hover:bg-cyan-600 text-white"
+          onClick={handleStartPractice}
+          disabled={startSessionMutation.isPending}
+        >
+          {startSessionMutation.isPending
+            ? 'Starting...'
+            : <><Play className="mr-2 h-4 w-4" /> Practice</>
+          }
+        </Button>
         <Link href={`/vocabulary/banks/${id}`} passHref>
           <Button variant="outline" size="sm" title="Manage Words">
              <Settings className="h-4 w-4" />

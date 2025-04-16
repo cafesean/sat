@@ -21,13 +21,16 @@ const getMasteryInfo = (interval: number): { level: string; variant: 'destructiv
   return { level: 'Mastered', variant: 'default' };
 };
 
+import { Word } from '@/lib/storage';
+
 interface WordCardLargeGridProps {
   word: WordListItem;
   bankId: string;
   onDeleteRequest: (word: WordListItem) => void;
+  updateWord: (word: Word) => Promise<void>;
 }
 
-export function WordCardLargeGrid({ word, bankId, onDeleteRequest }: WordCardLargeGridProps) {
+export function WordCardLargeGrid({ word, bankId, onDeleteRequest, updateWord }: WordCardLargeGridProps) {
   const [editingWordId, setEditingWordId] = useState<string | null>(null);
   const [editingWordText, setEditingWordText] = useState<string>('');
   // Remove note state, handled in modal
@@ -144,7 +147,7 @@ export function WordCardLargeGrid({ word, bankId, onDeleteRequest }: WordCardLar
             <Button
               variant="ghost" size="icon"
               className={`h-6 w-6 ${word.isStarred ? 'text-yellow-400 hover:text-yellow-500' : 'text-muted-foreground hover:text-yellow-400'}`}
-              onClick={async (e) => { // Make async
+              onClick={async (e) => {
                 e.stopPropagation();
                 if (!userId) {
                   toast.error("Cannot toggle star: User not logged in.");
@@ -154,13 +157,22 @@ export function WordCardLargeGrid({ word, bankId, onDeleteRequest }: WordCardLar
                 try {
                   // 1. Optimistic local DB update
                   await db.words.update(word.id, { isStarred: newStarStatus });
-                  console.log("Locally updated star status in IndexedDB (Large Grid).");
+                  // 2. Optimistic React state update
+                  await updateWord({
+                    ...word,
+                    isStarred: newStarStatus,
+                    mastery: (word as any).mastery ?? 0,
+                    nextDueAtReviewCount: (word as any).nextDueAtReviewCount ?? 0,
+                    timesSeen: (word as any).timesSeen ?? 0,
+                    successRate: (word as any).successRate ?? 0,
+                    wordMasterId: (word as any).wordMasterId ?? (word.wordMaster?.id ?? ''),
+                  });
+                  console.log("Locally updated star status in IndexedDB and React state (Large Grid).");
 
-                  // 2. Invalidate list query to update UI
-                  // Use await to ensure invalidation happens before potential online call
+                  // 3. Invalidate list query to update UI
                   await utils.vocab.listByBank.invalidate({ wordBankId: bankId });
 
-                  // 3. Check online status and act
+                  // 4. Check online status and act
                   if (navigator.onLine) {
                     toggleStarMutation.mutate({ wordId: word.id });
                   } else {

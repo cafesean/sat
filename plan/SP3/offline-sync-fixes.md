@@ -102,7 +102,8 @@ src/components/ui/select.tsx (19:3) @ _c
     *   **Status:** Addressed.
  
  Use lazy loading for all lists
- -[ ] Practice history should show word bank practice sessions, not word practice history
+ -[x] Practice history should show word bank practice sessions, not word practice history
  - [ ] Stars don't retain state when clicked, but they are still saved
  - [ ] Starting a practice session, no words are found
- - [ ] Revert the UI layout of the word bank list back to the original design before implementing local storage. Reference previous code at /specs/code/vocab-ui.tsx
+ - [x] Revert the UI layout of the word bank list back to the original design before implementing local storage. Reference previous code at /specs/code/vocab-ui.tsx
+- Standar
