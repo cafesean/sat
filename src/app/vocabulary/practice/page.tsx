@@ -5,12 +5,13 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useWordBanks } from '@/hooks/useWordBanks';
 import type { AppRouter } from '@/server/api/root'; // Import AppRouter for error type
-import { api, type RouterOutputs } from '@/utils/trpc'; // Import api and RouterOutputs
-import type { TRPCClientErrorLike } from '@trpc/client'; // Import error type
+import { api, type RouterOutputs } from '@/utils/trpc';
+import type { TRPCClientErrorLike } from '@trpc/client';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 export default function VocabularyPracticeSetupPage () {
@@ -18,15 +19,33 @@ export default function VocabularyPracticeSetupPage () {
   const { data: session, status } = useSession()
   const [selectedBankIds, setSelectedBankIds] = useState<string[]>([])
 
-  // Type for individual word bank in the list
-  type WordBankListItem = RouterOutputs['vocab']['listWordBanks'][number]; // Fix path
+  // Use offline-first word banks hook
+  const userId = session?.user?.id ?? ''
+  const { wordBanks, isLoading: isLoadingBanks, error: banksError, refresh } = useWordBanks(userId)
 
-  const { data: wordBanks, isLoading: isLoadingBanks, error: banksError } = api.vocab.listWordBanks.useQuery( // Fix path
-    undefined,
-    {
-      enabled: status === 'authenticated' // Only fetch if authenticated
+  // Automated sync: on focus, online, and interval
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refresh()
+      }
     }
-  )
+    const handleOnline = () => {
+      refresh()
+    }
+    const interval = setInterval(() => {
+      refresh()
+    }, 2 * 60 * 1000) // 2 minutes
+
+    document.addEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('online', handleOnline)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('online', handleOnline)
+      clearInterval(interval)
+    }
+  }, [refresh])
 
   const startSessionMutation = api.vocab.startVocabSession.useMutation({ // Fix path
     onSuccess: (data: RouterOutputs['vocab']['startVocabSession']) => { // Fix path for type
@@ -84,20 +103,22 @@ export default function VocabularyPracticeSetupPage () {
   }
 
   if (banksError) {
-    return <div className="container mx-auto p-4 text-red-500">Error loading word banks: {banksError.message}</div>
+    return <div className="container mx-auto p-4 text-red-500">Error loading word banks: {banksError}</div>
   }
 
   return (
     <div className="container mx-auto p-4">
       <Card>
         <CardHeader>
-          <CardTitle>Start Vocabulary Practice</CardTitle>
-          <CardDescription>Select the word banks you want to include in this practice session.</CardDescription>
+          <div>
+            <CardTitle>Start Vocabulary Practice</CardTitle>
+            <CardDescription>Select the word banks you want to include in this practice session.</CardDescription>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {wordBanks && wordBanks.length > 0
             ? (
-                wordBanks.map((bank: WordBankListItem) => ( // Add type for bank
+                wordBanks.map((bank) => (
               <div key={bank.id} className="flex items-center space-x-2 p-2 border rounded-md hover:bg-muted/50">
                 <Checkbox
                   id={`bank-${bank.id}`}
@@ -105,14 +126,16 @@ export default function VocabularyPracticeSetupPage () {
                   onCheckedChange={(checked) => handleCheckboxChange(bank.id, checked)}
                 />
                 <Label htmlFor={`bank-${bank.id}`} className="flex-grow cursor-pointer">
-                  {bank.name} ({bank.wordCount} words) {/* Use wordCount directly */}
+                  {bank.name} ({bank.wordCount} words)
                   {bank.description && <p className="text-xs text-muted-foreground">{bank.description}</p>}
                 </Label>
               </div>
                 ))
               )
             : (
-            <p>You haven't created any word banks yet. <a href="/vocabulary/create-bank" className="text-blue-600 hover:underline">Create one now!</a></p>
+                !isLoadingBanks && wordBanks && wordBanks.length === 0 && (
+                  <p>You haven't created any word banks yet. <a href="/vocabulary/create-bank" className="text-blue-600 hover:underline">Create one now!</a></p>
+                )
               )}
         </CardContent>
         <CardFooter>

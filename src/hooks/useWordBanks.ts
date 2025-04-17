@@ -192,6 +192,11 @@ export function useWordBanks(userId: string) {
     }
   }, [userId, wordBanks, createWordBankMutation]);
 
+  // Expose a refresh function to force sync with remote
+  const refresh = useCallback(() => {
+    fetchAndSyncRemote(wordBanksRef.current)
+  }, [fetchAndSyncRemote])
+
   // Return the non-paginated data structure
-  return { wordBanks, isLoading, error, addBank };
+  return { wordBanks, isLoading, error, addBank, refresh };
 }

@@ -1,4 +1,3 @@
-import { uploadToS3 } from '@/lib/storage';
 import { z } from 'zod';
 import { protectedProcedure, router } from '../trpc';
 
@@ -41,26 +40,14 @@ export const userRouter = router({
   updateAvatar: protectedProcedure
     .input(
       z.object({
-        file: z.string(), // Expecting a Base64 string instead of a File object
-        userId: z.string(),
+        url: z.string().url(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const base64Data = input.file.split(",")[1]; // Extract the Base64 data
-      const fileExt = "png"; // Default to PNG or infer from Base64 if needed
-      const fileName = `${input.userId}.${fileExt}`;
-
-      const { url } = await uploadToS3({
-        file: new File([Buffer.from(base64Data, "base64")], fileName, { type: `image/${fileExt}` }), // Convert Base64 to File
-        fileName,
-        folder: "avatars",
-      });
-
       const updatedUser = await ctx.prisma.user.update({
-        where: { id: input.userId },
-        data: { image: url },
-      });
-
-      return updatedUser;
+        where: { id: ctx.session.user.id },
+        data: { image: input.url }
+      })
+      return updatedUser
     }),
 })

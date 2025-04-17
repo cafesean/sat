@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import type { AppRouter } from '@/server/api/root';
 import { api, type RouterOutputs } from '@/utils/trpc';
 import type { TRPCClientErrorLike } from '@trpc/client';
-import { CheckCircle2, Lightbulb, LogOut, XCircle } from 'lucide-react'; // Import Lightbulb, Loader2
+import { CheckCircle2, Lightbulb, LogOut, XCircle, ArrowLeft } from 'lucide-react'; // Import Lightbulb, Loader2, ArrowLeft
 import { useSession } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -195,7 +195,33 @@ export default function VocabularyPracticeSessionPage () {
   }
 
   if (wordError) {
-    return <div className="container mx-auto p-4 text-red-500">Error loading next word: {wordError.message}</div>
+    return (
+      <div className="container mx-auto p-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Error Starting Practice</CardTitle>
+            <CardDescription>
+              {wordError.message.includes("No words found") 
+                ? "There are no words available to practice in this word bank." 
+                : `Error: ${wordError.message}`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground mb-4">
+              {wordError.message.includes("No words found") 
+                ? "Try adding some words to this word bank first."
+                : "Something went wrong while trying to start your practice session."}
+            </p>
+          </CardContent>
+          <CardFooter>
+            <Button onClick={() => router.push('/vocabulary')}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Vocabulary
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    )
   }
 
   if (isLoadingWord && !currentWord) {

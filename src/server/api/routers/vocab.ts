@@ -686,7 +686,12 @@ export const vocabRouter = router({
 					data: wordRecords.map((wr: {wordMasterId: string}, index: number) => ({
 						text: words[index], // Add the original text back
 						wordMasterId: wr.wordMasterId,
-						wordBankId: input.wordBankId
+						wordBankId: input.wordBankId,
+						// Add these fields to ensure words are available for practice immediately
+						nextDueAtReviewCount: 0, // Due immediately
+						mastery: 0, // New word
+						timesSeen: 0, // Never seen
+						successRate: 0 // No success rate yet
 					})),
 					skipDuplicates: true
 				});
@@ -702,6 +707,7 @@ export const vocabRouter = router({
 		.input(startVocabSessionSchema)
 		.mutation(async ({ ctx, input }) => {
 			try {
+				// First check if the word bank exists and belongs to the user
 				const bank = await ctx.prisma.wordBank.findUnique({
 					where: { id: input.wordBankId, userId: ctx.session.user.id },
 					select: { id: true },
@@ -709,12 +715,27 @@ export const vocabRouter = router({
 				if (!bank) {
 					throw new TRPCError({ code: "NOT_FOUND", message: "Word bank not found or access denied." });
 				}
+
+				// Check if the word bank has any words before creating a session
+				const wordCount = await ctx.prisma.word.count({
+					where: { wordBankId: input.wordBankId }
+				});
+				
+				if (wordCount === 0) {
+					throw new TRPCError({ 
+						code: "BAD_REQUEST", 
+						message: "Cannot start practice: this word bank has no words. Please add words first." 
+					});
+				}
+
+				// Create the practice session
 				const session = await ctx.prisma.practiceSession.create({
 					data: { userId: ctx.session.user.id, type: PracticeType.VOCABULARY, wordBankId: input.wordBankId },
 				});
 				return { practiceSessionId: session.id };
 			} catch (error) {
 				console.error("Error starting vocab session:", error);
+				if (error instanceof TRPCError) throw error;
 				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to start session." });
 			}
 		}),
@@ -739,63 +760,74 @@ export const vocabRouter = router({
 			const { practiceSessionId } = input;
 			const userId = ctx.session.user.id;
 
-			const session = await ctx.prisma.practiceSession.findUnique({
-				where: { id: practiceSessionId, userId: userId },
-				// Select wordBankId to know which bank we are practicing
-				select: { wordBankId: true },
-			});
-			if (!session) {
-				throw new TRPCError({ code: "NOT_FOUND", message: "Practice session not found." });
-			}
-
-			// Get IDs of words already practiced in this session
-			const practicedWordIds = (await ctx.prisma.wordPracticeLog.findMany({
-				where: { practiceSessionId }, select: { wordId: true },
-			})).map((log: {wordId: string}) => log.wordId);
-
-			let wordBankReviewCount: number | null = null;
-			const whereClause: Prisma.WordWhereInput = { // Use Prisma type for better safety
-				id: { notIn: practicedWordIds },
-			};
-
-			// Determine the review count and filter by bank if applicable
-			if (session.wordBankId) {
-				const wordBank = await ctx.prisma.wordBank.findUnique({
-					where: { id: session.wordBankId },
-					select: { reviewCount: true }
+			try {
+				// Find the session and verify it exists
+				const session = await ctx.prisma.practiceSession.findUnique({
+					where: { id: practiceSessionId, userId: userId },
+					select: { wordBankId: true },
 				});
-				if (!wordBank) {
-					throw new TRPCError({ code: "NOT_FOUND", message: "Word bank for session not found." });
+
+				if (!session) {
+					throw new TRPCError({ 
+						code: "NOT_FOUND", 
+						message: "Practice session not found." 
+					});
 				}
-				wordBankReviewCount = wordBank.reviewCount;
-				whereClause.wordBankId = session.wordBankId; // Filter words for this specific bank
-			} else {
-				// --- Handling for "Quick Practice" (no specific bank) ---
-				// Option 1: Fallback to date-based SRS (simpler)
-				whereClause.nextReviewDate = { lte: new Date() };
-				whereClause.wordBank = { userId: userId }; // Still limit to user's words
+
+				// Get words already practiced in this session
+				const practicedWordIds = (await ctx.prisma.wordPracticeLog.findMany({
+					where: { practiceSessionId },
+					select: { wordId: true },
+				})).map(log => log.wordId);
+
+				// Basic logging for debugging
+				console.log(`Session ${practiceSessionId} has ${practicedWordIds.length} practiced words so far.`);
 				
-				// Option 2: Complex logic to find a word due in *any* bank based on its reviewCount
-				// This would likely require a more complex query or multiple queries.
-				// For now, using Option 1 (date-based fallback) for simplicity.
-				console.log("Quick Practice session: Falling back to date-based review for selecting next word.");
+				if (!session.wordBankId) {
+					// Quick practice case - not implementing now
+					console.log("Quick practice not fully implemented yet");
+					throw new TRPCError({ 
+						code: "BAD_REQUEST", 
+						message: "Quick practice sessions are not fully implemented." 
+					});
+				}
+
+				// Count total words in the bank for debug
+				const totalWords = await ctx.prisma.word.count({
+					where: { wordBankId: session.wordBankId }
+				});
+				
+				console.log(`Word bank ${session.wordBankId} has ${totalWords} total words.`);
+				
+				if (totalWords === 0) {
+					throw new TRPCError({ 
+						code: "NOT_FOUND", 
+						message: "No words found in this word bank." 
+					});
+				}
+
+				// Find any unpracticed word from the bank - simplest approach
+				const nextWord = await ctx.prisma.word.findFirst({
+					where: {
+						wordBankId: session.wordBankId,
+						id: { notIn: practicedWordIds.length > 0 ? practicedWordIds : [] }
+					},
+					include: { 
+						wordMaster: true 
+					}
+				});
+
+				if (!nextWord) {
+					console.log(`All words in bank ${session.wordBankId} have been practiced in this session.`);
+					return null; // All words practiced
+				}
+
+				console.log(`Found next word: ${nextWord.id} (${nextWord.text})`);
+				return nextWord;
+			} catch (error) {
+				console.error("Error in getNextVocabWord:", error);
+				throw error;
 			}
-
-			// Add review count condition ONLY if we have a specific bank's count
-			if (wordBankReviewCount !== null) {
-				whereClause.nextDueAtReviewCount = { lte: wordBankReviewCount };
-			}
-
-			const nextWord = await ctx.prisma.word.findFirst({
-				where: whereClause,
-				// Prioritize by review count if available, otherwise by date
-				orderBy: wordBankReviewCount !== null
-					? { nextDueAtReviewCount: "asc" }
-					: { nextReviewDate: "asc" },
-				include: { wordMaster: true } // Include wordMaster for display
-			});
-
-			return nextWord; // Return the found word or null
 		}),
 
 	submitVocabAnswer: protectedProcedure

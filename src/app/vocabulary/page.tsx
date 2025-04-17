@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import useLocalStorage from "@/hooks/useLocalStorage"; // Import the custom hook
 import { api, type RouterOutputs } from "@/utils/trpc";
-import { AlertCircle, BookText, Grid, History, List, Pencil, Play, Plus, Settings, SortAsc, SortDesc } from "lucide-react";
+import { AlertCircle, BookText, Grid as LayoutGrid, History, List, Pencil, Play, Plus, Settings, SortAsc, SortDesc } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -116,7 +116,7 @@ export default function VocabularyPage() {
                <Button
                  variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
                  size="sm" onClick={() => setViewMode('grid')} className="h-7 px-2" aria-label="Grid view">
-                 <Grid className="h-4 w-4" />
+                 <LayoutGrid className="h-4 w-4" />
                </Button>
                <Button
                  variant={viewMode === 'list' ? 'secondary' : 'ghost'}
@@ -273,18 +273,28 @@ function WordBankCard({
       </CardContent>
      </Link>
       <CardFooter className="flex justify-between items-center pt-4">
-        <Button
-          variant="default"
-          // Apply bright color class - using cyan as an example
-          className="w-full flex-grow mr-2 bg-cyan-500 hover:bg-cyan-600 text-white"
-          onClick={handleStartPractice}
-          disabled={startSessionMutation.isPending}
-        >
-          {startSessionMutation.isPending
-            ? 'Starting...'
-            : <><Play className="mr-2 h-4 w-4" /> Practice</>
-          }
-        </Button>
+        {wordCount > 0 ? (
+          <Button
+            variant="default"
+            className="w-full flex-grow mr-2 bg-cyan-500 hover:bg-cyan-600 text-white"
+            onClick={handleStartPractice}
+            disabled={startSessionMutation.isPending}
+          >
+            {startSessionMutation.isPending
+              ? 'Starting...'
+              : <><Play className="mr-2 h-4 w-4" /> Practice</>
+            }
+          </Button>
+        ) : (
+          <Button
+            variant="default"
+            className="w-full flex-grow mr-2 bg-gray-400 cursor-not-allowed"
+            disabled={true}
+            title="Add words to this bank before practicing"
+          >
+            <AlertCircle className="mr-2 h-4 w-4" /> Add Words First
+          </Button>
+        )}
         <Link href={`/vocabulary/banks/${id}`} passHref>
           <Button variant="outline" size="sm" title="Manage Words">
              <Settings className="h-4 w-4" />
