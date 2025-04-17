@@ -1,22 +1,31 @@
 'use client'
 
 import { Button } from "@/components/ui/button";
-import { api, type RouterOutputs } from "@/utils/trpc";
+import { WordBank } from "@/lib/storage"; // Import WordBank type from storage
+import { api } from "@/utils/trpc";
 import { Pencil, Play, Settings } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-// Type for the props, matching the data structure from listWordBanks
-type WordBankListItemProps = RouterOutputs['vocab']['listWordBanks'][number];
+// Props interface that accepts optional fields to match our WordBank type
+interface WordBankListItemProps {
+  id: string;
+  name: string;
+  description?: string | null;
+  wordCount?: number;
+  masteryPercentage?: number;
+  createdAt: string;
+  updatedAt: string;
+  userId: string;
+}
 
 export function WordBankListItem({
   id,
   name,
   description,
-  wordCount,
-  masteryPercentage,
-  // Add missing props to satisfy the type, even if unused
+  wordCount = 0, // Default value for undefined
+  masteryPercentage = 0, // Default value for undefined
   createdAt,
   updatedAt,
   userId,

@@ -78,11 +78,16 @@ export default function WordBankDetailPage () {
   const { data: session, status } = useSession()
   const bankId = params.bankId as string
 
+  // Fetch word bank details
   const { data: wordBank, isLoading: isLoadingBank, error: bankError } = api.vocab.getById.useQuery(
     { id: bankId },
     { enabled: status === 'authenticated' && !!bankId }
   )
-  const { words, isLoading: isLoadingWords, error: wordsError, remove: removeWord, update: updateWord } = useWords(bankId);
+
+  // Destructure addBatch from useWords hook
+  const { words, isLoading: isLoadingWords, error: wordsError, remove: removeWord, update: updateWord, addBatch } = useWords(bankId);
+  
+  // Use the usePracticeLogs hook with fixed implementation
   const { logs: practiceLogs, isLoading: isLoadingLogs, error: logsError } = usePracticeLogs(bankId);
 
   const [wordFilterText, setWordFilterText] = useState('');
@@ -153,6 +158,12 @@ export default function WordBankDetailPage () {
   const toggleWordSortDirection = () => {
     setWordSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
   }
+
+  // Check if there are notes in any words
+  const hasNotes = useMemo(() => {
+    if (!words) return false;
+    return words.some(word => word.notes && word.notes.trim() !== '');
+  }, [words]);
 
   // --- Virtualization Renderers ---
   const LargeGridItem = ({ columnIndex, rowIndex, style, data }: { columnIndex: number; rowIndex: number; style: CSSProperties; data: typeof filteredAndSortedWords }) => {
@@ -241,7 +252,7 @@ export default function WordBankDetailPage () {
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Word Banks
         </Button>
-        <AddWordsModal bankId={bankId}>
+        <AddWordsModal bankId={bankId} addBatch={addBatch}>
           <Button variant="outline">
             <Plus className="mr-2 h-4 w-4" /> Add Words
           </Button>
@@ -269,17 +280,19 @@ export default function WordBankDetailPage () {
             {wordBank.description && <CardDescription>{wordBank.description}</CardDescription>}
           </div>
           <div className="flex gap-2">
-            <ViewNotesDialog bankId={bankId}>
-              <Button variant="secondary" className="relative">
-                <NotebookText className="h-5 w-5 md:h-4 md:w-4 md:mr-2" />
-                <span className="hidden md:inline">View Notes</span>
-                {wordBank.noteCount > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs">
-                    {wordBank.noteCount}
-                  </span>
-                )}
-              </Button>
-            </ViewNotesDialog>
+            {hasNotes && (
+              <ViewNotesDialog bankId={bankId}>
+                <Button variant="secondary" className="relative">
+                  <NotebookText className="h-5 w-5 md:h-4 md:w-4 md:mr-2" />
+                  <span className="hidden md:inline">View Notes</span>
+                  {wordBank.noteCount > 0 && (
+                    <span className="absolute -top-2 -right-2 bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs">
+                      {wordBank.noteCount}
+                    </span>
+                  )}
+                </Button>
+              </ViewNotesDialog>
+            )}
             {wordBank?._count?.words === 0 ? (
               <Button variant="secondary" onClick={() => router.push(`/vocabulary/edit/${bankId}`)}>
                 <Plus className="mr-2 h-4 w-4" /> Add Words

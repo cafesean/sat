@@ -1,5 +1,6 @@
 'use client'
 
+import { AddWordsModal } from "@/components/features/vocab/AddWordsModal"; // Import AddWordsModal
 import { PracticeHistoryTabContent } from "@/components/features/vocab/PracticeHistoryTabContent";
 import { WordBankListItem as WordBankListItemComponent } from "@/components/features/vocab/WordBankListItem";
 import { Button } from "@/components/ui/button";
@@ -8,15 +9,28 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import useLocalStorage from "@/hooks/useLocalStorage"; // Import the custom hook
+import { useWordBanks } from "@/hooks/useWordBanks"; // Import useWordBanks hook
 import { api, type RouterOutputs } from "@/utils/trpc";
-import { AlertCircle, BookText, Grid as LayoutGrid, History, List, Pencil, Play, Plus, Settings, SortAsc, SortDesc } from "lucide-react";
+import { AlertCircle, BookText, History, Grid as LayoutGrid, List, Pencil, Play, Plus, Settings, SortAsc, SortDesc } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { useSession } from "next-auth/react"; // Import useSession
 import { toast } from "sonner";
 
-// Infer type for word bank list item
-type WordBankListItem = RouterOutputs['vocab']['listWordBanks'][number]
+// Define a simplified type to match what we're using
+type WordBankItem = {
+  id: string;
+  name: string;
+  description?: string | null;
+  wordCount?: number;
+  masteryPercentage?: number;
+  lastPracticedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  userId: string;
+};
+
 type SortKey = 'name' | 'createdAt' | 'masteryPercentage';
 type SortDirection = 'asc' | 'desc';
 
@@ -26,9 +40,11 @@ export default function VocabularyPage() {
   const [filterText, setFilterText] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('createdAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const { data: session } = useSession();
+  const userId = session?.user?.id || ""; // Provide empty string as fallback
 
-  // Fetch word banks
-  const { data: wordBanks, isLoading: isLoadingBanks, error: banksError } = api.vocab.listWordBanks.useQuery()
+  // Use the useWordBanks hook instead of direct tRPC query
+  const { wordBanks, isLoading: isLoadingBanks, error: banksError } = useWordBanks(userId);
 
   // Client-side filtering and sorting
   const filteredAndSortedBanks = useMemo(() => {
@@ -45,8 +61,9 @@ export default function VocabularyPage() {
 
     // Sort
     banks.sort((a, b) => {
-      let compareA: string | number | Date = a[sortKey];
-      let compareB: string | number | Date = b[sortKey];
+      // Handle potentially undefined values
+      let compareA: string | number | Date = (a[sortKey] ?? '') as string | number | Date;
+      let compareB: string | number | Date = (b[sortKey] ?? '') as string | number | Date;
 
       if (sortKey === 'createdAt') {
         compareA = new Date(compareA);
@@ -139,7 +156,7 @@ export default function VocabularyPage() {
         {banksError && (
           <div className="text-destructive flex items-center gap-2 p-4 border border-destructive/50 bg-destructive/10 rounded-md">
             <AlertCircle className="h-5 w-5" />
-            <span>Error loading word banks: {banksError.message}</span>
+            <span>Error loading word banks: {String(banksError)}</span>
           </div>
         )}
 
@@ -162,9 +179,9 @@ export default function VocabularyPage() {
                     id={bank.id}
                     title={bank.name}
                     description={bank.description}
-                    wordCount={bank.wordCount}
-                    masteryPercentage={bank.masteryPercentage}
-                    lastPracticed="Never" // Placeholder
+                    wordCount={bank.wordCount ?? 0}
+                    masteryPercentage={bank.masteryPercentage ?? 0}
+                    lastPracticed={bank.lastPracticedAt ? new Date(bank.lastPracticedAt).toLocaleDateString() : "Never"}
                   />
                 ))}
                 {/* Create New Bank Card (Grid) */}
@@ -184,7 +201,17 @@ export default function VocabularyPage() {
             {viewMode === 'list' && (
               <div className="space-y-2">
                 {filteredAndSortedBanks.map((bank) => (
-                  <WordBankListItemComponent key={bank.id} {...bank} />
+                  <WordBankListItemComponent 
+                    key={bank.id}
+                    id={bank.id}
+                    name={bank.name}
+                    description={bank.description || null}
+                    wordCount={bank.wordCount ?? 0}
+                    masteryPercentage={bank.masteryPercentage ?? 0}
+                    createdAt={bank.createdAt}
+                    updatedAt={bank.updatedAt}
+                    userId={bank.userId}
+                  />
                 ))}
                 {/* Create New Bank Button (List) */}
                 <Link href="/vocabulary/create-bank" className="block pt-2">
@@ -286,14 +313,17 @@ function WordBankCard({
             }
           </Button>
         ) : (
-          <Button
-            variant="default"
-            className="w-full flex-grow mr-2 bg-gray-400 cursor-not-allowed"
-            disabled={true}
-            title="Add words to this bank before practicing"
-          >
-            <AlertCircle className="mr-2 h-4 w-4" /> Add Words First
-          </Button>
+          // Wrap the button with AddWordsModal to trigger it
+          <AddWordsModal bankId={id}>
+            <Button
+              variant="outline" // Use outline variant
+              className="w-full flex-grow mr-2" // Apply width and margin here
+              title="Add words to this bank"
+              // No need for onClick handler here, modal trigger handles it
+            >
+              <Plus className="mr-2 h-4 w-4" /> Add Words
+            </Button>
+          </AddWordsModal>
         )}
         <Link href={`/vocabulary/banks/${id}`} passHref>
           <Button variant="outline" size="sm" title="Manage Words">

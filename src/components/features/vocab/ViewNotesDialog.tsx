@@ -41,6 +41,14 @@ export function ViewNotesDialog({ bankId, children }: ViewNotesDialogProps) {
     return notesList;
   }, [words]);
 
+  // Check if there are any notes
+  const hasNotes = useMemo(() => aggregatedNotes.length > 0, [aggregatedNotes]);
+
+  // If no notes and not loading, don't render the dialog
+  if (!hasNotes && !isLoadingWords && !wordsError) {
+    return null;
+  }
+
   // --- Virtualization Renderer ---
   const NoteItem = ({ index, style, data }: { index: number; style: CSSProperties, data: AggregatedNote[] }) => {
     const note = data[index];
@@ -55,8 +63,8 @@ export function ViewNotesDialog({ bankId, children }: ViewNotesDialogProps) {
 
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
+    <Dialog open={isOpen} onOpenChange={(open) => hasNotes && setIsOpen(open)}>
+      <DialogTrigger asChild disabled={!hasNotes}>
         {children}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">

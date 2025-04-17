@@ -29,12 +29,21 @@ export function usePracticeLogs(bankId: string) {
   const userId = session?.user?.id;
   const [localLogsLoaded, setLocalLogsLoaded] = useState(false);
   const [initialLocalLogs, setInitialLocalLogs] = useState<PracticeLog[] | null>(null);
+  const [shouldFetchRemote, setShouldFetchRemote] = useState(false);
+  
+  // Don't proceed if no userId or bankId
+  useEffect(() => {
+    if (!userId || !bankId) {
+      setInitialLocalLogs([]);
+      setLocalLogsLoaded(true);
+    }
+  }, [userId, bankId]);
 
   // --- Infinite Query for fetching logs ---
   const infiniteQuery = api.vocab.listPracticeLogs.useInfiniteQuery(
     { bankId: bankId || undefined, limit: 20 }, // Fetch 20 per page
     {
-      enabled: !!userId && localLogsLoaded, // Only enable after local logs are checked and user is available
+      enabled: !!userId && localLogsLoaded && shouldFetchRemote, // Only enable when explicitly needed
       getNextPageParam: (lastPage) => lastPage.nextCursor, // Use the cursor returned by the API
       refetchOnWindowFocus: false,
       staleTime: 5 * 60 * 1000, // 5 minutes staleness
@@ -47,7 +56,7 @@ export function usePracticeLogs(bankId: string) {
   useEffect(() => {
     let cancelled = false;
     async function loadInitialLocalLogs() {
-      if (!userId || localLogsLoaded) return; // Only run once per user/bankId combo
+      if (!userId || !bankId || localLogsLoaded) return; // Only run once per user/bankId combo
 
       console.log(`Fetching initial local practice logs ${bankId ? `for bank ${bankId}` : 'for user'}...`);
       try {
@@ -61,19 +70,26 @@ export function usePracticeLogs(bankId: string) {
         if (!cancelled) {
           setInitialLocalLogs(localData);
           console.log(`Found ${localData?.length ?? 0} initial logs locally.`);
+          
+          // Only fetch remote if necessary (empty local data or has enough time passed)
+          setShouldFetchRemote(!localData || localData.length === 0);
+          setLocalLogsLoaded(true); // Mark local load attempt complete
         }
       } catch (e: any) {
         console.error('Failed to load initial local practice logs:', e);
         // Don't set global error, let infinite query handle network errors
-      } finally {
-         if (!cancelled) {
-            setLocalLogsLoaded(true); // Mark local load attempt complete
-         }
+        if (!cancelled) {
+          setShouldFetchRemote(true); // Try to fetch remote on local error
+          setLocalLogsLoaded(true); // Mark local load attempt complete
+        }
       }
     }
     loadInitialLocalLogs();
-    return () => { cancelled = true; };
-  }, [userId, bankId, localLogsLoaded]); // Dependencies
+    return () => { 
+      console.log(`Cleaning up usePracticeLogs for bank ${bankId}`);
+      cancelled = true; 
+    };
+  }, [userId, bankId]); // Remove localLogsLoaded from dependencies
 
   // --- Add Practice Log (Optimistic Update for Local State) ---
   // Note: This optimistically adds to the *local* state, but doesn't directly

@@ -9,14 +9,13 @@ import React, { useEffect } from 'react'; // Import useEffect
 // Internal component to activate the background sync hook
 function BackgroundSyncManager() {
   const { status } = useSession();
-  const { isOnline, syncStatus, triggerSync } = useBackgroundSync();
+  const { syncStatus, isSyncing } = useBackgroundSync();
 
   // Optional: Log status changes or trigger sync manually based on events
   useEffect(() => {
-    console.log(`Background Sync Status: Online=${isOnline}, SyncState=${syncStatus}, Auth=${status}`);
-    // Example: You could potentially trigger sync more aggressively here if needed,
-    // but the hook already handles online/auth changes.
-  }, [isOnline, syncStatus, status]);
+    // Log available status info
+    console.log(`Background Sync Status: SyncState=${syncStatus}, Auth=${status}, Syncing=${isSyncing}`);
+  }, [syncStatus, status, isSyncing]);
 
   // This component doesn't render anything visual
   return null;

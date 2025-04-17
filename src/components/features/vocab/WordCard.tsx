@@ -4,6 +4,7 @@ import { type WordListItem } from '@/app/vocabulary/banks/[bankId]/page';
 import { WordHistoryDialog } from '@/components/features/vocab/WordHistoryDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { db, queueMutation, Word } from '@/lib/storage';
 import { api } from '@/utils/trpc';
 import { Loader2, Save, Star, Trash2, X } from 'lucide-react';
@@ -83,6 +84,9 @@ export function WordCard({ word, bankId, onDeleteRequest, updateWord, viewMode }
     wordMasterId: (w as any).wordMasterId ?? (w.wordMaster?.id ?? ''),
   })
 
+  // Helper function to check if details are loaded
+  const areDetailsLoaded = !!word.wordMaster && word.wordMaster.definition !== undefined;
+
   // --- UI by viewMode ---
   if (viewMode === 'small-grid') {
     // Minimal, horizontal, star only, modal on click, no delete/edit
@@ -150,8 +154,9 @@ export function WordCard({ word, bankId, onDeleteRequest, updateWord, viewMode }
     // Vertical, inline edit, star, delete, modal for details, mastery bar
     const mastery = (word as any).interval ?? 0
     const isEditing = editingWordId === word.id
+    
     return (
-      <div className="border rounded-md flex flex-col relative h-full">
+      <div className="border rounded-md flex flex-col relative h-full min-h-[120px]">
         {/* Mastery Bar */}
         <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-md ${
           mastery <= 2 ? 'bg-red-500'
@@ -182,7 +187,7 @@ export function WordCard({ word, bankId, onDeleteRequest, updateWord, viewMode }
           ) : (
             <button
               className="flex items-center gap-2 flex-grow text-left mr-2 overflow-hidden"
-              onClick={() => setEditingWordId(word.id)}
+              onClick={() => handleEditClick(word)}
               title={`Edit "${word.wordMaster?.baseWord || word.text}"`}
             >
               <span className="font-medium truncate">{word.wordMaster?.baseWord || word.text}</span>
@@ -190,7 +195,11 @@ export function WordCard({ word, bankId, onDeleteRequest, updateWord, viewMode }
           )}
           {!isEditing && (
             <div className="flex items-center space-x-2 flex-shrink-0">
-              <WordHistoryDialog wordId={word.id} wordText={word.wordMaster?.baseWord || word.text} historyCount={word._count?.practiceLogs ?? 0} />
+              <WordHistoryDialog 
+                wordId={word.id} 
+                wordText={word.wordMaster?.baseWord || word.text} 
+                historyCount={(word._count?.practiceLogs ?? word.practiceCount ?? 0)} 
+              />
               <Button
                 variant="ghost"
                 size="icon"
@@ -243,17 +252,17 @@ export function WordCard({ word, bankId, onDeleteRequest, updateWord, viewMode }
         </div>
         {/* Details/Modal Section */}
         <WordInteractionModal wordId={word.id} bankId={bankId}>
-          <div className="space-y-1.5 text-xs px-4 pb-3 flex-grow cursor-pointer hover:bg-muted/50">
-            {word.wordMaster ? (
-              <>
-                {word.wordMaster.wordType && <p><strong>Type:</strong> {word.wordMaster.wordType}</p>}
-                {word.wordMaster.definition && <p><strong>Def:</strong> {word.wordMaster.definition}</p>}
-                {!word.wordMaster.wordType && !word.wordMaster.definition && (
-                  <p className="text-muted-foreground italic">No details available.</p>
-                )}
-              </>
+          <div className="px-4 pb-3 pt-2 text-sm text-muted-foreground flex-grow cursor-pointer hover:bg-muted/10 rounded-b-md">
+            {areDetailsLoaded ? (
+              <p className="line-clamp-2">
+                {word.wordMaster?.definition || 'No definition available.'}
+              </p>
             ) : (
-              <p className="text-muted-foreground italic">Word details not available.</p>
+              // Show Skeleton if details are not loaded
+              <div className="space-y-1.5">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+              </div>
             )}
           </div>
         </WordInteractionModal>
@@ -261,62 +270,127 @@ export function WordCard({ word, bankId, onDeleteRequest, updateWord, viewMode }
     )
   }
 
-  // Default/list: mimic small-grid for now
-  return (
-    <WordInteractionModal wordId={word.id} bankId={bankId}>
-      <div className="border rounded-md px-3 py-2 flex items-center justify-between relative cursor-pointer hover:bg-muted/50 h-full">
-        {/* Mastery Bar */}
-        <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-md ${
-          (word as any).interval <= 2 ? 'bg-red-500'
-          : (word as any).interval <= 7 ? 'bg-yellow-400'
-          : (word as any).interval <= 30 ? 'bg-green-400'
-          : 'bg-blue-500'
-        }`} />
-        {/* Word Text */}
-        <span className="font-medium truncate pl-3 flex-grow text-sm">
-          {word.wordMaster?.baseWord || word.text}
-        </span>
-        {/* Star Button */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className={`h-6 w-6 flex-shrink-0 ml-1 ${word.isStarred ? 'text-yellow-400 hover:text-yellow-500' : 'text-muted-foreground hover:text-yellow-400'}`}
-          onClick={async (e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            if (!userId) {
-              toast.error("Cannot toggle star: User not logged in.")
-              return
-            }
-            const newStarStatus = !word.isStarred
-            try {
-              await db.words.update(word.id, { isStarred: newStarStatus })
-              await updateWord(toWord(word, newStarStatus))
-              await utils.vocab.listByBank.invalidate({ wordBankId: bankId })
-              if (navigator.onLine) {
-                toggleStarMutation.mutate({ wordId: word.id })
-              } else {
-                await queueMutation({
-                  type: 'word/toggleStar',
-                  payload: { wordId: word.id },
-                  userId
-                })
-                toast.info("Offline: Star toggle queued.")
-              }
-            } catch (localError: any) {
-              toast.error(`Local star update failed: ${localError.message}`)
-              await utils.vocab.listByBank.invalidate({ wordBankId: bankId })
-            }
-          }}
-          title={word.isStarred ? 'Unstar word' : 'Star word'}
-          disabled={toggleStarMutation.isPending && toggleStarMutation.variables?.wordId === word.id}
-        >
-          {toggleStarMutation.isPending
-            ? <Loader2 className="h-3 w-3 animate-spin" />
-            : <Star className={`h-3 w-3 ${word.isStarred ? 'fill-current' : ''}`} />
-          }
-        </Button>
+  if (viewMode === 'list') {
+    const isEditing = editingWordId === word.id;
+    const mastery = (word as any).interval ?? 0; 
+    return (
+      <div className="border rounded-md flex items-center gap-4 p-2 pr-3 relative hover:bg-muted/50">
+         {/* Mastery Bar */}
+         <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-md ${
+            mastery <= 2 ? 'bg-red-500'
+            : mastery <= 7 ? 'bg-yellow-400'
+            : mastery <= 30 ? 'bg-green-400'
+            : 'bg-blue-500'
+          }`} />
+          
+          {/* Word Text/Input (Left) */}
+          <div className="flex-grow pl-3">
+             {isEditing ? (
+               <div className="flex items-center gap-1">
+                 <Input
+                   value={editingWordText}
+                   onChange={(e) => setEditingWordText(e.target.value)}
+                   onKeyDown={handleEditKeyDown}
+                   onBlur={handleSaveEdit}
+                   autoFocus
+                   className="h-7 px-1.5 text-sm flex-grow"
+                   disabled={updateWordMutation.isPending}
+                 />
+                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleSaveEdit} disabled={updateWordMutation.isPending} title="Save">
+                   {updateWordMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin"/> : <Save className="h-3 w-3" />}
+                 </Button>
+                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCancelEdit} disabled={updateWordMutation.isPending} title="Cancel">
+                   <X className="h-3 w-3" />
+                 </Button>
+               </div>
+             ) : (
+               <button
+                 className="text-left w-full truncate"
+                 onClick={() => handleEditClick(word)}
+                 title={`Edit "${word.wordMaster?.baseWord || word.text}"`}
+               >
+                 <span className="font-medium">{word.wordMaster?.baseWord || word.text}</span>
+               </button>
+             )}
+          </div>
+
+          {/* Details & Actions (Right) */}
+          {!isEditing && (
+            <div className="flex items-center gap-3 flex-shrink-0">
+              {/* Definition/Skeleton */} 
+              <div className="w-40 text-xs text-muted-foreground hidden md:block">
+                 {areDetailsLoaded ? (
+                   <p className="truncate" title={word.wordMaster?.definition ?? undefined}>
+                     {word.wordMaster?.definition || '-'}
+                   </p>
+                 ) : (
+                   <Skeleton className="h-4 w-full" /> 
+                 )}
+              </div>
+              
+              {/* History */} 
+              <WordHistoryDialog 
+                 wordId={word.id} 
+                 wordText={word.wordMaster?.baseWord || word.text} 
+                 historyCount={(word._count?.practiceLogs ?? word.practiceCount ?? 0)} 
+               />
+
+              {/* Star */}
+               <Button
+                 variant="ghost"
+                 size="icon"
+                 className={`h-6 w-6 ${word.isStarred ? 'text-yellow-400 hover:text-yellow-500' : 'text-muted-foreground hover:text-yellow-400'}`}
+                 onClick={async (e) => {
+                   e.stopPropagation()
+                   if (!userId) {
+                     toast.error("Cannot toggle star: User not logged in.")
+                     return
+                   }
+                   const newStarStatus = !word.isStarred
+                   try {
+                     await db.words.update(word.id, { isStarred: newStarStatus })
+                     await updateWord(toWord(word, newStarStatus))
+                     await utils.vocab.listByBank.invalidate({ wordBankId: bankId })
+                     if (navigator.onLine) {
+                       toggleStarMutation.mutate({ wordId: word.id })
+                     } else {
+                       await queueMutation({
+                         type: 'word/toggleStar',
+                         payload: { wordId: word.id },
+                         userId
+                       })
+                       toast.info("Offline: Star toggle queued.")
+                     }
+                   } catch (localError: any) {
+                     toast.error(`Local star update failed: ${localError.message}`)
+                     await utils.vocab.listByBank.invalidate({ wordBankId: bankId })
+                   }
+                 }}
+                 title={word.isStarred ? 'Unstar word' : 'Star word'}
+                 disabled={toggleStarMutation.isPending && toggleStarMutation.variables?.wordId === word.id}
+               >
+                 {toggleStarMutation.isPending && toggleStarMutation.variables?.wordId === word.id
+                   ? <Loader2 className="h-3 w-3 animate-spin" />
+                   : <Star className={`h-3 w-3 ${word.isStarred ? 'fill-current' : ''}`} />
+                 }
+               </Button>
+               
+               {/* Delete */} 
+               <Button
+                 variant="ghost"
+                 size="icon"
+                 className="h-6 w-6 text-destructive/70 hover:text-destructive"
+                 onClick={(e) => { e.stopPropagation(); onDeleteRequest(word); }}
+                 title="Delete word"
+               >
+                 <Trash2 className="h-3 w-3" />
+               </Button>
+            </div>
+          )}
       </div>
-    </WordInteractionModal>
-  )
+    )
+  }
+
+  // Default fallback or handle other view modes if necessary
+  return <div>Unsupported view mode</div>;
 }

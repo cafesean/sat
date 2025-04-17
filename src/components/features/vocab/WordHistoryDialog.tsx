@@ -37,42 +37,110 @@ const easeLevelMap: { [key: number]: string } = {
   4: 'Easy'
 }
 
-export function WordHistoryDialog ({ wordId, wordText, historyCount }: WordHistoryDialogProps) {
-  const [isOpen, setIsOpen] = useState(false)
+export function WordHistoryDialog({ wordId, wordText, historyCount }: WordHistoryDialogProps) {
+  const [isOpen, setIsOpen] = useState(false);
   const [history, setHistory] = useState<HistoryLog[] | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [isLoadingLocal, setIsLoadingLocal] = useState(false); // Separate loading state for local fetch
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [attemptedLocalFetch, setAttemptedLocalFetch] = useState(false); // Track if local fetch was done
 
+  // tRPC query hook - called unconditionally at the top level
+  const {
+    data: remoteHistory,
+    isLoading: isLoadingRemote,
+    error: remoteError,
+    isFetching: isFetchingRemote, // Use isFetching for background updates
+  } = api.vocab.getWordPracticeHistory.useQuery(
+    { wordId },
+    {
+      // Only enable the query if the dialog is open AND local fetch has been attempted but found nothing
+      enabled: isOpen && attemptedLocalFetch && !history && !localError,
+      staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+      refetchOnWindowFocus: false, // Avoid unnecessary refetches
+    }
+  );
+
+  // Effect to fetch local data when dialog opens
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      // Reset state when dialog closes
+      setHistory(null);
+      setIsLoadingLocal(false);
+      setLocalError(null);
+      setAttemptedLocalFetch(false);
+      return;
+    }
+
     let cancelled = false;
-    async function fetchHistory() {
-      setIsLoading(true);
-      setError(null);
+    async function fetchLocalHistory() {
+      setIsLoadingLocal(true);
+      setLocalError(null);
+      setHistory(null); // Clear previous history
+      setAttemptedLocalFetch(false); // Reset attempt flag
+
       try {
-        // Try IndexedDB first
-        const localHistory = await getPracticeLogsByWord(wordId);
-        if (localHistory && localHistory.length > 0) {
-          setHistory(localHistory as any);
-          setIsLoading(false);
-          return;
-        }
-        // Fallback to tRPC
-        const { data } = await api.vocab.getWordPracticeHistory.useQuery({ wordId });
-        if (!cancelled && data) {
-          setHistory(data as any);
-        } else if (!cancelled) {
-          setError('No history found.');
+        console.log(`WordHistoryDialog: Fetching local history for wordId: ${wordId}`);
+        const localData = await getPracticeLogsByWord(wordId);
+        if (!cancelled) {
+          if (localData && localData.length > 0) {
+            console.log(`WordHistoryDialog: Found ${localData.length} logs locally.`);
+            // Transform local PracticeLog[] to HistoryLog[]
+            const transformedLocalData = localData.map(log => ({
+              id: log.id,
+              timestamp: new Date(log.practicedAt), // Convert string to Date
+              isCorrect: log.result === 'correct', // Convert 'correct'/'incorrect' to boolean
+              // Provide default/null values for fields missing in local PracticeLog
+              userSentence: '', // Not available locally
+              easeChosen: 0,    // Not available locally
+              aiFeedback: null, // Not available locally
+              // Include other fields if HistoryLog expects them and they exist on PracticeLog
+              // e.g., wordId: log.wordId (if needed by HistoryLog type)
+            })) as HistoryLog[]; // Assert type after transformation
+            setHistory(transformedLocalData);
+          } else {
+            console.log(`WordHistoryDialog: No local history found.`);
+            // No local data found, allow tRPC query to enable
+          }
+          setAttemptedLocalFetch(true); // Mark local fetch as attempted
         }
       } catch (e: any) {
-        setError('Failed to load history.');
+        if (!cancelled) {
+          console.error(`WordHistoryDialog: Error fetching local history:`, e);
+          setLocalError('Failed to load local history.');
+        }
       } finally {
-        setIsLoading(false);
+        if (!cancelled) {
+          setIsLoadingLocal(false);
+        }
       }
     }
-    fetchHistory();
-    return () => { cancelled = true; };
+
+    fetchLocalHistory();
+
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen, wordId]);
+
+  // Effect to update history state from tRPC query result
+  useEffect(() => {
+    if (remoteHistory) {
+      console.log(`WordHistoryDialog: Received ${remoteHistory.length} logs from remote.`);
+      // Ensure data matches HistoryLog structure (basic check)
+       const validatedRemoteData = remoteHistory.map(log => ({
+        ...log,
+        timestamp: log.timestamp instanceof Date ? log.timestamp : new Date(log.timestamp), // Ensure Date object
+        easeChosen: typeof log.easeChosen === 'number' ? log.easeChosen : 0,
+        isCorrect: typeof log.isCorrect === 'boolean' ? log.isCorrect : false,
+      })) as HistoryLog[];
+      setHistory(validatedRemoteData);
+      setLocalError(null); // Clear local error if remote fetch succeeds
+    }
+  }, [remoteHistory]);
+
+  // Determine overall loading and error states
+  const isLoading = isLoadingLocal || (attemptedLocalFetch && !history && !localError && (isLoadingRemote || isFetchingRemote));
+  const error = localError || (remoteError ? `Failed to load history: ${remoteError.message}` : null);
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -81,7 +149,7 @@ export function WordHistoryDialog ({ wordId, wordText, historyCount }: WordHisto
         <Button variant="ghost" size="icon" className="relative h-6 w-6" aria-label={`View history for ${wordText}`}>
           <History className="h-3 w-3" />
           {/* Display badge if count is greater than 0 */}
-          {historyCount !== undefined && historyCount > 0 && (
+          {typeof historyCount === 'number' && historyCount > 0 && (
             <Badge
               variant="destructive" // Or another variant like "secondary"
               className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-xs rounded-full"
@@ -106,15 +174,18 @@ export function WordHistoryDialog ({ wordId, wordText, historyCount }: WordHisto
               <Skeleton className="h-16 w-full" />
             </div>
           )}
-          {error && (
-            <p className="text-red-500 py-4">Error loading history: {error}</p>
+          {/* Display error if any occurred */}
+          {error && !isLoading && (
+            <p className="text-red-500 py-4 text-center">{error}</p>
           )}
+          {/* Display history if loaded and no error */}
           {!isLoading && !error && history && history.length > 0 && (
             <div className="space-y-3 py-2">
-              {history.map((log: any) => (
+              {history.map((log) => ( // Use defined HistoryLog type
                 <div key={log.id} className="p-3 border rounded-md text-sm">
                   <p className="text-xs text-muted-foreground mb-1">
-                    {log.timestamp ? format(new Date(log.timestamp), 'PPpp') : ''}
+                    {/* Ensure timestamp is a Date object before formatting */}
+                    {log.timestamp instanceof Date ? format(log.timestamp, 'PPpp') : 'Invalid Date'}
                   </p>
                   <p className="mb-1"><strong>Sentence:</strong> {log.userSentence ?? ''}</p>
                   <p className={`font-medium ${log.isCorrect ? 'text-green-600' : 'text-red-600'}`}>
@@ -126,8 +197,9 @@ export function WordHistoryDialog ({ wordId, wordText, historyCount }: WordHisto
               ))}
             </div>
           )}
+          {/* Display "No history" message only if not loading, no error, and history is empty or null */}
           {!isLoading && !error && (!history || history.length === 0) && (
-            <p className="text-muted-foreground py-4 text-center">No practice history found for this word.</p>
+             <p className="text-muted-foreground py-4 text-center">No practice history found for this word.</p>
           )}
         </ScrollArea>
         <DialogFooter>

@@ -10,8 +10,9 @@ import GoogleProvider from 'next-auth/providers/google';
 
 export const authOptions: NextAuthOptions = {
   // Configure one or more authentication providers
-  // Ensure prisma instance is passed correctly. The 'as any' might hide underlying type issues.
-  adapter: PrismaAdapter(prisma!), // Use non-null assertion if confident prisma is defined
+  // Ensure prisma instance is passed correctly.
+  // Cast to any to bypass v4/v5 adapter type mismatch temporarily.
+  adapter: PrismaAdapter(prisma!) as any,
   providers: [
     // Credentials Provider for Email/Password
     CredentialsProvider({
@@ -33,6 +34,21 @@ export const authOptions: NextAuthOptions = {
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email },
+          // Select fields needed for AdapterUser/authorize return type
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            emailVerified: true,
+            image: true,
+            hashedPassword: true,
+            role: true,
+            createdAt: true, // Needed by adapter?
+            updatedAt: true, // Needed by adapter?
+            gradeLevel: true,
+            languagePreference: true,
+            // reviewCount removed from select as it's not on User model
+          }
         });
 
         if (!user || !user.hashedPassword) {
@@ -52,14 +68,9 @@ export const authOptions: NextAuthOptions = {
         }
 
         console.log('Credentials valid for:', credentials.email);
-        // Return user object without password, ensuring all required fields are present
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { hashedPassword, ...userToReturn } = user;
-        // Explicitly ensure reviewCount is included (even though it should be from the spread)
-        return {
-          ...userToReturn,
-          reviewCount: user.reviewCount ?? 0 // Ensure reviewCount is included and has a default
-        };
+        // Return only user fields conforming to AdapterUser/session user
+        return userToReturn;
       }
     }),
     // Google Provider

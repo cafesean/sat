@@ -13,43 +13,44 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { queueMutation } from '@/lib/storage'; // Import queueMutation
-// Remove useWords import as we'll use addBatch directly
-// import { useWords } from '@/hooks/useWords';
+import { queueMutation, Word } from '@/lib/storage'; // Import Word type
 import { api } from '@/utils/trpc';
 import { Loader2 } from 'lucide-react';
 import { useSession } from 'next-auth/react'; // Import useSession
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { v4 as uuidv4 } from 'uuid'; // Import UUID for generating IDs
 
 interface AddWordsModalProps {
   bankId: string;
   children: React.ReactNode; // Trigger element
   onWordsAdded?: () => void; // Optional callback after adding words
+  addBatch: (words: Word[]) => Promise<void>; // Add addBatch to props
 }
 
-export function AddWordsModal({ bankId, children, onWordsAdded }: AddWordsModalProps) {
+export function AddWordsModal({ bankId, children, onWordsAdded, addBatch }: AddWordsModalProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [wordsText, setWordsText] = useState('');
   const utils = api.useUtils();
   const { data: session } = useSession(); // Get session
   const userId = session?.user?.id; // Get userId
-  // Remove useWords hook call
-  // const { add: addWord } = useWords(bankId);
 
   const addWordsMutation = api.vocab.addBatch.useMutation({
     onSuccess: () => {
       toast.success('Words added successfully!');
-      setWordsText(''); // Clear textarea
-      setIsOpen(false); // Close dialog
-      // Invalidate relevant queries to refetch data
-      utils.vocab.listWordBanks.invalidate(); // Update dashboard list
-      utils.vocab.getById.invalidate({ id: bankId }); // Update specific bank details if needed elsewhere
-      utils.vocab.listByBank.invalidate({ wordBankId: bankId }); // Update word list if viewing bank details
-      onWordsAdded?.(); // Call optional callback
+      setWordsText('');
+      setIsOpen(false);
+      // Invalidate queries to ensure consistent data across components
+      utils.vocab.listWordBanks.invalidate();
+      utils.vocab.getById.invalidate({ id: bankId });
+      utils.vocab.listByBank.invalidate({ wordBankId: bankId });
+      onWordsAdded?.();
+      setIsSubmitting(false);
     },
     onError: (error) => {
       toast.error(`Failed to add words: ${error.message}`);
+      setIsSubmitting(false);
     },
   });
 
@@ -63,33 +64,73 @@ export function AddWordsModal({ bankId, children, onWordsAdded }: AddWordsModalP
       return;
     }
 
+    setIsSubmitting(true);
+    
     const payload = { wordBankId: bankId, wordsText: wordsText.trim() };
 
-    // Check online status
-    if (navigator.onLine) {
-      // Call tRPC mutation directly if online
-      addWordsMutation.mutate(payload);
-    } else {
-      // Queue if offline
-      try {
-        await queueMutation({
-          type: 'word/addBatch', // Use a new type for batch add
-          payload: payload,
-          userId
-        });
-        toast.info("Offline: Adding words queued.");
-        // Close modal and clear text optimistically for offline queueing
-        setWordsText('');
-        setIsOpen(false);
-        onWordsAdded?.(); // Call callback
-      } catch (error: any) {
-        console.error("Failed to queue word batch add:", error);
-        toast.error(`Failed to queue adding words: ${error.message}`);
+    // Parse words into proper Word objects for local storage
+    const wordEntries = wordsText
+      .split(/[\n,]+/)
+      .map(text => text.trim())
+      .filter(text => text.length > 0)
+      .map(text => {
+        // Create a Word object with a locally generated UUID
+        const id = uuidv4();
+        return {
+          id,
+          text,
+          wordBankId: bankId,
+          interval: 0,
+          easeFactor: 2.5,
+          repetitions: 0,
+          nextReviewDate: new Date().toISOString(),
+          isStarred: false,
+          notes: null,
+          mastery: 0,
+          nextDueAtReviewCount: 0,
+          timesSeen: 0,
+          successRate: 0,
+          wordMasterId: null,
+          wordMaster: null,
+          practiceCount: 0,
+        } as Word;
+      });
+
+    try {
+      // First, optimistically add words to local state and IndexedDB via the prop
+      if (wordEntries.length > 0) {
+        console.log(`AddWordsModal: Calling addBatch prop with ${wordEntries.length} words`);
+        await addBatch(wordEntries);
       }
+
+      // Close the modal immediately after local update for better UX
+      setWordsText('');
+      setIsOpen(false);
+      
+      // Then handle server-side update
+      if (navigator.onLine) {
+        addWordsMutation.mutate(payload);
+      } else {
+        try {
+          await queueMutation({
+            type: 'word/addBatch',
+            payload: payload,
+            userId
+          });
+          toast.info("Offline: Adding words queued for sync when online.");
+          onWordsAdded?.();
+          setIsSubmitting(false);
+        } catch (error: any) {
+          console.error("Failed to queue word batch add:", error);
+          toast.error(`Failed to queue adding words: ${error.message}`);
+          setIsSubmitting(false);
+        }
+      }
+    } catch (error: any) {
+      console.error("Error in add words flow:", error);
+      toast.error(`Failed to add words: ${error.message}`);
+      setIsSubmitting(false);
     }
-    // Note: Local DB update for words happens on the backend via addBatch
-    // and will be synced back via the useWords hook's fetch/sync logic.
-    // No need for the manual loop calling useWords.add here.
   };
 
   // Reset text when dialog is closed
@@ -119,20 +160,20 @@ export function AddWordsModal({ bankId, children, onWordsAdded }: AddWordsModalP
               value={wordsText}
               onChange={(e) => setWordsText(e.target.value)}
               rows={5}
-              disabled={addWordsMutation.isPending}
+              disabled={isSubmitting}
             />
           </div>
         </div>
         <DialogFooter>
           <DialogClose asChild>
-             <Button variant="outline" disabled={addWordsMutation.isPending}>Cancel</Button>
+             <Button variant="outline" disabled={isSubmitting}>Cancel</Button>
           </DialogClose>
           <Button
             type="submit"
             onClick={handleSubmit}
-            disabled={addWordsMutation.isPending || !wordsText.trim()}
+            disabled={isSubmitting || !wordsText.trim()}
           >
-            {addWordsMutation.isPending ? (
+            {isSubmitting ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : null}
             Add Words

@@ -33,6 +33,15 @@ export function useWordBanks(userId: string) {
   const [error, setError] = useState<string | null>(null);
   const wordBanksRef = useRef(wordBanks); // Ref to hold current wordBanks state
 
+  // Don't do anything if userId is empty
+  useEffect(() => {
+    if (!userId) {
+      setIsLoading(false);
+      setWordBanks([]);
+      return;
+    }
+  }, [userId]);
+
   // Keep ref updated with the latest state
   useEffect(() => {
     wordBanksRef.current = wordBanks;

@@ -395,7 +395,7 @@ export const vocabRouter = router({
 				wordMasterId: word.wordMasterId,
 				wordMaster: word.wordMaster, // Keep the nested object (superjson handles JSON)
 				wordBankId: word.wordBank.id,
-				practiceCount: word._count?.practiceLogs ?? 0,
+				_count: word._count, // Return the whole _count object
 			}));
 		}),
 

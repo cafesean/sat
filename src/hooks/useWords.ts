@@ -1,4 +1,4 @@
-import { db, deleteWord, getWordsByBank, queueMutation, updateWord, Word, WordMasterData } from '@/lib/storage'; // Import db and queueMutation
+import { db, deleteWord, getWordsByBank, queueMutation, updateWord, Word, WordMasterData, addWord } from '@/lib/storage'; // Import db and queueMutation
 import { api, type RouterOutputs } from '@/utils/trpc'; // Import RouterOutputs
 import { useSession } from 'next-auth/react'; // Import useSession
 import { useCallback, useEffect, useRef, useState } from 'react'; // Combined imports + useRef
@@ -38,7 +38,7 @@ function normalizeWord(remote: RemoteWord): Word {
     wordMasterId: remote.wordMasterId,
     wordMaster: wordMaster, // Assign the processed wordMaster object
     wordBankId: remote.wordBankId, // Use wordBankId from remote data
-    practiceCount: remote.practiceCount,
+    practiceCount: remote._count?.practiceLogs ?? 0, // Map from _count object
     // createdAt/updatedAt are not returned by listByBank, handle locally if needed
   };
 }
@@ -51,233 +51,382 @@ export function useWords(wordBankId: string) { // Renamed bankId to wordBankId f
   const [error, setError] = useState<string | null>(null);
   const { data: session } = useSession(); // Get session at the top level
   const userId = session?.user?.id; // Get userId at the top level
+  const wordsRef = useRef<Word[] | null>(null);
+  
+  // Keep track of words we've optimistically added locally
+  const pendingLocalAddsRef = useRef<Set<string>>(new Set());
 
-  // tRPC query - pass wordBankId correctly
+  // tRPC query - pass wordBankId correctly but disable automatic fetching
   const trpcQuery = api.vocab.listByBank.useQuery({ wordBankId: wordBankId }, {
-    enabled: !!wordBankId, // Only enable if wordBankId is present
+    enabled: false, // Disable automatic fetching
     staleTime: STALE_MS,
   });
   const { refetch: refetchWords } = trpcQuery; // Destructure for stable reference
-  const wordsRef = useRef(words); // Add ref for comparison
 
-  // Keep ref updated
+  // Don't do anything if userId or wordBankId is empty
+  useEffect(() => {
+    if (!userId || !wordBankId) {
+      setIsLoading(false);
+      setWords([]);
+      return;
+    }
+  }, [userId, wordBankId]);
+
+  // Keep ref updated to avoid stale closures
   useEffect(() => {
     wordsRef.current = words;
   }, [words]);
 
-  // Function to fetch remote and sync
-  const fetchAndSyncRemote = useCallback(async (currentLocalData: Word[] | null) => {
-    // userId is now available from the hook's scope
-    if (!userId) {
-        console.error("Cannot sync words: User ID not found in scope.");
-        return;
-    }
-    if (!wordBankId) return;
-    console.log(`Attempting to fetch remote words for bank ${wordBankId}...`);
-    setError(null);
+  // Fetch remote data and sync with local
+  const fetchAndSyncRemote = useCallback(async (isCancelled: () => boolean) => {
+    if (!userId || !wordBankId) return;
+    console.log(`useWords.fetchAndSyncRemote: Starting for bank ${wordBankId}...`);
+    
     try {
-      // Use stable refetch function
-      const { data: remoteData, isError, error: remoteError } = await refetchWords();
-      let finalRemoteData = remoteData; // Assign remoteData to finalRemoteData
-
-      if (isError) { // Check isError after refetch attempt
-        throw remoteError || new Error('Unknown error fetching remote words');
+      // 1. Fetch remote data
+      console.log(`useWords.fetchAndSyncRemote: Calling refetchWords()`);
+      const result = await refetchWords();
+      
+      if (isCancelled()) {
+        console.log(`useWords.fetchAndSyncRemote: Cancelled during fetch.`);
+        return;
       }
-
-      if (finalRemoteData) { // Use finalRemoteData which holds the result of refetch
-        console.log(`Fetched ${finalRemoteData.length} words from server for bank ${wordBankId}.`);
-        const normalizedWords = finalRemoteData.map(normalizeWord);
-
-        // Use bulkPut for efficient upsert
-        await db.words.bulkPut(normalizedWords);
-        console.log(`Synced remote words to IndexedDB for bank ${wordBankId}.`);
-
-        // Re-fetch from local DB to ensure state reflects the actual stored data
-        const updatedLocalData = await getWordsByBank(wordBankId);
-
-        // Compare lengths and sorted IDs before updating state
-        const currentIds = wordsRef.current?.map((w: Word) => w.id).sort().join(',') ?? ''; // Add type to 'w'
-        const updatedIds = updatedLocalData?.map((w: Word) => w.id).sort().join(',') ?? ''; // Add type to 'w'
-
-        if (wordsRef.current?.length !== updatedLocalData?.length || currentIds !== updatedIds) {
-          setWords(updatedLocalData);
-          console.log(`Refreshed words state from updated IndexedDB for bank ${wordBankId} (data changed).`);
-        } else {
-          console.log(`Skipping words state update for bank ${wordBankId}, data identical.`);
-        }
-
-        setLastFetched(Date.now());
+      
+      if (result.isError || !result.data) {
+        throw result.error || new Error('Unknown error fetching remote words');
       }
-    } catch (e: any) {
-      console.error(`Failed to fetch or sync remote words for bank ${wordBankId}:`, e);
-      // Need toast import here
-      const { toast } = await import('sonner');
-      if (!currentLocalData || currentLocalData.length === 0) {
-        setError(`Failed to fetch words: ${e.message || 'Unknown error'}`);
-        toast.error(`Failed to fetch words: ${e.message || 'Unknown error'}`);
+      
+      const remoteData = result.data;
+      console.log(`useWords.fetchAndSyncRemote: Found ${remoteData.length} words remotely.`);
+      
+      // 2. Normalize remote data and get remote IDs
+      const normalizedRemoteWords = remoteData.map(normalizeWord);
+      const remoteIds = new Set(normalizedRemoteWords.map(w => w.id));
+
+      // 3. Read all current words from the local DB for this bank
+      console.log(`useWords.fetchAndSyncRemote: Reading all words from DB for bank ${wordBankId}`);
+      const allLocalWordsFromDB = await getWordsByBank(wordBankId);
+      console.log(`useWords.fetchAndSyncRemote: Found ${allLocalWordsFromDB.length} words in DB.`);
+      console.log(`useWords.fetchAndSyncRemote: Current pending IDs in ref:`, Array.from(pendingLocalAddsRef.current));
+
+      // 4. Identify pending local words from DB that are not yet on the server
+      const pendingLocalWordsNotInRemote = allLocalWordsFromDB.filter(localWord => 
+        pendingLocalAddsRef.current.has(localWord.id) && !remoteIds.has(localWord.id)
+      );
+      
+      if (pendingLocalWordsNotInRemote.length > 0) {
+        console.log(`useWords.fetchAndSyncRemote: Identified ${pendingLocalWordsNotInRemote.length} pending local words from DB to preserve. IDs:`, pendingLocalWordsNotInRemote.map(w => w.id));
       } else {
-        console.warn(`Remote word fetch failed for bank ${wordBankId}, continuing with local data.`);
-        // toast.warning(`Couldn't sync words for this bank.`);
+        console.log(`useWords.fetchAndSyncRemote: No pending local words from DB needed preserving.`);
+      }
+      
+      // 5. Merge remote words with the identified pending local words
+      const mergedWords = [...normalizedRemoteWords, ...pendingLocalWordsNotInRemote];
+      console.log(`useWords.fetchAndSyncRemote: Merged list contains ${mergedWords.length} words.`);
+      
+      // 6. Use bulkPut for efficient upsert into DB
+      console.log(`useWords.fetchAndSyncRemote: Attempting db.words.bulkPut for ${mergedWords.length} words.`);
+      await db.words.bulkPut(mergedWords);
+      console.log(`useWords.fetchAndSyncRemote: Synced ${mergedWords.length} words to IndexedDB.`);
+            
+      if (isCancelled()) {
+        console.log(`useWords.fetchAndSyncRemote: Cancelled after DB sync.`);
+        return;
+      }
+      
+      // 8. Update state directly with the merged data
+      console.log(`useWords.fetchAndSyncRemote: Setting state with ${mergedWords.length} merged words.`);
+      setWords(mergedWords); // Use the merged array directly
+      setLastFetched(Date.now());
+      
+    } catch (e: any) {
+      console.error(`useWords.fetchAndSyncRemote: Failed during fetch/sync for bank ${wordBankId}:`, e);
+      
+      if (isCancelled()) return;
+      
+      // Only set error if the state is currently null/empty
+      // Check the ref here is okay, as it's just for deciding to show an error
+      if (!wordsRef.current || wordsRef.current.length === 0) { 
+         setError(`Failed to fetch words: ${e.message || 'Unknown error'}`);
+         toast.error(`Failed to fetch words: ${e.message || 'Unknown error'}`);
+      } else {
+         // If we have data already, just log a warning
+         console.warn(`Remote fetch/sync failed for bank ${wordBankId}, continuing with existing data.`);
       }
     }
-    // Use stable refetchWords instead of trpcQuery, add userId dependency
+  // Dependencies are correct
   }, [wordBankId, refetchWords, userId]);
 
   // Initial load effect
-  // Update dependencies for initial load effect
   useEffect(() => {
+    // Move cancelled flag inside the effect where it belongs
     let cancelled = false;
+    const isCancelled = () => cancelled;
+    
     async function loadInitialData() {
-      // Also check userId here
+      // If userId or wordBankId is missing, clear state and stop.
       if (!wordBankId || !userId) {
+        console.log('useWords: Missing userId or wordBankId, resetting.');
         setIsLoading(false);
-        setWords([]); // Set empty if no bank ID or user ID
+        setWords([]);
+        setLastFetched(0); // Reset fetch time
         return;
       }
 
-      setIsLoading(true); // Set loading true at the start
+      // Proceed with loading only if userId and wordBankId are present.
+      console.log(`useWords: Starting initial load for bank ${wordBankId}`);
+      setIsLoading(true);
       setError(null);
       let localData: Word[] | null = null;
 
       try {
         console.log(`Fetching local words for bank ${wordBankId}...`);
         localData = await getWordsByBank(wordBankId);
+        
+        if (cancelled) {
+            console.log(`useWords: Initial load cancelled for bank ${wordBankId}`);
+            return;
+        }
+        
+        setWords(localData);
+        console.log(`Found ${localData?.length ?? 0} words locally for bank ${wordBankId}.`);
+
+        // Fetch remote data if local is empty or stale
+        const shouldFetchRemote = !localData || localData.length === 0 || Date.now() - lastFetched > STALE_MS;
+        console.log(`useWords: Should fetch remote for bank ${wordBankId}?`, shouldFetchRemote);
+        
+        // Only run initial sync if we should fetch AND there are no pending local adds
+        if (shouldFetchRemote && pendingLocalAddsRef.current.size === 0) { 
+          console.log(`useWords: Triggering initial fetchAndSyncRemote because shouldFetchRemote is true and no pending adds.`);
+          fetchAndSyncRemote(isCancelled).catch(fetchErr => {
+            // Error logging handled within fetchAndSyncRemote
+          });
+        } else if (shouldFetchRemote && pendingLocalAddsRef.current.size > 0) {
+          console.log(`useWords: Skipping initial fetchAndSyncRemote because there are ${pendingLocalAddsRef.current.size} pending local adds.`);
+        }
+        
         if (!cancelled) {
-          setWords(localData);
-          console.log(`Found ${localData?.length ?? 0} words locally for bank ${wordBankId}.`);
-
-          const shouldFetchRemote = !localData || localData.length === 0 || Date.now() - lastFetched > STALE_MS;
-
-          if (shouldFetchRemote) {
-            // Use the stable fetchAndSyncRemote callback
-            fetchAndSyncRemote(localData).catch(fetchErr => {
-              console.error(`Background remote word fetch failed for bank ${wordBankId}:`, fetchErr);
-            });
-          }
-          // Set loading false *after* attempting local load
           setIsLoading(false);
+          console.log(`useWords: Initial load complete for bank ${wordBankId}`);
         }
       } catch (e: any) {
         console.error(`Failed to load local words for bank ${wordBankId}:`, e);
+        
+        if (cancelled) return;
+        
         setError(`Failed to load local words: ${e.message || 'Unknown error'}`);
-        // Use the stable fetchAndSyncRemote callback
-        fetchAndSyncRemote(null).catch(fetchErr => {
-           console.error(`Background remote word fetch also failed after local failure for bank ${wordBankId}:`, fetchErr);
-        });
-        // Set loading false even on error
-        setIsLoading(false);
+        
+        // Attempt remote fetch even if local fails, IF no pending adds
+        if (pendingLocalAddsRef.current.size === 0) {
+           console.log(`useWords: Triggering fetchAndSyncRemote after local load error because no pending adds.`);
+           fetchAndSyncRemote(isCancelled).catch(fetchErr => {
+             // Error logging handled within fetchAndSyncRemote
+           });
+        } else {
+           console.log(`useWords: Skipping fetchAndSyncRemote after local load error because there are pending adds.`);
+        }
+        
+        // Still set loading false after error + attempt to fetch remote
+        if (!cancelled) {
+          setIsLoading(false);
+           console.log(`useWords: Initial load failed for bank ${wordBankId}, attempted remote fetch.`);
+        }
       }
     }
 
     loadInitialData();
 
-    return () => { cancelled = true; };
-    // Rerun only when userId or wordBankId changes
-  }, [userId, wordBankId, fetchAndSyncRemote, lastFetched]); // Restore dependencies
+    // Cleanup function
+    return () => { 
+      console.log(`Cleaning up useWords effect for bank ${wordBankId}`);
+      cancelled = true; 
+    };
+    // This effect should ONLY re-run if the user or the bank context changes.
+    // The decision to fetch based on staleness happens *inside*.
+  }, [userId, wordBankId]); 
 
-  // userId is already declared at the top level of the hook
-  // const userId = session?.user?.id;
-
-  // --- tRPC Mutations ---
-  // Note: These are defined here but called within the update/remove functions below
+  // tRPC Mutations
   const updateWordMutation = api.vocab.updateWord.useMutation({
-    // onSuccess/onError could be added for online-specific feedback if needed
-    // but the primary update is optimistic via local state/DB
     onError: (error, variables) => {
       toast.error(`Online update failed for word ID ${variables.wordId}: ${error.message}`);
-      // TODO: Consider reverting optimistic update here if online update fails
     }
   });
+  
   const deleteWordMutation = api.vocab.deleteWord.useMutation({
     onError: (error, variables) => {
       toast.error(`Online delete failed for word ID ${variables.wordId}: ${error.message}`);
-      // TODO: Consider reverting optimistic update here if online delete fails
     }
   });
 
-  // --- Hook Mutations (with Offline Queueing) ---
-
-  // Add Word (Placeholder - needs corresponding tRPC mutation like addSingleWord or use addBatch)
+  // Add a single word with optimistic updates
   const add = useCallback(async (word: Word) => {
     if (!userId) {
       toast.error("User not logged in.");
       return;
     }
-    console.warn("useWords 'add' function needs implementation with a suitable tRPC mutation and offline queueing.");
-    // Example structure:
-    // 1. Optimistic local update
-    // await addWord(word);
-    // setWords((prev) => (prev ? [...prev, word] : [word]));
-    // 2. Check online status
-    // if (navigator.onLine) {
-    //   // Call tRPC addSingleWordMutation.mutate(word);
-    // } else {
-    //   await queueMutation({ type: 'word/add', payload: word, userId });
-    //   toast.info("Offline: Word add queued.");
-    // }
+
+    // Track this word as a pending local addition
+    pendingLocalAddsRef.current.add(word.id);
+    
+    // Optimistic local update - add to UI immediately
+    setWords((prev) => (prev ? [...prev, word] : [word]));
+    
+    try {
+      // Update IndexedDB
+      await addWord(word);
+      console.log(`Word "${word.text}" added to local DB.`);
+      
+      // Queue for sync or send to server based on online status
+      if (navigator.onLine) {
+        toast.info("Word added locally. Online sync will happen in background.");
+      } else {
+        await queueMutation({ 
+          type: 'word/add', 
+          payload: word, 
+          userId 
+        });
+        toast.info("Offline: Word add queued.");
+      }
+    } catch (localError: any) {
+      console.error("Failed to add word locally:", localError);
+      toast.error(`Local add failed: ${localError.message}`);
+      
+      // Revert optimistic UI update on local failure
+      pendingLocalAddsRef.current.delete(word.id);
+      setWords((prev) => prev ? prev.filter(w => w.id !== word.id) : null);
+    }
   }, [userId]);
 
-  // Update Word
+  // Add batch of words with optimistic updates
+  const addBatch = useCallback(async (words: Word[]) => {
+    if (!userId || !words.length) return;
+    const wordIds = words.map(w => w.id);
+    console.log(`useWords.addBatch: Starting for ${words.length} words. IDs:`, wordIds);
+    console.log(`useWords.addBatch: Current pending IDs BEFORE add:`, Array.from(pendingLocalAddsRef.current));
+
+    // Track these words as pending local additions
+    words.forEach(word => pendingLocalAddsRef.current.add(word.id));
+    console.log(`useWords.addBatch: Pending IDs AFTER add:`, Array.from(pendingLocalAddsRef.current));
+    
+    // Optimistic local update - add all words to UI immediately
+    let stateAfterOptimisticUpdate: Word[] | null = null;
+    setWords((prev) => {
+      const newWords = prev ? [...prev, ...words] : words;
+      console.log(`useWords.addBatch: Optimistically added ${words.length} words to UI state. New count: ${newWords.length}`);
+      stateAfterOptimisticUpdate = newWords; // Capture state
+      return newWords;
+    });
+    
+    try {
+      // Update IndexedDB with bulk operation
+      console.log(`useWords.addBatch: Attempting db.words.bulkAdd for IDs:`, wordIds);
+      await db.words.bulkAdd(words);
+      console.log(`useWords.addBatch: Successfully added ${words.length} words to local DB.`);
+    } catch (localError: any) {
+      console.error("useWords.addBatch: Failed to add words locally:", localError);
+      toast.error(`Local add failed: ${localError.message}`);
+      
+      // Revert optimistic UI update on local failure
+      console.log(`useWords.addBatch: Reverting optimistic add for IDs:`, wordIds);
+      const newWordIds = new Set(words.map(w => w.id));
+      words.forEach(word => pendingLocalAddsRef.current.delete(word.id));
+      console.log(`useWords.addBatch: Pending IDs AFTER revert:`, Array.from(pendingLocalAddsRef.current));
+      setWords((prev) => prev ? prev.filter(w => !newWordIds.has(w.id)) : null);
+    }
+  }, [userId]);
+
+  // Update Word (optimistic update)
   const update = useCallback(async (word: Word) => {
     if (!userId) {
       toast.error("User not logged in.");
       return;
     }
-    // 1. Optimistic local update
-    const previousWords = words; // Store previous state for potential revert
+    
+    // Optimistic local update
+    const previousWords = wordsRef.current;
     setWords((prev) => (prev ? prev.map(w => w.id === word.id ? word : w) : [word]));
+    
     try {
-      await updateWord(word); // Update local DB
+      await updateWord(word);
 
-      // 2. Check online status and act
       if (navigator.onLine) {
-        // Attempt online update
         updateWordMutation.mutate({
           wordId: word.id,
-          // Pass only fields allowed by updateWordSchema (e.g., text, wordMasterId)
-          // Assuming updateWordSchema takes text for now. Adjust if needed.
           text: word.text,
-          // wordMasterId: word.wordMasterId, // Add if schema allows
         });
       } else {
-        // Queue if offline
         await queueMutation({ type: 'word/update', payload: word, userId });
         toast.info("Offline: Word update queued.");
       }
     } catch (localError: any) {
       console.error("Failed to update word locally:", localError);
       toast.error(`Local update failed: ${localError.message}`);
-      setWords(previousWords); // Revert optimistic UI update on local failure
+      setWords(previousWords);
     }
-  }, [userId, words, updateWordMutation]); // Add dependencies
+  }, [userId, updateWordMutation]);
 
-  // Remove Word
+  // Remove Word (optimistic update)
   const remove = useCallback(async (wordId: string) => {
     if (!userId) {
       toast.error("User not logged in.");
       return;
     }
-     // 1. Optimistic local update
-    const previousWords = words; // Store previous state
+    
+    // Optimistic local update
+    const previousWords = wordsRef.current;
     setWords((prev) => (prev ? prev.filter(w => w.id !== wordId) : null));
+    
     try {
-      await deleteWord(wordId); // Update local DB
+      await deleteWord(wordId);
 
-      // 2. Check online status and act
+      // Remove from pending local adds if it was there
+      pendingLocalAddsRef.current.delete(wordId);
+
       if (navigator.onLine) {
-        // Attempt online delete
         deleteWordMutation.mutate({ wordId });
       } else {
-        // Queue if offline
         await queueMutation({ type: 'word/delete', payload: { wordId }, userId });
         toast.info("Offline: Word delete queued.");
       }
     } catch (localError: any) {
        console.error("Failed to delete word locally:", localError);
        toast.error(`Local delete failed: ${localError.message}`);
-       setWords(previousWords); // Revert optimistic UI update on local failure
+       setWords(previousWords);
     }
-  }, [userId, words, deleteWordMutation]); // Add dependencies
+  }, [userId, deleteWordMutation]);
 
-  return { words, isLoading, error, add, update, remove };
+  // Force refresh function (explicitly reloads from local DB and remote)
+  const forceRefresh = useCallback(async () => {
+    if (!userId || !wordBankId) return;
+    setIsLoading(true);
+    
+    try {
+      // Create a cancellation function that always returns false for this one-time refresh
+      const noCancellation = () => false;
+      
+      // Get fresh local data first to update UI quickly if possible
+      const localData = await getWordsByBank(wordBankId);
+      setWords(localData);
+      
+      // Always fetch from remote for explicit refresh
+      await fetchAndSyncRemote(noCancellation); // Don't pass localData
+    } catch (e) {
+      console.error("Force refresh failed:", e);
+      // Consider setting an error state here
+    } finally {
+      setIsLoading(false);
+    }
+  // Add fetchAndSyncRemote to dependency array
+  }, [userId, wordBankId, fetchAndSyncRemote]); 
+
+  return { 
+    words, 
+    isLoading, 
+    error, 
+    add, 
+    addBatch, 
+    update, 
+    remove, 
+    refresh: forceRefresh
+  };
 }
