@@ -23,11 +23,13 @@ import { api, type RouterOutputs } from '@/utils/trpc';
 import { ArrowLeft, Grid, List, NotebookText, Plus, SortAsc, SortDesc, Star, View } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
-import { CSSProperties, useMemo, useState } from 'react'; // Import CSSProperties
+import { CSSProperties, useMemo, useState, useEffect } from 'react'; // Import CSSProperties
 import { FixedSizeGrid as GridWindow, FixedSizeList as ListWindow } from 'react-window'; // Import react-window
 
 import { usePracticeLogs } from '@/hooks/usePracticeLogs';
 import { useWords } from '@/hooks/useWords';
+import { WordEnrichmentPoller } from '@/components/features/vocab/WordEnrichmentPoller'
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay'
 
 // Define types
 type WordBank = RouterOutputs['vocab']['getById'] & {
@@ -96,6 +98,7 @@ export default function WordBankDetailPage () {
   const [showStarredOnly, setShowStarredOnly] = useState(false);
   const [wordToDelete, setWordToDelete] = useState<WordListItem | null>(null);
   const [viewMode, setViewMode] = useLocalStorage<'large-grid' | 'small-grid' | 'list'>('wordBankDetailViewMode', 'large-grid');
+  const utils = api.useUtils();
 
   const handleDeleteRequest = (word: WordListItem) => {
     setWordToDelete(word);
@@ -245,202 +248,207 @@ export default function WordBankDetailPage () {
   if (!wordBank) return <div className="container mx-auto p-4 text-red-500">Bank not found.</div>
 
   return (
-    <div className="container mx-auto p-4 space-y-4">
-      {/* Header and Bank Info remain the same */}
-       <div className="flex justify-between items-center">
-        <Button variant="outline" size="sm" onClick={() => router.push('/vocabulary')}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Word Banks
-        </Button>
-        <AddWordsModal bankId={bankId} addBatch={addBatch}>
-          <Button variant="outline">
-            <Plus className="mr-2 h-4 w-4" /> Add Words
+    <div className="container mx-auto py-6 px-4">
+      <LoadingOverlay isLoading={isLoadingWords || isLoadingLogs} />
+      
+      {/* Invisible background poller for word enrichment */}
+      <WordEnrichmentPoller bankId={bankId} />
+      
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <Button variant="outline" size="sm" onClick={() => router.push('/vocabulary')}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Word Banks
           </Button>
-        </AddWordsModal>
-      </div>
+          <AddWordsModal bankId={bankId} addBatch={addBatch}>
+            <Button variant="outline">
+              <Plus className="mr-2 h-4 w-4" /> Add Words
+            </Button>
+          </AddWordsModal>
+        </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-           <div className="flex items-center gap-2">
-            <CardTitle className="flex items-center gap-2">
-              {wordBank.name}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={() => router.push(`/vocabulary/edit/${bankId}`)}
-                title="Edit word bank"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                </svg>
-              </Button>
-            </CardTitle>
-            {wordBank.description && <CardDescription>{wordBank.description}</CardDescription>}
-          </div>
-          <div className="flex gap-2">
-            {hasNotes && (
-              <ViewNotesDialog bankId={bankId}>
-                <Button variant="secondary" className="relative">
-                  <NotebookText className="h-5 w-5 md:h-4 md:w-4 md:mr-2" />
-                  <span className="hidden md:inline">View Notes</span>
-                  {wordBank.noteCount > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs">
-                      {wordBank.noteCount}
-                    </span>
-                  )}
-                </Button>
-              </ViewNotesDialog>
-            )}
-            {wordBank?._count?.words === 0 ? (
-              <Button variant="secondary" onClick={() => router.push(`/vocabulary/edit/${bankId}`)}>
-                <Plus className="mr-2 h-4 w-4" /> Add Words
-              </Button>
-            ) : (
-              <Button onClick={() => router.push(`/vocabulary/learn/${bankId}`)}>
-                Practice
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {/* Filter/Sort Controls remain the same */}
-           <div className="flex flex-col sm:flex-row gap-2 mb-4">
-            <Input
-              placeholder="Filter words..."
-              value={wordFilterText}
-              onChange={(e) => setWordFilterText(e.target.value)}
-              className="h-9 flex-grow"
-            />
-            <div className="flex gap-2">
-              <Select value={wordSortKey} onValueChange={(value) => setWordSortKey(value as WordSortKey)}>
-                <SelectTrigger className="h-9 w-[140px]">
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="baseWord">Word</SelectItem>
-                  <SelectItem value="id">Date Added</SelectItem>
-                  <SelectItem value="interval">Mastery</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button variant="ghost" size="icon" onClick={toggleWordSortDirection} className="h-9 w-9">
-                {wordSortDirection === 'asc' ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />}
-              </Button>
-              <Button
-                variant={showStarredOnly ? "secondary" : "ghost"}
-                size="icon"
-                onClick={() => setShowStarredOnly(!showStarredOnly)}
-                className="h-9 w-9"
-                title={showStarredOnly ? "Show all words" : "Show starred words only"}
-              >
-                <Star className={`h-4 w-4 ${showStarredOnly ? 'text-yellow-500 fill-yellow-400' : ''}`} />
-              </Button>
-            </div>
-            <div className="flex items-center gap-1 rounded-md bg-muted p-1 ml-2">
-               <Button
-                 variant={viewMode === 'large-grid' ? 'secondary' : 'ghost'}
-                 size="sm" onClick={() => setViewMode('large-grid')} className="h-7 px-2" aria-label="Large grid view">
-                 <View className="h-4 w-4" />
-               </Button>
-               <Button
-                 variant={viewMode === 'small-grid' ? 'secondary' : 'ghost'}
-                 size="sm" onClick={() => setViewMode('small-grid')} className="h-7 px-2" aria-label="Small grid view">
-                 <Grid className="h-4 w-4" />
-               </Button>
-               <Button
-                 variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-                 size="sm" onClick={() => setViewMode('list')} className="h-7 px-2" aria-label="List view">
-                 <List className="h-4 w-4" />
-               </Button>
-             </div>
-          </div>
-
-          {/* Word List - Virtualized */}
-          {isLoadingWords ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <Skeleton key={i} className="h-20 w-full" />
-              ))}
-            </div>
-          ) : wordsError ? (
-             <p className="text-destructive text-center py-6">Error loading words: {wordsError}</p>
-          ) : filteredAndSortedWords.length > 0 ? (
-            <>
-              {viewMode === 'large-grid' && (
-                <GridWindow
-                  columnCount={3} // TODO: Responsive
-                  columnWidth={300} // TODO: Adjust
-                  height={600} // TODO: Responsive
-                  rowCount={Math.ceil(filteredAndSortedWords.length / 3)}
-                  rowHeight={150} // Adjust based on WordCardLargeGrid height
-                  width={920} // TODO: Responsive
-                  itemData={filteredAndSortedWords}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+             <div className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2">
+                {wordBank.name}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => router.push(`/vocabulary/edit/${bankId}`)}
+                  title="Edit word bank"
                 >
-                  {LargeGridItem}
-                </GridWindow>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                </Button>
+              </CardTitle>
+              {wordBank.description && <CardDescription>{wordBank.description}</CardDescription>}
+            </div>
+            <div className="flex gap-2">
+              {hasNotes && (
+                <ViewNotesDialog bankId={bankId}>
+                  <Button variant="secondary" className="relative">
+                    <NotebookText className="h-5 w-5 md:h-4 md:w-4 md:mr-2" />
+                    <span className="hidden md:inline">View Notes</span>
+                    {wordBank.noteCount > 0 && (
+                      <span className="absolute -top-2 -right-2 bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs">
+                        {wordBank.noteCount}
+                      </span>
+                    )}
+                  </Button>
+                </ViewNotesDialog>
               )}
-              {viewMode === 'small-grid' && (
-                 <GridWindow
-                   columnCount={5} // TODO: Responsive
-                   columnWidth={180} // TODO: Adjust
-                   height={600} // TODO: Responsive
-                   rowCount={Math.ceil(filteredAndSortedWords.length / 5)}
-                   rowHeight={60} // Adjust based on WordCardSmallGrid height
-                   width={920} // TODO: Responsive
-                   itemData={filteredAndSortedWords}
-                 >
-                   {SmallGridItem}
-                 </GridWindow>
-               )}
-              {viewMode === 'list' && (
-                 <div className="border rounded-md overflow-hidden">
-                   <ListWindow
+              {wordBank?._count?.words === 0 ? (
+                <Button variant="secondary" onClick={() => router.push(`/vocabulary/edit/${bankId}`)}>
+                  <Plus className="mr-2 h-4 w-4" /> Add Words
+                </Button>
+              ) : (
+                <Button onClick={() => router.push(`/vocabulary/learn/${bankId}`)}>
+                  Practice
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col sm:flex-row gap-2 mb-4">
+              <Input
+                placeholder="Filter words..."
+                value={wordFilterText}
+                onChange={(e) => setWordFilterText(e.target.value)}
+                className="h-9 flex-grow"
+              />
+              <div className="flex gap-2">
+                <Select value={wordSortKey} onValueChange={(value) => setWordSortKey(value as WordSortKey)}>
+                  <SelectTrigger className="h-9 w-[140px]">
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="baseWord">Word</SelectItem>
+                    <SelectItem value="id">Date Added</SelectItem>
+                    <SelectItem value="interval">Mastery</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="ghost" size="icon" onClick={toggleWordSortDirection} className="h-9 w-9">
+                  {wordSortDirection === 'asc' ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />}
+                </Button>
+                <Button
+                  variant={showStarredOnly ? "secondary" : "ghost"}
+                  size="icon"
+                  onClick={() => setShowStarredOnly(!showStarredOnly)}
+                  className="h-9 w-9"
+                  title={showStarredOnly ? "Show all words" : "Show starred words only"}
+                >
+                  <Star className={`h-4 w-4 ${showStarredOnly ? 'text-yellow-500 fill-yellow-400' : ''}`} />
+                </Button>
+              </div>
+              <div className="flex items-center gap-1 rounded-md bg-muted p-1 ml-2">
+                 <Button
+                   variant={viewMode === 'large-grid' ? 'secondary' : 'ghost'}
+                   size="sm" onClick={() => setViewMode('large-grid')} className="h-7 px-2" aria-label="Large grid view">
+                   <View className="h-4 w-4" />
+                 </Button>
+                 <Button
+                   variant={viewMode === 'small-grid' ? 'secondary' : 'ghost'}
+                   size="sm" onClick={() => setViewMode('small-grid')} className="h-7 px-2" aria-label="Small grid view">
+                   <Grid className="h-4 w-4" />
+                 </Button>
+                 <Button
+                   variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                   size="sm" onClick={() => setViewMode('list')} className="h-7 px-2" aria-label="List view">
+                   <List className="h-4 w-4" />
+                 </Button>
+               </div>
+            </div>
+
+            {/* Word List - Virtualized */}
+            {isLoadingWords ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Skeleton key={i} className="h-20 w-full" />
+                ))}
+              </div>
+            ) : wordsError ? (
+               <p className="text-destructive text-center py-6">Error loading words: {wordsError}</p>
+            ) : filteredAndSortedWords.length > 0 ? (
+              <>
+                {viewMode === 'large-grid' && (
+                  <GridWindow
+                    columnCount={3} // TODO: Responsive
+                    columnWidth={300} // TODO: Adjust
+                    height={600} // TODO: Responsive
+                    rowCount={Math.ceil(filteredAndSortedWords.length / 3)}
+                    rowHeight={150} // Adjust based on WordCardLargeGrid height
+                    width={920} // TODO: Responsive
+                    itemData={filteredAndSortedWords}
+                  >
+                    {LargeGridItem}
+                  </GridWindow>
+                )}
+                {viewMode === 'small-grid' && (
+                   <GridWindow
+                     columnCount={5} // TODO: Responsive
+                     columnWidth={180} // TODO: Adjust
                      height={600} // TODO: Responsive
-                     itemCount={filteredAndSortedWords.length}
-                     itemSize={50} // Adjust based on WordListItemView height
-                     width="100%"
+                     rowCount={Math.ceil(filteredAndSortedWords.length / 5)}
+                     rowHeight={60} // Adjust based on WordCardSmallGrid height
+                     width={920} // TODO: Responsive
                      itemData={filteredAndSortedWords}
                    >
-                     {ListItem}
-                   </ListWindow>
-                 </div>
-               )}
-            </>
-          ) : (
-             <p className="text-muted-foreground text-center py-6">
-               {wordFilterText ? 'No words match your filter.' : 'No words added to this bank yet.'}
-             </p>
-          )}
-        </CardContent>
-      </Card>
+                     {SmallGridItem}
+                   </GridWindow>
+                 )}
+                {viewMode === 'list' && (
+                   <div className="border rounded-md overflow-hidden">
+                     <ListWindow
+                       height={600} // TODO: Responsive
+                       itemCount={filteredAndSortedWords.length}
+                       itemSize={50} // Adjust based on WordListItemView height
+                       width="100%"
+                       itemData={filteredAndSortedWords}
+                     >
+                       {ListItem}
+                     </ListWindow>
+                   </div>
+                 )}
+              </>
+            ) : (
+               <p className="text-muted-foreground text-center py-6">
+                 {wordFilterText ? 'No words match your filter.' : 'No words added to this bank yet.'}
+               </p>
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Delete Confirmation Dialog */}
-       <AlertDialog open={!!wordToDelete} onOpenChange={(open) => !open && setWordToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the word
-              <span className="font-semibold"> "{wordToDelete?.wordMaster?.baseWord || wordToDelete?.text}"</span> and its practice history.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (wordToDelete) {
-                  removeWord(wordToDelete.id);
-                  setWordToDelete(null);
-                }
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        {/* Delete Confirmation Dialog */}
+         <AlertDialog open={!!wordToDelete} onOpenChange={(open) => !open && setWordToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete the word
+                <span className="font-semibold"> "{wordToDelete?.wordMaster?.baseWord || wordToDelete?.text}"</span> and its practice history.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  if (wordToDelete) {
+                    removeWord(wordToDelete.id);
+                    setWordToDelete(null);
+                  }
+                }}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </div>
   )
 }

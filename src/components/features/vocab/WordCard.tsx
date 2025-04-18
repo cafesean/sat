@@ -9,9 +9,10 @@ import { db, queueMutation, Word } from '@/lib/storage';
 import { api } from '@/utils/trpc';
 import { Loader2, Save, Star, Trash2, X } from 'lucide-react';
 import { useSession } from 'next-auth/react';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { WordInteractionModal } from './WordInteractionModal';
+import { useWordEnrichmentStore, WordEnrichmentStatus } from '@/store/wordEnrichmentStore'
 
 type ViewMode = 'large-grid' | 'small-grid' | 'list'
 
@@ -87,6 +88,24 @@ export function WordCard({ word, bankId, onDeleteRequest, updateWord, viewMode }
   // Helper function to check if details are loaded
   const areDetailsLoaded = !!word.wordMaster && word.wordMaster.definition !== undefined;
 
+  // Use the Zustand store for enrichment status
+  const { checkIfWordIsEnriched, getStatus, markAsPending } = useWordEnrichmentStore();
+  
+  // Get the current enrichment status for this word
+  const enrichmentStatus = getStatus(word.id);
+  
+  // If the word is new or missing details, mark it as pending
+  useEffect(() => {
+    // Only run this on first load
+    if (!checkIfWordIsEnriched(word) && enrichmentStatus === WordEnrichmentStatus.INITIAL) {
+      markAsPending(word.id);
+      // No need to directly invalidate here - the poller will handle this
+    }
+  }, [word.id, word, checkIfWordIsEnriched, enrichmentStatus, markAsPending]);
+  
+  // Check if this is a newly added word waiting for AI enrichment
+  const isAwaitingEnrichment = enrichmentStatus === WordEnrichmentStatus.PENDING;
+
   // --- UI by viewMode ---
   if (viewMode === 'small-grid') {
     // Minimal, horizontal, star only, modal on click, no delete/edit
@@ -104,6 +123,11 @@ export function WordCard({ word, bankId, onDeleteRequest, updateWord, viewMode }
           {/* Word Text */}
           <span className="font-medium truncate pl-3 flex-grow text-sm">
             {word.wordMaster?.baseWord || word.text}
+            {isAwaitingEnrichment && (
+              <span className="ml-2 text-xs bg-orange-100 text-orange-600 font-semibold animate-pulse px-1.5 py-0.5 rounded">
+                Processing...
+              </span>
+            )}
           </span>
           {/* Star Button */}
           <Button
@@ -190,7 +214,14 @@ export function WordCard({ word, bankId, onDeleteRequest, updateWord, viewMode }
               onClick={() => handleEditClick(word)}
               title={`Edit "${word.wordMaster?.baseWord || word.text}"`}
             >
-              <span className="font-medium truncate">{word.wordMaster?.baseWord || word.text}</span>
+              <span className="font-medium truncate">
+                {word.wordMaster?.baseWord || word.text}
+                {isAwaitingEnrichment && (
+                  <span className="ml-2 text-xs bg-orange-100 text-orange-600 font-semibold animate-pulse px-1.5 py-0.5 rounded">
+                    Processing...
+                  </span>
+                )}
+              </span>
             </button>
           )}
           {!isEditing && (
@@ -253,16 +284,25 @@ export function WordCard({ word, bankId, onDeleteRequest, updateWord, viewMode }
         {/* Details/Modal Section */}
         <WordInteractionModal wordId={word.id} bankId={bankId}>
           <div className="px-4 pb-3 pt-2 text-sm text-muted-foreground flex-grow cursor-pointer hover:bg-muted/10 rounded-b-md">
-            {areDetailsLoaded ? (
-              <p className="line-clamp-2">
-                {word.wordMaster?.definition || 'No definition available.'}
-              </p>
-            ) : (
-              // Show Skeleton if details are not loaded
-              <div className="space-y-1.5">
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-3/4" />
+            {isAwaitingEnrichment ? (
+              <div className="space-y-2">
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-3/4" />
+                <Skeleton className="h-3 w-5/6" />
               </div>
+            ) : (
+              <>
+                {word.wordMaster?.wordType && (
+                  <p className="text-xs text-muted-foreground mb-1">
+                    {word.wordMaster.wordType}
+                  </p>
+                )}
+                {word.wordMaster?.definition && (
+                  <p className="text-xs line-clamp-3 mb-1">
+                    {word.wordMaster.definition}
+                  </p>
+                )}
+              </>
             )}
           </div>
         </WordInteractionModal>
@@ -309,7 +349,14 @@ export function WordCard({ word, bankId, onDeleteRequest, updateWord, viewMode }
                  onClick={() => handleEditClick(word)}
                  title={`Edit "${word.wordMaster?.baseWord || word.text}"`}
                >
-                 <span className="font-medium">{word.wordMaster?.baseWord || word.text}</span>
+                 <span className="font-medium">
+                   {word.wordMaster?.baseWord || word.text}
+                   {isAwaitingEnrichment && (
+                     <span className="ml-2 text-xs bg-orange-100 text-orange-600 font-semibold animate-pulse px-1.5 py-0.5 rounded">
+                       Processing...
+                     </span>
+                   )}
+                 </span>
                </button>
              )}
           </div>
@@ -319,12 +366,12 @@ export function WordCard({ word, bankId, onDeleteRequest, updateWord, viewMode }
             <div className="flex items-center gap-3 flex-shrink-0">
               {/* Definition/Skeleton */} 
               <div className="w-40 text-xs text-muted-foreground hidden md:block">
-                 {areDetailsLoaded ? (
+                 {isAwaitingEnrichment ? (
+                   <Skeleton className="h-4 w-full" /> 
+                 ) : (
                    <p className="truncate" title={word.wordMaster?.definition ?? undefined}>
                      {word.wordMaster?.definition || '-'}
                    </p>
-                 ) : (
-                   <Skeleton className="h-4 w-full" /> 
                  )}
               </div>
               

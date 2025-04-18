@@ -3,6 +3,7 @@ import { api, type RouterOutputs } from '@/utils/trpc'; // Import RouterOutputs
 import { useSession } from 'next-auth/react'; // Import useSession
 import { useCallback, useEffect, useRef, useState } from 'react'; // Combined imports + useRef
 import { toast } from 'sonner'; // Import toast for error handling
+import { useWordEnrichmentStore, WordEnrichmentStatus } from '@/store/wordEnrichmentStore';
 
 const STALE_MS = 5 * 60 * 1000;
 
@@ -55,6 +56,9 @@ export function useWords(wordBankId: string) { // Renamed bankId to wordBankId f
   
   // Keep track of words we've optimistically added locally
   const pendingLocalAddsRef = useRef<Set<string>>(new Set());
+  
+  // Track when we last checked for enrichment to prevent infinite loops
+  const lastEnrichmentCheckRef = useRef<number>(0);
 
   // tRPC query - pass wordBankId correctly but disable automatic fetching
   const trpcQuery = api.vocab.listByBank.useQuery({ wordBankId: wordBankId }, {
@@ -62,6 +66,9 @@ export function useWords(wordBankId: string) { // Renamed bankId to wordBankId f
     staleTime: STALE_MS,
   });
   const { refetch: refetchWords } = trpcQuery; // Destructure for stable reference
+
+  // Get utils for invalidation
+  const utils = api.useUtils();
 
   // Don't do anything if userId or wordBankId is empty
   useEffect(() => {
@@ -76,6 +83,57 @@ export function useWords(wordBankId: string) { // Renamed bankId to wordBankId f
   useEffect(() => {
     wordsRef.current = words;
   }, [words]);
+
+  // Monitor for words awaiting enrichment and trigger a one-time refetch when detected
+  useEffect(() => {
+    // No need to check if words aren't loaded yet
+    if (!words || words.length === 0 || !wordBankId) return;
+    
+    // Add debounce to prevent excessive checks (only check every 3 seconds max)
+    const now = Date.now();
+    if (now - lastEnrichmentCheckRef.current < 3000) {
+      console.log(`useWords: Skipping enrichment check - last check was ${(now - lastEnrichmentCheckRef.current)/1000}s ago`);
+      return;
+    }
+    
+    // Update the timestamp for this check
+    lastEnrichmentCheckRef.current = now;
+    
+    // Check if any words are awaiting enrichment
+    const wordsAwaitingEnrichment = words.filter(
+      word => (!word.wordMaster || 
+              !word.wordMaster.definition || 
+              word.wordMaster.definition === null || 
+              !word.wordMaster.wordType || 
+              word.wordMaster.wordType === null)
+    );
+    
+    // If we find words awaiting enrichment, do a one-time refetch
+    if (wordsAwaitingEnrichment.length > 0) {
+      console.log(`useWords: Found ${wordsAwaitingEnrichment.length} words awaiting enrichment in bank ${wordBankId}, triggering refresh`);
+      console.log(`Word IDs awaiting enrichment:`, wordsAwaitingEnrichment.map(w => w.id));
+      
+      // Invalidate the specific word IDs that need refreshing AND the list query
+      utils.vocab.listByBank.invalidate({ wordBankId });
+      
+      wordsAwaitingEnrichment.forEach(word => {
+        utils.vocab.getWordById.invalidate({ id: word.id });
+      });
+      
+      // Simple helper for no cancellation
+      const noCancellation = () => false;
+      
+      // Trigger a single refresh without interval
+      refetchWords().then(() => {
+        // Refetch succeeded, now sync with local DB
+        fetchAndSyncRemote(noCancellation).catch(e => {
+          console.error(`useWords: Refresh after detecting enrichment pendency failed:`, e);
+        });
+      }).catch(e => {
+        console.error(`useWords: Refetch for enrichment pendency failed:`, e);
+      });
+    }
+  }, [words, wordBankId, refetchWords, utils.vocab]); // Include utils.vocab in dependencies
 
   // Fetch remote data and sync with local
   const fetchAndSyncRemote = useCallback(async (isCancelled: () => boolean) => {
@@ -121,7 +179,26 @@ export function useWords(wordBankId: string) { // Renamed bankId to wordBankId f
       }
       
       // 5. Merge remote words with the identified pending local words
-      const mergedWords = [...normalizedRemoteWords, ...pendingLocalWordsNotInRemote];
+      const mergedWords = [...normalizedRemoteWords];
+      
+      // Only add local words that aren't already in the remote list
+      if (pendingLocalWordsNotInRemote.length > 0) {
+        console.log(`useWords.fetchAndSyncRemote: Adding ${pendingLocalWordsNotInRemote.length} pending local words`);
+        mergedWords.push(...pendingLocalWordsNotInRemote);
+      }
+      
+      // Log any words that were previously awaiting enrichment but are now enriched
+      const enrichedWords = normalizedRemoteWords.filter(remoteWord => 
+        remoteWord.wordMaster?.definition !== null && 
+        remoteWord.wordMaster?.wordType !== null &&
+        remoteWord.wordMaster?.sampleSentences !== null
+      );
+      
+      if (enrichedWords.length > 0) {
+        console.log(`useWords.fetchAndSyncRemote: Found ${enrichedWords.length} fully enriched words:`, 
+          enrichedWords.map(w => w.text));
+      }
+      
       console.log(`useWords.fetchAndSyncRemote: Merged list contains ${mergedWords.length} words.`);
       
       // 6. Use bulkPut for efficient upsert into DB
@@ -304,24 +381,59 @@ export function useWords(wordBankId: string) { // Renamed bankId to wordBankId f
     console.log(`useWords.addBatch: Starting for ${words.length} words. IDs:`, wordIds);
     console.log(`useWords.addBatch: Current pending IDs BEFORE add:`, Array.from(pendingLocalAddsRef.current));
 
+    // Get the store to mark words as pending
+    const enrichmentStore = useWordEnrichmentStore.getState();
+
     // Track these words as pending local additions
-    words.forEach(word => pendingLocalAddsRef.current.add(word.id));
+    words.forEach(word => {
+      pendingLocalAddsRef.current.add(word.id);
+      // Also mark as pending in the enrichment store
+      enrichmentStore.markAsPending(word.id);
+    });
     console.log(`useWords.addBatch: Pending IDs AFTER add:`, Array.from(pendingLocalAddsRef.current));
     
-    // Optimistic local update - add all words to UI immediately
-    let stateAfterOptimisticUpdate: Word[] | null = null;
+    // Optimistic local update - add all words to UI state
+    // but avoid duplication by checking IDs
     setWords((prev) => {
-      const newWords = prev ? [...prev, ...words] : words;
-      console.log(`useWords.addBatch: Optimistically added ${words.length} words to UI state. New count: ${newWords.length}`);
-      stateAfterOptimisticUpdate = newWords; // Capture state
+      if (!prev) return words;
+      
+      // Get existing word IDs for duplication check
+      const existingIds = new Set(prev.map(w => w.id));
+      
+      // Filter out any duplicate words that already exist in state
+      const uniqueNewWords = words.filter(word => !existingIds.has(word.id));
+      
+      if (uniqueNewWords.length !== words.length) {
+        console.log(`useWords.addBatch: Filtered out ${words.length - uniqueNewWords.length} duplicate words`);
+      }
+      
+      const newWords = [...prev, ...uniqueNewWords];
+      console.log(`useWords.addBatch: Optimistically added ${uniqueNewWords.length} unique words to UI state. New count: ${newWords.length}`);
       return newWords;
     });
     
     try {
-      // Update IndexedDB with bulk operation
+      // Update IndexedDB with bulk operation - IndexedDB will handle uniqueness
       console.log(`useWords.addBatch: Attempting db.words.bulkAdd for IDs:`, wordIds);
-      await db.words.bulkAdd(words);
+      await db.words.bulkPut(words); // Using bulkPut instead of bulkAdd to handle existing records
       console.log(`useWords.addBatch: Successfully added ${words.length} words to local DB.`);
+      
+      // Reset the enrichment check timer to force an immediate check on next render
+      lastEnrichmentCheckRef.current = 0;
+      
+      // Force an immediate invalidation and refresh
+      utils.vocab.listByBank.invalidate({ wordBankId });
+      
+      // Trigger an immediate check for enrichment
+      refetchWords().then(() => {
+        // After refetch, also fetch and sync with local DB
+        const noCancellation = () => false;
+        fetchAndSyncRemote(noCancellation).catch(e => {
+          console.error(`useWords.addBatch: Failed to sync after refetch:`, e);
+        });
+      }).catch(e => {
+        console.error(`useWords.addBatch: Failed to refetch after add:`, e);
+      });
     } catch (localError: any) {
       console.error("useWords.addBatch: Failed to add words locally:", localError);
       toast.error(`Local add failed: ${localError.message}`);
@@ -329,11 +441,15 @@ export function useWords(wordBankId: string) { // Renamed bankId to wordBankId f
       // Revert optimistic UI update on local failure
       console.log(`useWords.addBatch: Reverting optimistic add for IDs:`, wordIds);
       const newWordIds = new Set(words.map(w => w.id));
-      words.forEach(word => pendingLocalAddsRef.current.delete(word.id));
+      words.forEach(word => {
+        pendingLocalAddsRef.current.delete(word.id);
+        // Also clear from enrichment store
+        enrichmentStore.updateEnrichmentStatus(word.id, WordEnrichmentStatus.FAILED, localError.message);
+      });
       console.log(`useWords.addBatch: Pending IDs AFTER revert:`, Array.from(pendingLocalAddsRef.current));
       setWords((prev) => prev ? prev.filter(w => !newWordIds.has(w.id)) : null);
     }
-  }, [userId]);
+  }, [userId, refetchWords, wordBankId, utils.vocab]);
 
   // Update Word (optimistic update)
   const update = useCallback(async (word: Word) => {

@@ -65,6 +65,12 @@ export function WordInteractionModal({ wordId, bankId, children, onModalClose }:
     }
   }, [currentWord]);
 
+  // Check if this is a newly added word waiting for AI enrichment
+  const isAwaitingEnrichment = !!currentWord && 
+    (!currentWord.wordMaster?.wordType && 
+     !currentWord.wordMaster?.definition && 
+     !currentWord.wordMaster?.sampleSentences);
+
   // --- Mutation to save notes ---
   const saveNoteMutation = api.vocab.updateWordNotes.useMutation({
     onSuccess: (updatedWord) => {
@@ -238,10 +244,25 @@ export function WordInteractionModal({ wordId, bankId, children, onModalClose }:
            <div className="py-4 space-y-4">
              {/* Word Details */}
              <div className="space-y-2 text-base text-center">
-                <p><strong>Type:</strong> {currentWord.wordMaster?.wordType || 'N/A'}</p>
-                <p><strong>Definition:</strong> {currentWord.wordMaster?.definition || 'N/A'}</p>
-                <p><strong>Sample Sentence:</strong> {(currentWord.wordMaster?.sampleSentences as any)?.default || 'N/A'}</p>
-                <p><strong>Translation:</strong> {(currentWord.wordMaster?.translations as any)?.default || 'N/A'}</p>
+                {/* Check if this is a newly added word waiting for AI enrichment */}
+                {isAwaitingEnrichment ? (
+                    <div className="space-y-4 py-2">
+                      <p className="text-sm text-center text-muted-foreground animate-pulse">
+                        AI is processing this word...
+                      </p>
+                      <Skeleton className="h-4 w-2/3 mx-auto" /> {/* Type */}
+                      <Skeleton className="h-4 w-full" /> {/* Definition */}
+                      <Skeleton className="h-4 w-5/6 mx-auto" /> {/* Example */}
+                      <Skeleton className="h-4 w-2/3 mx-auto" /> {/* Translation */}
+                    </div>
+                ) : (
+                  <>
+                    <p><strong>Type:</strong> {currentWord.wordMaster?.wordType || 'N/A'}</p>
+                    <p><strong>Definition:</strong> {currentWord.wordMaster?.definition || 'N/A'}</p>
+                    <p><strong>Sample Sentence:</strong> {(currentWord.wordMaster?.sampleSentences as any)?.default || 'N/A'}</p>
+                    <p><strong>Translation:</strong> {(currentWord.wordMaster?.translations as any)?.default || 'N/A'}</p>
+                  </>
+                )}
              </div>
              {/* Notes Section */}
              <div className="w-full space-y-2 pt-4 border-t">
