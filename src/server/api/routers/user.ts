@@ -14,5 +14,26 @@ export const userRouter = router({
     }
   }),
 
-  // Add other user-related procedures here later
+  getWordBankCount: protectedProcedure.query(async ({ ctx }) => {
+    const userId = ctx.session.user.id;
+    const wordBankCount = await ctx.prisma.wordBank.count({
+      where: {
+        userId: userId,
+      },
+    });
+    return { count: wordBankCount };
+  }),
+
+  getUserProgressSummary: protectedProcedure.query(({ ctx }) => {
+    // Placeholder for fetching user progress summary
+    // This would involve querying practice sessions, word practice logs, etc.
+    // For now, return a placeholder message
+    return {
+      message: "Progress summary data will be available here.",
+      // Example structure (to be implemented later):
+      // totalWordsLearned: 0,
+      // upcomingReviews: 0,
+      // recentActivity: [],
+    };
+  }),
 })

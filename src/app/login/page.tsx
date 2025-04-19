@@ -41,11 +41,11 @@ function LoginForm() {
         try {
           const decodedUrl = decodeURIComponent(callbackUrl);
           console.log('Redirecting to:', decodedUrl);
-          router.push('/vocabulary');
+          router.push(decodedUrl);
         } catch (error) {
           console.error('Redirect failed:', error);
           toast.error('Login successful but redirect failed. Please try again.');
-          router.push('/vocabulary'); // Fallback redirect
+          router.push('/dashboard'); // Fallback redirect to dashboard
         }
       } else {
         // Handle unexpected scenarios
@@ -76,7 +76,9 @@ function LoginForm() {
       } else if (result?.ok) {
         toast.success('Check your email for the login link!');
         // Optionally redirect to a confirmation page
-        router.push('/vocabulary');
+        // Redirect to callbackUrl after email verification
+        // router.push('/check-email?callbackUrl=' + encodeURIComponent(callbackUrl));
+        // For now, just clear email and indicate success
         setEmail(''); // Clear email field
         setIsEmailLoading(false);
       } else {

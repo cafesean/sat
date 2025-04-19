@@ -1,7 +1,15 @@
+import { auth } from "@/auth";
 import { WordBankForm } from '@/components/features/vocab/WordBankForm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { redirect } from "next/navigation";
 
-export default function CreateWordBankPage() {
+export default async function CreateWordBankPage() {
+  const session = await auth();
+
+  if (!session) {
+    redirect("/login?callbackUrl=/vocabulary/create-bank");
+  }
+
   return (
     <main className="container mx-auto px-4 py-8">
       <div className="max-w-2xl mx-auto">
