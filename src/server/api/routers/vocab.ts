@@ -18,6 +18,7 @@ import {
 
 
 
+
 	toggleWordStarSchema,
 	updateWordNotesSchema, // Add schema import
 	updateWordSchema,
@@ -557,8 +558,8 @@ export const vocabRouter = router({
 									variations: [wordText],
 									wordType: enrichedData?.wordType,
 									definition: enrichedData?.definition,
-									sampleSentences: enrichedData?.sampleSentence ? 
-										{ default: enrichedData.sampleSentence } : {},
+									sampleSentences: enrichedData?.sampleSentences?.length ?
+										{ default: enrichedData.sampleSentences[0] } : {},
 									translations: enrichedData?.translation ?
 										{ default: enrichedData.translation } : {},
 									isDictionaryWord: !!enrichedData
@@ -983,9 +984,9 @@ export const vocabRouter = router({
 					if (missingFields.includes('definition') && enrichedData.definition) {
 						updateData.definition = enrichedData.definition;
 					}
-					if (missingFields.includes('sampleSentence') && enrichedData.sampleSentence) {
-						// Update the 'default' sample sentence
-						updateData.sampleSentences = { ...(wordMaster.sampleSentences as any || {}), default: enrichedData.sampleSentence };
+					if (missingFields.includes('sampleSentence') && enrichedData.sampleSentences?.length) {
+						// Update the 'default' sample sentence with first from array
+						updateData.sampleSentences = { ...(wordMaster.sampleSentences as any || {}), default: enrichedData.sampleSentences[0] };
 					}
 					if (missingFields.includes('translation') && enrichedData.translation) {
 						// Update the 'default' translation

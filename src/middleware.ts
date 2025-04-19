@@ -12,15 +12,21 @@ export default withAuth(
     const isAuth = !!req.nextauth.token
     const isProtected = protectedPaths.some(path => req.nextUrl.pathname.startsWith(path))
 
+    // Add debug logging
+    console.log(`Middleware check - Path: ${req.nextUrl.pathname}, Auth: ${isAuth}, Protected: ${isProtected}`);
+    
     if (isProtected && !isAuth) {
       const url = new URL(`/login`, req.nextUrl.origin)
       url.searchParams.set("callbackUrl", encodeURI(req.nextUrl.pathname))
+      console.log(`Middleware redirecting to: ${url.toString()}`);
       return NextResponse.redirect(url)
     }
   },
   {
     callbacks: {
-      authorized: () => {
+      authorized: ({ token }) => {
+        // Return true to always allow the middleware function to handle the logic
+        console.log(`Middleware authorized callback - Token exists: ${!!token}`);
         return true
       },
     },

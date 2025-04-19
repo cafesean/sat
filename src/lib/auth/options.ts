@@ -20,7 +20,7 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email", placeholder: "jsmith@example.com" },
         password: { label: "Password", type: "password" }
       },
-      async authorize(credentials) {
+      async authorize(credentials): Promise<any> { // Add explicit return type (speculative fix)
         if (!credentials?.email || !credentials?.password) {
           console.log('Missing credentials');
           return null;
@@ -55,10 +55,10 @@ export const authOptions: NextAuthOptions = {
         // Return user object without password, ensuring all required fields are present
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { hashedPassword, ...userToReturn } = user;
-        // Explicitly ensure reviewCount is included (even though it should be from the spread)
+        // reviewCount does not exist on the User model, remove this line
         return {
           ...userToReturn,
-          reviewCount: user.reviewCount ?? 0 // Ensure reviewCount is included and has a default
+          // reviewCount: user.reviewCount ?? 0 // Removed
         };
       }
     }),
@@ -126,6 +126,7 @@ export const authOptions: NextAuthOptions = {
           // reviewCount assignment removed
         }
       }
+      console.log("Session Callback - session:", session, "token:", token, "user:", user); // Add logging
       return session;
     },
     async jwt({ token, user }) {
@@ -136,6 +137,7 @@ export const authOptions: NextAuthOptions = {
         token.languagePreference = user.languagePreference;
         // reviewCount assignment removed
       }
+      console.log("JWT Callback - token:", token, "user:", user); // Add logging
       return token;
     },
     // async jwt({ token, user }) {

@@ -24,6 +24,12 @@ model User {
   practiceSessions   PracticeSession[]
   sessions           Session[]
   WordBank           WordBank[]
+  createdGroups      Group[]          @relation("CreatedGroups")
+  groupMemberships   GroupMember[]
+  sharedWordBanks    SharedWordBank[] @relation("SharedBy")
+  receivedSharedWordBanks SharedWordBank[] @relation("SharedWithUser")
+  invitesSent        GroupInvite[]    @relation("InvitedBy")
+  invitesReceived    GroupInvite[]    @relation("InvitedUser")
 }
 
 model Account {
@@ -187,6 +193,65 @@ model WordBank {
   words            Word[]
   User             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   wordReferences   WordBankWords[]
+  sharedWordBanks  SharedWordBank[] // Added for SharedWordBank.wordBank
+}
+
+model Group {
+  id        String       @id @default(cuid())
+  name      String
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  creatorId String
+  creator   User         @relation("CreatedGroups", fields: [creatorId], references: [id]) // Added relation name
+  members   GroupMember[]
+  sharedWordBanks SharedWordBank[] @relation("GroupSharedWordBanks") // Added relation name
+  invites   GroupInvite[] @relation("GroupInvites") // Removed fields and references from this side of the relation
+}
+
+model GroupMember {
+  id        String   @id @default(cuid())
+  groupId   String
+  userId    String
+  joinedAt  DateTime @default(now())
+  role      String   @default("member") // e.g., 'admin', 'member'
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+}
+
+model SharedWordBank {
+  id              String    @id @default(cuid())
+  wordBankId      String
+  sharedById      String
+  sharedWithGroupId String?
+  sharedWithUserId  String?
+  sharedAt        DateTime  @default(now())
+  shareLink       String?   @unique
+  wordBank        WordBank  @relation(fields: [wordBankId], references: [id], onDelete: Cascade)
+  sharedBy        User      @relation("SharedBy", fields: [sharedById], references: [id])
+  sharedWithGroup Group?    @relation("GroupSharedWordBanks", fields: [sharedWithGroupId], references: [id], onDelete: Cascade) // Added relation name
+  sharedWithUser  User?     @relation("SharedWithUser", fields: [sharedWithUserId], references: [id], onDelete: Cascade)
+
+  @@unique([wordBankId, sharedWithGroupId])
+  @@unique([wordBankId, sharedWithUserId])
+}
+
+model GroupInvite {
+  id              String   @id @default(cuid())
+  groupId         String
+  invitedByUserId String
+  invitedUserId   String?  // Optional, if known (email invite)
+  inviteToken     String   @unique
+  status          String   @default("pending") // pending, accepted, rejected
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  group           Group    @relation("GroupInvites", fields: [groupId], references: [id], onDelete: Cascade)
+  invitedByUser   User     @relation("InvitedBy", fields: [invitedByUserId], references: [id])
+  invitedUser     User?    @relation("InvitedUser", fields: [invitedUserId], references: [id])
+
+  @@unique([groupId, invitedUserId])
 }
 
 enum UserRole {

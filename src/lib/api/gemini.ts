@@ -1,23 +1,21 @@
-import { env } from "@/env.mjs"; // Import validated environment variables
-import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from "@google/generative-ai";
+import { env } from "@/env.mjs";
+import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from '@google/generative-ai';
 
-// Ensure API key is available
-if (!env.GEMINI_API_KEY) {
-  console.warn("GEMINI_API_KEY is not set. AI features will be disabled.");
-}
-
-// Initialize the client only if the API key exists
-const genAI = env.GEMINI_API_KEY ? new GoogleGenerativeAI(env.GEMINI_API_KEY) : null;
-const modelName = env.GEMINI_MODEL_NAME; // Get model name from env
-
-// Configuration for content generation (adjust safety settings as needed)
+// Configuration for content generation
 const generationConfig = {
-  temperature: 0.7, // Controls randomness (0=deterministic, 1=max random)
+  temperature: 0.7,
   topK: 1,
   topP: 1,
   maxOutputTokens: 2048,
 };
 
+// Initialize Gemini API client
+const initGeminiClient = () => {
+  if (!env.GEMINI_API_KEY) return null;
+  return new GoogleGenerativeAI(env.GEMINI_API_KEY);
+};
+
+// Safety settings for Gemini API
 const safetySettings = [
   { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
   { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
@@ -26,27 +24,51 @@ const safetySettings = [
 ];
 
 /**
- * Enriches a word with definition, sample sentence, translation, and word type using Gemini.
+ * Detects if we're running on the server
+ */
+const isServer = () => typeof window === 'undefined';
+
+/**
+ * Helper function to clean markdown formatting from JSON responses
+ */
+function cleanJsonResponse(text: string): string {
+  // Remove markdown code block syntax if present
+  let cleaned = text.trim();
+  
+  // Remove beginning markdown code block markers like ```json, ```js, etc.
+  cleaned = cleaned.replace(/^```(?:json|js|javascript)?\s*/i, '');
+  
+  // Remove ending markdown code block markers
+  cleaned = cleaned.replace(/\s*```$/i, '');
+  
+  return cleaned;
+}
+
+/**
+ * Enriches a word with definition, sample sentences, translation, and word type using Gemini.
  */
 export async function enrichWord(
   word: string,
   languagePreference?: string,
   gradeLevel?: number | null
-): Promise<{ definition: string; sampleSentence: string; translation: string; wordType: string } | null> {
-  if (!genAI) return null; // Return null if API key is missing
+): Promise<{ definition: string; sampleSentences: string[]; translation: string; wordType: string } | null> {
+  if (!env.GEMINI_API_KEY) return null;
 
   const prompt = `
     For the English word "${word}", provide the following in JSON format:
-    1.  "wordType": The primary part of speech (e.g., "noun", "verb", "adjective", "adverb").
-    2.  "definition": A concise definition suitable for ${gradeLevel ? `a grade ${gradeLevel} student` : 'an SAT student'}.
-    3.  "sampleSentence": A clear sample sentence using the word in context${gradeLevel ? ` at a grade ${gradeLevel} reading level` : ''}.
-    4.  "translation": The ${languagePreference || 'Chinese'} translation of the word.
+    1. "wordType": The primary part of speech (e.g., "noun", "verb", "adjective", "adverb").
+    2. "definition": A concise definition suitable for ${gradeLevel ? `a grade ${gradeLevel} student` : 'an SAT student'}.
+    3. "sampleSentences": An array of 3-5 clear sample sentences using the word in different contexts${gradeLevel ? ` at a grade ${gradeLevel} reading level` : ''}.
+    4. "translation": The ${languagePreference || 'Chinese'} translation of the word.
 
     Example JSON format:
     {
       "wordType": "adjective",
       "definition": "lasting for a very short time",
-      "sampleSentence": "The ephemeral beauty of the cherry blossoms lasts only a few weeks.",
+      "sampleSentences": [
+        "The ephemeral beauty of the cherry blossoms lasts only a few weeks.",
+        "Their happiness was ephemeral, fading as quickly as it had come."
+      ],
       "translation": "短暂的"
     }
 
@@ -54,103 +76,238 @@ export async function enrichWord(
   `;
 
   try {
-    const model = genAI.getGenerativeModel({ model: modelName });
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig,
-      safetySettings,
-    });
+    let responseText;
+    
+    // Direct API call when running on server-side (like in tRPC procedures)
+    if (isServer()) {
+      console.log("Enriching word on server-side");
+      const genAI = initGeminiClient();
+      if (!genAI) return null;
+      
+      const model = genAI.getGenerativeModel({ model: env.GEMINI_MODEL_NAME });
+      const result = await model.generateContent({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig,
+        safetySettings,
+      });
+      
+      responseText = result.response.text().trim();
+    } 
+    // Use fetch to API route when running on client-side
+    else {
+      console.log("Enriching word on client-side");
+      const response = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt,
+          generationConfig
+        }),
+      });
 
-    let responseText = result.response.text().trim();
-    // Clean the response text: remove potential markdown fences and trim
-    responseText = responseText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      if (!response.ok) {
+        console.error('Failed to call Gemini API:', response.statusText);
+        return null;
+      }
+
+      const data = await response.json();
+      responseText = data.response;
+    }
+    
+    // Clean the response text before parsing
+    const cleanedResponseText = cleanJsonResponse(responseText);
+    console.log("Cleaned response:", cleanedResponseText.substring(0, 100) + "...");
     
     try {
-      const parsed = JSON.parse(responseText);
-      // Check for all four fields now
-      if (parsed.wordType && parsed.definition && parsed.sampleSentence && parsed.translation) {
+      const parsed = JSON.parse(cleanedResponseText);
+      
+      if (parsed.wordType && parsed.definition && parsed.sampleSentences && parsed.translation) {
         return {
           wordType: parsed.wordType,
           definition: parsed.definition,
-          sampleSentence: parsed.sampleSentence,
+          sampleSentences: parsed.sampleSentences,
           translation: parsed.translation,
         };
-      } else {
-        console.error("Gemini enrichWord response missing expected fields (wordType, definition, sampleSentence, translation):", responseText);
-        return null;
       }
     } catch (parseError) {
-      console.error(`Failed to parse Gemini response for word "${word}":`, parseError);
-      console.error("Raw response:", responseText);
-      return null;
+      console.error(`Error parsing JSON for word "${word}":`, parseError);
+      console.log("Raw response:", responseText);
     }
+    
+    return null;
   } catch (error) {
-    console.error(`Error enriching word "${word}" with Gemini:`, error);
-    return null; // Return null on error
+    console.error(`Error enriching word "${word}":`, error);
+    return null;
   }
 }
 
 /**
- * Grades a user's sentence for correct usage of a given word using Gemini, optionally considering grade level.
+ * Grades a user's sentence for correct usage of a given word using Gemini.
  */
 export async function gradeSentence(
   word: string,
   sentence: string,
-  gradeLevel?: number | null // Optional grade level parameter
+  gradeLevel?: number | null
 ): Promise<{ isCorrect: boolean; feedback: string } | null> {
-   if (!genAI) return { isCorrect: false, feedback: "AI grading is disabled (API key missing)." }; // Return default if API key is missing
+  if (!env.GEMINI_API_KEY) return { isCorrect: false, feedback: "AI grading is disabled (API key missing)." };
 
-  // Construct the prompt, adding grade level context if provided
-  let prompt = `
+  const prompt = `
     Word: "${word}"
     User's Sentence: "${sentence}"
     ${gradeLevel ? `Assume the user is in grade ${gradeLevel}.` : ''}
 
     Analyze the user's sentence. Does it demonstrate a clear and correct understanding of the word "${word}" in context${gradeLevel ? ` appropriate for a grade ${gradeLevel} student` : ''}?
     Provide your response in JSON format with two keys:
-    1.  "isCorrect": boolean (true if the usage is clearly correct, false otherwise)
-    2.  "feedback": string (a brief explanation for the user, e.g., "Good usage!" or "The sentence doesn't clearly show understanding of the word's meaning." Also, evaluate the sentence quality, and provide concise, friendly feedback only if constructive.
+    1. "isCorrect": boolean (true if the usage is clearly correct, false otherwise)
+    2. "feedback": string (a brief explanation for the user)
 
-    Example JSON format:
-    {
-      "isCorrect": true,
-      "feedback": "Excellent! The sentence uses the word correctly in context."
-    }
-    or
-    {
-      "isCorrect": false,
-      "feedback": "This sentence doesn't quite capture the meaning of '${word}'. Try focusing on [brief hint]."
-    }
-
-    Provide only the JSON object. Be strict - only mark as correct if the usage is unambiguous${gradeLevel ? ` for their grade level` : ''}.
+    Provide only the JSON object.
   `;
 
   try {
-    const model = genAI.getGenerativeModel({ model: modelName });
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig,
-      safetySettings,
-    });
+    let responseText;
+    
+    // Direct API call when running on server-side (like in tRPC procedures)
+    if (isServer()) {
+      console.log("Grading sentence on server-side");
+      const genAI = initGeminiClient();
+      if (!genAI) return { isCorrect: false, feedback: "AI grading is disabled (API client initialization failed)." };
+      
+      const model = genAI.getGenerativeModel({ model: env.GEMINI_MODEL_NAME });
+      const result = await model.generateContent({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig,
+        safetySettings,
+      });
+      
+      responseText = result.response.text().trim();
+    } 
+    // Use fetch to API route when running on client-side
+    else {
+      console.log("Grading sentence on client-side");
+      const response = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt,
+          generationConfig
+        }),
+      });
 
-    let responseText = result.response.text();
-    // Clean the response text: remove potential markdown fences and trim
-    responseText = responseText.trim().replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      if (!response.ok) {
+        console.error('Failed to call Gemini API:', response.statusText);
+        return { isCorrect: false, feedback: "AI grading service unavailable" };
+      }
 
-     // Attempt to parse the cleaned JSON response
-    const parsed = JSON.parse(responseText);
-    if (typeof parsed.isCorrect === 'boolean' && parsed.feedback) {
-      return {
-        isCorrect: parsed.isCorrect,
-        feedback: parsed.feedback,
-      };
-    } else {
-      console.error("Gemini gradeSentence response missing expected fields:", responseText);
-      // Fallback if parsing fails
-      return { isCorrect: false, feedback: "AI analysis failed. Please try again." };
+      const data = await response.json();
+      responseText = data.response;
     }
+    
+    // Clean the response text before parsing
+    const cleanedResponseText = cleanJsonResponse(responseText);
+    
+    try {
+      const parsed = JSON.parse(cleanedResponseText);
+      
+      if (typeof parsed.isCorrect === 'boolean' && parsed.feedback) {
+        return parsed;
+      }
+    } catch (parseError) {
+      console.error(`Error parsing JSON for grading word "${word}":`, parseError);
+      console.log("Raw response:", responseText);
+      return { isCorrect: false, feedback: "AI analysis failed: Unable to parse response." };
+    }
+    
+    return { isCorrect: false, feedback: "AI analysis failed. Please try again." };
   } catch (error) {
-    console.error(`Error grading sentence for word "${word}" with Gemini:`, error);
-    return { isCorrect: false, feedback: "Error during AI analysis." }; // Return error feedback
+    console.error(`Error grading sentence for word "${word}":`, error);
+    return { isCorrect: false, feedback: "Error during AI analysis." };
+  }
+}
+
+/**
+ * Generates reading and writing content (passages with questions) using Gemini.
+ */
+export async function generateReadingWritingContent(
+  topic: string,
+  difficultyLevel: 'easy' | 'medium' | 'hard' = 'medium',
+  gradeLevel?: number | null
+): Promise<{ passage: string; questions: string[] } | null> {
+  if (!env.GEMINI_API_KEY) return null;
+
+  const prompt = `
+    Create a reading passage about "${topic}" at ${difficultyLevel} difficulty level${gradeLevel ? ` for grade ${gradeLevel}` : ''}.
+    Include 3-5 comprehension questions about the passage.
+
+    Return in JSON format:
+    {
+      "passage": "The passage text...",
+      "questions": ["Question 1", "Question 2", "Question 3"]
+    }
+  `;
+
+  try {
+    let responseText;
+    
+    // Direct API call when running on server-side (like in tRPC procedures)
+    if (isServer()) {
+      console.log("Generating R&W content on server-side");
+      const genAI = initGeminiClient();
+      if (!genAI) return null;
+      
+      const model = genAI.getGenerativeModel({ model: env.GEMINI_MODEL_NAME });
+      const result = await model.generateContent({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig,
+        safetySettings,
+      });
+      
+      responseText = result.response.text().trim();
+    } 
+    // Use fetch to API route when running on client-side
+    else {
+      console.log("Generating R&W content on client-side");
+      const response = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt,
+          generationConfig
+        }),
+      });
+
+      if (!response.ok) {
+        console.error('Failed to generate R&W content:', response.statusText);
+        return null;
+      }
+
+      const data = await response.json();
+      responseText = data.response;
+    }
+    
+    // Clean the response text before parsing
+    const cleanedResponseText = cleanJsonResponse(responseText);
+    
+    try {
+      const parsed = JSON.parse(cleanedResponseText);
+      
+      if (parsed.passage && parsed.questions) {
+        return parsed;
+      }
+    } catch (parseError) {
+      console.error(`Error parsing JSON for reading/writing content on topic "${topic}":`, parseError);
+      console.log("Raw response:", responseText);
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error generating R&W content:', error);
+    return null;
   }
 }

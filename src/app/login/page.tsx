@@ -37,6 +37,7 @@ function LoginForm() {
         toast.error('Invalid email or password. Please try again.');
         setIsCredentialsLoading(false);
       } else if (result?.ok) {
+        console.log("signIn successful, result:", result); // Add logging here
         toast.success('Login successful!');
         try {
           const decodedUrl = decodeURIComponent(callbackUrl);

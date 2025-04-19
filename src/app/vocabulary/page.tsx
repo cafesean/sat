@@ -12,6 +12,7 @@ import useLocalStorage from "@/hooks/useLocalStorage"; // Import the custom hook
 import { api, type RouterOutputs } from "@/utils/trpc";
 import { format } from 'date-fns'; // Import format function
 import { AlertCircle, BookText, Grid, History, List, Pencil, Play, Plus, Settings, SortAsc, SortDesc } from "lucide-react";
+import { useSession } from "next-auth/react"; // Import useSession
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -22,6 +23,58 @@ import { toast } from "sonner";
 type WordBankListItem = RouterOutputs['vocab']['listWordBanks'][number] & { lastPracticedAt?: Date | null };
 type SortKey = 'name' | 'createdAt' | 'masteryPercentage';
 type SortDirection = 'asc' | 'desc';
+
+// Define the session status type at the top of the file
+type SessionStatus = 'loading' | 'authenticated' | 'unauthenticated';
+
+// New component for the Create Word Bank button with session check
+function CreateWordBankButton({ isFullWidth = false }) {
+  const router = useRouter();
+  const { data: session, status } = useSession();
+  // Cast status to the correct type
+  const sessionStatus = status as SessionStatus;
+
+  // Add logging to debug session
+  console.log(`CreateWordBankButton - Session status: ${sessionStatus}, Session exists: ${!!session}`);
+  
+  const handleCreateClick = () => {
+    if (sessionStatus === 'loading') {
+      toast.info('Loading session information...');
+      return;
+    }
+    if (!session) {
+      toast.warning('You need to be logged in to create a word bank.');
+      router.push('/login?callbackUrl=/vocabulary/create-bank');
+      return;
+    }
+    router.push('/vocabulary/create-bank');
+  };
+
+  // Don't render the button at all if not authenticated
+  if (!session) {
+    console.log('CreateWordBankButton - Not rendering button (no session)');
+    return null;
+  }
+  
+  return (
+    <Button
+      variant="outline"
+      className={isFullWidth ? "w-full mt-4 md:mt-0" : "mt-4"}
+      onClick={handleCreateClick}
+      disabled={sessionStatus === 'loading'}
+    >
+      {sessionStatus === 'loading' ? (
+        'Loading...'
+      ) : (
+        isFullWidth ? (
+          <><Plus className="mr-2 h-4 w-4" /> Create New Bank</>
+        ) : (
+          'Create Word Bank'
+        )
+      )}
+    </Button>
+  );
+}
 
 export default function VocabularyPage() {
   // Use useLocalStorage for viewMode persistence
@@ -69,6 +122,9 @@ export default function VocabularyPage() {
   const toggleSortDirection = () => {
     setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
   }
+
+  // Add this near the top of the component
+  const { data: session, status: authStatus } = useSession();
 
   return (
     <main className="container mx-auto px-4 py-8">
@@ -172,16 +228,16 @@ export default function VocabularyPage() {
                     lastPracticedAt={bank.lastPracticedAt} // Pass the correct prop
                   />
                 ))}
-                {/* Create New Bank Card (Grid) */}
-                <Card className="flex flex-col items-center justify-center h-full border-dashed min-h-[200px]">
-                  <CardContent className="pt-6 text-center">
-                    <Plus className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                    <p className="text-muted-foreground">Create a new word bank</p>
-                    <Link href="/vocabulary/create-bank" className="block mt-4">
-                      <Button variant="outline">Create Word Bank</Button>
-                    </Link>
-                  </CardContent>
-                </Card>
+                {/* Create New Bank Card (Grid) - Only show if authenticated */}
+                {session && (
+                  <Card className="flex flex-col items-center justify-center h-full border-dashed min-h-[200px]">
+                    <CardContent className="pt-6 text-center">
+                      <Plus className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                      <p className="text-muted-foreground">Create a new word bank</p>
+                      <CreateWordBankButton /> {/* Use the new component */}
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             )}
 
@@ -191,12 +247,10 @@ export default function VocabularyPage() {
                 {filteredAndSortedBanks.map((bank) => (
                   <WordBankListItemComponent key={bank.id} {...bank} />
                 ))}
-                {/* Create New Bank Button (List) */}
-                 <Link href="/vocabulary/create-bank" className="block pt-2">
-                    <Button variant="outline" className="w-full">
-                      <Plus className="mr-2 h-4 w-4" /> Create New Bank
-                    </Button>
-                 </Link>
+                {/* Create New Bank Button (List) - Only show if authenticated */}
+                {session && (
+                  <CreateWordBankButton isFullWidth />
+                )}
               </div>
             )}
           </>

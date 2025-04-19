@@ -5,8 +5,13 @@ import { redirect } from "next/navigation";
 
 export default async function CreateWordBankPage() {
   const session = await auth();
-
-  if (!session) {
+  
+  // Debug the session
+  console.log("CreateWordBankPage - session:", session ? "Session exists" : "No session");
+  
+  // Improved check with more specific error handling
+  if (!session || !session.user) {
+    console.log("CreateWordBankPage - redirecting to login, no valid session");
     redirect("/login?callbackUrl=/vocabulary/create-bank");
   }
 

@@ -1,0 +1,5 @@
+﻿id,name,email,emailVerified,image,createdAt,updatedAt,role,gradeLevel,languagePreference,hashedPassword
+cm9fkjat00000l704odg1npk0,Keira,xuanxuanliao@icloud.com,,,35:36.6,35:36.6,USER,,en,$2b$10$atX4IV8AUnbICnfHUGyrReQbFcsdiyhdyccCXUsoYLefkmnUW1THe
+cm9h0celr0000l504kdd7x4zt,danna,xiadanna@outlook.com,,,45:54.9,45:54.9,USER,,en,$2b$10$nXuRfyJo.JPWnzxByR3YrejwVx76xb3fq1GtAoSp5VPnegGw5o34y
+cm9fggbnm000u9k5w247h8leu,Sean1,sliao01@hotmail.com,,https://sat-dev/avatars/cm9fggbnm000u9k5w247h8leu.png,41:19.2,18:32.9,USER,11,Chinese (Simplified),$2b$10$TB.16LtC7RtpmmY2IFPHq.xFPYrKU0l/2gfleDQ6Y3wA6hpK33fM.
+cm9m4lk340000l4043wrqulvl,jayden,jaydenliao@outlook.com,,,43:51.3,43:51.3,USER,,en,$2b$10$w2KCEEeDB9IQTkJx2ht09.B3Lgqu1427wFMtrYchyEauwR8BH7LQ2
