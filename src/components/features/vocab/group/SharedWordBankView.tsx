@@ -46,6 +46,9 @@ export function SharedWordBankView({ sharedWordBankId, onBack }: SharedWordBankV
     );
   }
 
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+
   return (
     <Card className="p-6">
       <div className="mb-6">
@@ -58,6 +61,7 @@ export function SharedWordBankView({ sharedWordBankId, onBack }: SharedWordBankV
         <p className="text-sm text-gray-500 mt-1">
           {sharedWordBank.wordBank.words.length} words
         </p>
+        <CopyButton sharedWordBankId={sharedWordBank.id} originalName={sharedWordBank.wordBank.name} />
       </div>
 
       <div>
@@ -82,4 +86,42 @@ export function SharedWordBankView({ sharedWordBankId, onBack }: SharedWordBankV
       </div>
     </Card>
   );
+}
+
+function CopyButton({ sharedWordBankId, originalName }: { sharedWordBankId: string; originalName: string }) {
+  const [isCopying, setIsCopying] = useState(false);
+  const { toast } = useToast();
+  const copyMutation = api.wordBank.copySharedWordBank.useMutation({
+    onSuccess: () => {
+      setIsCopying(false);
+      toast({
+        title: "Word bank copied",
+        description: `Copied "${originalName}" to your collection.`,
+        variant: "success",
+      });
+    },
+    onError: (error) => {
+      setIsCopying(false);
+      toast({
+        title: "Error copying word bank",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCopy = () => {
+    setIsCopying(true);
+    copyMutation.mutate({
+      sharedWordBankId,
+      newBankName: `${originalName} (Copy)`,
+    });
+  };
+
+  return (
+    <Button onClick={handleCopy} disabled={isCopying} className="mt-4">
+      {isCopying ? "Copying..." : "Copy Word Bank"}
+    </Button>
+  );
+}
 }

@@ -15,11 +15,22 @@ const AcceptInvitePage = () => {
   const { data: session, status: authStatus } = useSession();
   const inviteToken = params.inviteToken as string;
 
+  // Handle unauthenticated state - must be before any conditional returns
+  useEffect(() => {
+    if (authStatus === 'unauthenticated') {
+      // Redirect to login, passing the invite page as callbackUrl
+      const callbackUrl = `/groups/invite/${inviteToken}`;
+      router.push(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
+    }
+  }, [authStatus, inviteToken, router]);
+
   // Mutation to accept the invite
   const acceptInviteMutation = api.group.acceptGroupInvite.useMutation({
     onSuccess: (data) => {
       toast.success(`Successfully joined group!`); // TODO: Add group name if available from mutation response
-      router.push(`/vocabulary/groups/${data.member.groupId}`); // Redirect to the group page
+      setTimeout(() => {
+        router.push(`/vocabulary/groups/${data.member.groupId}`); // Redirect to the group page
+      }, 0);
     },
     onError: (error) => {
       // Handle specific errors
@@ -30,19 +41,8 @@ const AcceptInvitePage = () => {
       } else {
          toast.error(`Failed to accept invitation: ${error.message}`);
       }
-      // Optionally redirect away if the invite is invalid
-      // router.push('/dashboard');
     },
   });
-
-  // Automatically attempt to accept if logged in and token exists
-  useEffect(() => {
-    if (authStatus === 'authenticated' && inviteToken && !acceptInviteMutation.isPending && !acceptInviteMutation.isSuccess) {
-      // Check if already attempted or succeeded to prevent loops if component re-renders
-      acceptInviteMutation.mutate({ inviteToken });
-    }
-  }, [authStatus, inviteToken, acceptInviteMutation]);
-
 
   // Handle loading state for authentication
   if (authStatus === 'loading') {
@@ -53,17 +53,12 @@ const AcceptInvitePage = () => {
     );
   }
 
-  // Handle unauthenticated state
   if (authStatus === 'unauthenticated') {
-    // Redirect to login, passing the invite page as callbackUrl
-    const callbackUrl = `/groups/invite/${inviteToken}`;
-    router.push(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
-    // Render minimal loading/redirecting state while redirect happens
     return (
-       <div className="container mx-auto px-4 py-8 text-center">
-         <p>Redirecting to login...</p>
-       </div>
-     );
+      <div className="container mx-auto px-4 py-8 text-center">
+        <p>Redirecting to login...</p>
+      </div>
+    );
   }
 
   // Display loading/success/error state for the mutation
@@ -80,6 +75,14 @@ const AcceptInvitePage = () => {
               <Skeleton className="h-4 w-1/2 mx-auto" />
             </>
           )}
+          {!acceptInviteMutation.isPending && !acceptInviteMutation.isSuccess && !acceptInviteMutation.isError && (
+            <button
+              onClick={() => acceptInviteMutation.mutate({ inviteToken })}
+              className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Accept Invitation
+            </button>
+          )}
           {acceptInviteMutation.isError && (
             <div className="text-destructive flex flex-col items-center gap-2">
               <AlertCircle className="h-8 w-8" />
@@ -87,16 +90,12 @@ const AcceptInvitePage = () => {
               <span className="text-sm">{acceptInviteMutation.error.message}</span>
             </div>
           )}
-           {acceptInviteMutation.isSuccess && (
-             <div className="text-green-600 flex flex-col items-center gap-2">
-               <CheckCircle className="h-8 w-8" />
-               <span>Successfully joined the group! Redirecting...</span>
-             </div>
-           )}
-           {/* Initial state before mutation runs (might be brief) */}
-           {!acceptInviteMutation.isPending && !acceptInviteMutation.isError && !acceptInviteMutation.isSuccess && (
-              <p>Processing invitation...</p>
-           )}
+          {acceptInviteMutation.isSuccess && (
+            <div className="text-green-600 flex flex-col items-center gap-2">
+              <CheckCircle className="h-8 w-8" />
+              <span>Successfully joined the group! Redirecting...</span>
+            </div>
+          )}
         </CardContent>
         {/* Footer might not be needed if auto-accepting */}
         {/* <CardFooter>

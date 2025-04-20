@@ -91,19 +91,28 @@ model SharedWordBank {
 ## Implementation Tasks
 - [x] TS005-1: Implement Group and GroupMember models
 - [x] TS005-2: Implement SharedWordBank model (and potentially adjust WordBank model for group ownership)
-- [ ] TS005-3: Create group management logic
+- [x] TS005-3: Create group management logic
 - [x] TS005-4: Build invitation system
-- [ ] TS005-5: Implement shared Word Bank functionality (distinguish between group-owned and individually shared)
+- [x] TS005-5: Implement shared Word Bank functionality (distinguish between group-owned and individually shared)
 - [x] TS005-6: Develop role-based permission system
-- [ ] TS005-7: Create notification service
-- [ ] TS005-8: Implement Word Bank sharing functionality (link generation, email)
-- [ ] TS005-9: Build group management UI
-- [ ] TS005-10: Implement member invitation flow
-- [ ] TS005-11: Add notification center UI
-- [ ] TS005-12: Build UI for sharing word banks
-- [ ] TS005-13: Build UI for viewing/copying shared word banks
-- [ ] TS005-14: Write unit tests for new services
-- [ ] TS005-15: Add integration tests for group and sharing features
+- [x] TS005-7: Create notification service
+- [x] TS005-8: Implement Word Bank sharing functionality (link generation, email)
+- [x] TS005-9: Build group management UI
+- [x] TS005-10: Implement member invitation flow
+- [x] TS005-11: Add notification center UI
+- [x] TS005-12: Build UI for sharing word banks
+- [x] TS005-13: Build UI for viewing/copying shared word banks
+- [x] TS005-14: Write unit tests for new services
+- [x] TS005-15: Add integration tests for group and sharing features
+## UAT Bug Fixes
+- [x] Prevent duplicate word bank sharing
+- [ ] Prevent duplicate group invitations (regressed - BU-0002)
+- [ ] Prevent group creator leaving group (regressed - BU-0003)
+- [x] Handle unique constraint error on group invitation
+- [x] Improve error handling when group creator attempts to leave group
+## UAT Bug Fixes (Frontend)
+- [x] Word card error after accepting shared word bank invite
+- [x] Missing group invitation acceptance step for new users
 
 ## Testing Considerations
 1. Verify group creation and deletion flows

@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import useLocalStorage from "@/hooks/useLocalStorage"; // Import the custom hook
 import { api, type RouterOutputs } from "@/utils/trpc";
 import { format } from 'date-fns'; // Import format function
-import { AlertCircle, BookText, Grid, History, List, Pencil, Play, Plus, Settings, SortAsc, SortDesc } from "lucide-react";
+import { AlertCircle, BookText, Grid, History, List, Pencil, Play, Plus, Settings, SortAsc, SortDesc, Users } from "lucide-react";
 import { useSession } from "next-auth/react"; // Import useSession
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -20,8 +20,10 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 // Infer type for word bank list item
-// Infer type for word bank list item - now includes lastPracticedAt
-type WordBankListItem = RouterOutputs['vocab']['listWordBanks'][number] & { lastPracticedAt?: Date | null };
+type WordBankListItem = RouterOutputs['vocab']['listWordBanks'][number] & {
+  lastPracticedAt?: Date | null;
+  isShared?: boolean;
+};
 type SortKey = 'name' | 'createdAt' | 'masteryPercentage';
 type SortDirection = 'asc' | 'desc';
 
@@ -85,7 +87,12 @@ export default function VocabularyPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   // Fetch word banks
-  const { data: wordBanks, isLoading: isLoadingBanks, error: banksError } = api.vocab.listWordBanks.useQuery()
+  const { data: wordBanks, isLoading: isLoadingBanks, error: banksError } = api.vocab.listWordBanks.useQuery(undefined, {
+    select: (data) => data.map(bank => ({
+      ...bank,
+      isShared: 'isShared' in bank ? Boolean(bank.isShared) : false
+    }))
+  })
 
   // Client-side filtering and sorting
   const filteredAndSortedBanks = useMemo(() => {
@@ -226,7 +233,8 @@ export default function VocabularyPage() {
                     description={bank.description}
                     wordCount={bank.wordCount}
                     masteryPercentage={bank.masteryPercentage}
-                    lastPracticedAt={bank.lastPracticedAt} // Pass the correct prop
+                    lastPracticedAt={bank.lastPracticedAt}
+                    isShared={bank.isShared}
                   />
                 ))}
                 {/* Create New Bank Card (Grid) - Only show if authenticated */}
@@ -293,21 +301,25 @@ export default function VocabularyPage() {
 }
 
 // WordBankCard Component (Refactored)
+interface WordBankCardProps {
+  id: string
+  title: string
+  description?: string | null
+  wordCount: number
+  lastPracticedAt?: Date | null
+  masteryPercentage: number
+  isShared?: boolean
+}
+
 function WordBankCard({
   id,
   title,
   description,
   wordCount,
-  lastPracticedAt, // Use the new prop name
+  lastPracticedAt,
   masteryPercentage,
-}: {
-  id: string
-  title: string
-  description?: string | null
-  wordCount: number
-  lastPracticedAt?: Date | null // Update prop type
-  masteryPercentage: number
-}) {
+  isShared = false,
+}: WordBankCardProps) {
   const router = useRouter();
   const startSessionMutation = api.vocab.startVocabSession.useMutation({
     onSuccess: (data) => {
@@ -333,6 +345,7 @@ function WordBankCard({
           <span className="flex items-center gap-2">
             <BookText className="h-5 w-5" />
             {title}
+            {isShared && <Users className="h-4 w-4 text-muted-foreground" />}
           </span>
           {/* Larger Word Count */}
           <span className="text-2xl font-bold text-muted-foreground">{wordCount}</span>

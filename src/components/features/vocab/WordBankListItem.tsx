@@ -2,13 +2,15 @@
 
 import { Button } from "@/components/ui/button";
 import { api, type RouterOutputs } from "@/utils/trpc";
-import { Pencil, Play, Settings } from "lucide-react";
+import { Pencil, Play, Settings, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 // Type for the props, matching the data structure from listWordBanks
-type WordBankListItemProps = RouterOutputs['vocab']['listWordBanks'][number];
+type WordBankListItemProps = RouterOutputs['vocab']['listWordBanks'][number] & {
+  isShared?: boolean;
+};
 
 export function WordBankListItem({
   id,
@@ -20,6 +22,7 @@ export function WordBankListItem({
   createdAt,
   updatedAt,
   userId,
+  isShared = false,
 }: WordBankListItemProps) {
   const router = useRouter();
 
@@ -46,7 +49,10 @@ export function WordBankListItem({
       <div className="flex flex-col flex-grow overflow-hidden mr-4">
         <Link href={`/vocabulary/banks/${id}`} className="truncate">
           {/* Make title larger */}
-          <span className="text-xl font-semibold hover:underline">{name}</span>
+          <div className="flex items-center gap-1">
+            <span className="text-xl font-semibold hover:underline">{name}</span>
+            {isShared && <Users className="h-4 w-4 text-muted-foreground" />}
+          </div>
         </Link>
         <span className="text-sm text-muted-foreground">{wordCount} words</span>
       </div>

@@ -5,10 +5,8 @@
  *
  * We also create a few inference helpers for input and output types
  */
-import { httpBatchLink, loggerLink } from "@trpc/client";
 import { createTRPCReact } from "@trpc/react-query";
 import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
-import superjson from "superjson";
 
 import { type AppRouter } from "../server/api/root";
 
@@ -37,3 +35,19 @@ export type RouterInputs = inferRouterInputs<AppRouter>;
  * @example type HelloOutput = RouterOutputs['example']['hello']
  **/
 export type RouterOutputs = inferRouterOutputs<AppRouter>;
+
+// Add frontend API hooks for wordBank sharing
+
+export const wordBankShareApi = {
+  useShareWordBank: (options?: Parameters<typeof api.useMutation>[0]) =>
+    api.wordBank.shareWordBank.useMutation(options),
+
+  useShareWordBankViaEmail: (options?: Parameters<typeof api.useMutation>[0]) =>
+    api.wordBank.shareWordBankViaEmail.useMutation(options),
+
+  useRevokeWordBankShare: (options?: Parameters<typeof api.useMutation>[0]) =>
+    api.wordBank.revokeWordBankShare.useMutation(options),
+
+  useGetWordBankByShareLink: (options?: Parameters<typeof api.useQuery>[0]) =>
+    api.wordBank.getWordBankByShareLink.useQuery(undefined, options),
+};

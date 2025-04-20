@@ -30,6 +30,7 @@ model User {
   receivedSharedWordBanks SharedWordBank[] @relation("SharedWithUser")
   invitesSent        GroupInvite[]    @relation("InvitedBy")
   invitesReceived    GroupInvite[]    @relation("InvitedUser")
+  notifications      Notification[]
 }
 
 model Account {
@@ -252,6 +253,28 @@ model GroupInvite {
   invitedUser     User?    @relation("InvitedUser", fields: [invitedUserId], references: [id])
 
   @@unique([groupId, invitedUserId])
+}
+
+model Notification {
+  id          String      @id @default(cuid())
+  userId      String
+  type        NotificationType
+  message     String
+  isRead      Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  readAt      DateTime?
+  metadata    Json?
+  
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, isRead])
+}
+
+enum NotificationType {
+  MEMBER_JOINED
+  WORD_BANK_SHARED
+  GROUP_INVITE
+  GENERAL
 }
 
 enum UserRole {

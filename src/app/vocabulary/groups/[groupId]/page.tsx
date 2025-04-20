@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, type RouterOutputs } from "@/utils/trpc";
 import { AlertCircle, LogOut } from "lucide-react"; // Added LogOut
+import { useSession } from "next-auth/react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation"; // Added useRouter
 import { toast } from "sonner"; // Added toast
 
@@ -20,6 +22,7 @@ const GroupDetailsPage = () => {
   const router = useRouter(); // Added router hook
   const groupId = params.groupId as string;
 
+  const { data: session } = useSession();
   const { data: group, isLoading, error } = api.group.getGroupDetails.useQuery(
     { groupId },
     { enabled: !!groupId }
@@ -95,11 +98,18 @@ const GroupDetailsPage = () => {
         </CardHeader>
         <CardContent>
           {group.sharedWordBanks.length > 0 ? (
-            <ul>
+            <ul className="space-y-2">
               {group.sharedWordBanks.map((sharedBank: SharedWordBank) => (
-                <li key={sharedBank.wordBankId} className="py-2 border-b last:border-b-0">
-                  {sharedBank.wordBank.name}
-                  {/* TODO: Add link to word bank */}
+                <li key={sharedBank.wordBankId}>
+                  <Link
+                    href={`/vocabulary/banks/${sharedBank.wordBankId}`}
+                    className="block py-2 px-3 rounded-md hover:bg-accent transition-colors border-b last:border-b-0"
+                  >
+                    <div className="font-medium">{sharedBank.wordBank.name}</div>
+                    <div className="text-sm text-muted-foreground">
+                      Shared by {sharedBank.sharedBy.name || 'Unknown User'}
+                    </div>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -109,34 +119,43 @@ const GroupDetailsPage = () => {
         </CardContent>
       </Card>
 
-      {/* Leave Group Button with Confirmation */}
-      <div className="mt-8 flex justify-end">
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="destructive">
-              <LogOut className="mr-2 h-4 w-4" /> Leave Group
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Are you sure you want to leave this group?</AlertDialogTitle>
-              <AlertDialogDescription>
-                You will lose access to shared word banks and group activities. This action cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleLeaveGroup}
-                disabled={leaveGroupMutation.isPending}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                {leaveGroupMutation.isPending ? "Leaving..." : "Leave Group"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
+      {/* Leave Group Button with Confirmation - Only show for non-creators */}
+      {group.creator.id !== session?.user?.id ? (
+        <div className="mt-8 flex justify-end">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive">
+                <LogOut className="mr-2 h-4 w-4" /> Leave Group
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you sure you want to leave this group?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  You will lose access to shared word banks and group activities. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleLeaveGroup}
+                  disabled={leaveGroupMutation.isPending}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {leaveGroupMutation.isPending ? "Leaving..." : "Leave Group"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      ) : (
+        <div className="mt-8 flex justify-end">
+          <Button variant="ghost" disabled>
+            <AlertCircle className="mr-2 h-4 w-4" />
+            As the group creator, you cannot leave. Delete the group instead.
+          </Button>
+        </div>
+      )}
 
       {/* TODO: Add Edit/Delete options for admin/creator */}
       {/* TODO: Add Kick/Promote options for admin */}

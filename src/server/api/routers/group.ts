@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { protectedProcedure, router } from "../trpc";
+import { protectedProcedure, publicProcedure, router } from "../trpc";
+import { checkWordBankAccess } from "./vocab";
 
 export const groupRouter = router({
   createGroup: protectedProcedure
@@ -25,10 +26,10 @@ export const groupRouter = router({
     }),
 
   inviteUserToGroup: protectedProcedure
-    .input(z.object({ 
-      groupId: z.string(), 
-      email: z.string().email().optional(), 
-      generateShareLink: z.boolean().optional() 
+    .input(z.object({
+      groupId: z.string(),
+      email: z.string().email().optional(),
+      generateShareLink: z.boolean().optional()
     }))
     .mutation(async ({ ctx, input }) => {
       const { groupId, email, generateShareLink } = input;
@@ -58,6 +59,37 @@ export const groupRouter = router({
           throw new TRPCError({ code: "NOT_FOUND", message: "User with this email not found." });
         }
 
+        // Check if the user is already a member
+        const existingMember = await ctx.prisma.groupMember.findUnique({
+          where: {
+            groupId_userId: {
+              groupId: groupId,
+              userId: invitedUser.id,
+            },
+          },
+        });
+
+        if (existingMember) {
+          throw new TRPCError({ code: "CONFLICT", message: "User is already a member of this group." });
+        }
+
+        // Check for existing pending invitation
+        const existingInvite = await ctx.prisma.groupInvite.findFirst({
+          where: {
+            groupId,
+            invitedUserId: invitedUser.id,
+            status: "pending"
+          }
+        });
+
+        if (existingInvite) {
+          return {
+            success: true,
+            inviteToken: existingInvite.inviteToken,
+            isExisting: true
+          };
+        }
+
         const invite = await ctx.prisma.groupInvite.create({
           data: {
             groupId,
@@ -79,19 +111,6 @@ export const groupRouter = router({
 
         return { success: true, inviteToken: invite.inviteToken };
       } else if (generateShareLink) {
-        // Check if the user is already a member
-        const existingMember = await ctx.prisma.groupMember.findUnique({
-          where: {
-            groupId_userId: {
-              groupId: groupId,
-              userId: ctx.session.user.id,
-            },
-          },
-        });
-
-        if (existingMember) {
-          throw new TRPCError({ code: "CONFLICT", message: "User is already a member of this group." });
-        }
 
         const invite = await ctx.prisma.groupInvite.create({
           data: {
@@ -145,12 +164,30 @@ export const groupRouter = router({
         return { success: true, member: existingMember };
       }
 
+      // Get word banks shared with this group
+      const groupSharedBanks = await ctx.prisma.sharedWordBank.findMany({
+        where: { sharedWithGroupId: invitation.groupId }
+      });
+
+      // Create member record
       const newMember = await ctx.prisma.groupMember.create({
         data: {
           groupId: invitation.groupId,
           userId: userId,
         },
       });
+
+      // Link shared word banks to user
+      await Promise.all(groupSharedBanks.map(bank =>
+        ctx.prisma.sharedWordBank.create({
+          data: {
+            wordBankId: bank.wordBankId,
+            sharedById: bank.sharedById,
+            sharedWithUserId: userId,
+            shareLink: crypto.randomUUID(),
+          }
+        })
+      ));
 
       await ctx.prisma.groupInvite.update({
         where: { id: invitation.id },
@@ -187,7 +224,7 @@ export const groupRouter = router({
       if (group?.creatorId === userId) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "Group creators cannot leave their own group. Please delete the group instead.",
+          message: "As the group creator, you cannot leave this group. You can either transfer ownership to another member or delete the group entirely if you no longer need it.",
         });
       }
 
@@ -232,7 +269,8 @@ export const groupRouter = router({
           },
           sharedWordBanks: {
             include: {
-              wordBank: true
+              wordBank: true,
+              sharedBy: { select: { id: true, name: true, image: true } }
             }
           },
         },
@@ -290,5 +328,423 @@ export const groupRouter = router({
         },
       });
       return memberships.map(m => m.group);
+    }),
+
+  deleteGroup: protectedProcedure
+    .input(z.object({ groupId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const { groupId } = input;
+      const userId = ctx.session.user.id;
+
+      const group = await ctx.prisma.group.findUnique({
+        where: { id: groupId },
+        select: { creatorId: true },
+      });
+
+      if (!group) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Group not found." });
+      }
+
+      if (group.creatorId !== userId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only the group creator can delete the group." });
+      }
+
+      await ctx.prisma.group.delete({
+        where: { id: groupId },
+      });
+
+      return { success: true };
+    }),
+
+  updateGroup: protectedProcedure
+    .input(z.object({ groupId: z.string(), name: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const { groupId, name } = input;
+      const userId = ctx.session.user.id;
+
+      const group = await ctx.prisma.group.findUnique({
+        where: { id: groupId },
+        select: { creatorId: true },
+      });
+
+      if (!group) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Group not found." });
+      }
+
+      if (group.creatorId !== userId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only the group creator can update the group." });
+      }
+
+      await ctx.prisma.group.update({
+        where: { id: groupId },
+        data: { name: name },
+      });
+
+      return { success: true };
+    }),
+
+  shareWordBankWithGroup: protectedProcedure
+    .input(z.object({
+      groupId: z.string(),
+      wordBankId: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { groupId, wordBankId } = input;
+      const userId = ctx.session.user.id;
+
+      // Verify user is admin of the group
+      const groupMember = await ctx.prisma.groupMember.findUnique({
+        where: {
+          groupId_userId: {
+            groupId,
+            userId,
+          },
+          role: "admin",
+        },
+      });
+
+      if (!groupMember) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only group admins can share word banks with the group."
+        });
+      }
+
+      // Verify user has access to the word bank (either owner or via group sharing)
+      const { hasAccess } = await checkWordBankAccess(ctx.prisma, userId, wordBankId);
+      
+      if (!hasAccess) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to share this word bank."
+        });
+      }
+
+      // Check if already shared
+      const existingShare = await ctx.prisma.sharedWordBank.findFirst({
+        where: {
+          wordBankId,
+          sharedWithGroupId: groupId,
+        },
+      });
+
+      if (existingShare) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "This word bank is already shared with the group."
+        });
+      }
+
+      // Create the share record
+      const sharedWordBank = await ctx.prisma.sharedWordBank.create({
+        data: {
+          wordBankId,
+          sharedById: userId,
+          sharedWithGroupId: groupId,
+          shareLink: crypto.randomUUID(),
+        },
+      });
+
+      return { success: true, sharedWordBank };
+    }),
+
+  shareWordBankWithUser: protectedProcedure
+    .input(z.object({
+      userId: z.string(),
+      wordBankId: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { userId: targetUserId, wordBankId } = input;
+      const userId = ctx.session.user.id;
+
+      // Verify user owns the word bank
+      const wordBank = await ctx.prisma.wordBank.findUnique({
+        where: { id: wordBankId },
+      });
+
+      if (!wordBank || wordBank.userId !== userId) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to share this word bank."
+        });
+      }
+
+      // Check if already shared
+      const existingShare = await ctx.prisma.sharedWordBank.findFirst({
+        where: {
+          wordBankId,
+          sharedWithUserId: targetUserId,
+        },
+      });
+
+      if (existingShare) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "This word bank is already shared with this user."
+        });
+      }
+
+      // Create the share record
+      const sharedWordBank = await ctx.prisma.sharedWordBank.create({
+        data: {
+          wordBankId,
+          sharedById: userId,
+          sharedWithUserId: targetUserId,
+          shareLink: crypto.randomUUID(),
+        },
+      });
+
+      return { success: true, sharedWordBank };
+    }),
+
+  getSharedWordBanks: protectedProcedure
+    .query(async ({ ctx }) => {
+      const userId = ctx.session.user.id;
+
+      // Get word banks shared with user directly
+      const individualShares = await ctx.prisma.sharedWordBank.findMany({
+        where: { sharedWithUserId: userId },
+        include: {
+          wordBank: true,
+          sharedBy: { select: { id: true, name: true, image: true } },
+        },
+      });
+
+      // Get word banks shared with groups the user is in
+      const groupShares = await ctx.prisma.sharedWordBank.findMany({
+        where: {
+          sharedWithGroupId: {
+            in: (await ctx.prisma.groupMember.findMany({
+              where: { userId },
+              select: { groupId: true },
+            })).map(m => m.groupId),
+          },
+        },
+        include: {
+          wordBank: true,
+          sharedBy: { select: { id: true, name: true, image: true } },
+          sharedWithGroup: { select: { id: true, name: true } },
+        },
+      });
+
+      // Get public shares (excluding user's own word banks)
+      const publicShares = await ctx.prisma.sharedWordBank.findMany({
+        where: {
+          shareLink: { not: null },
+          wordBank: {
+            userId: { not: userId },
+            NOT: {
+              OR: [
+                { sharedWordBanks: { some: { sharedWithUserId: userId } } },
+                { sharedWordBanks: { some: { sharedWithGroup: { members: { some: { userId } } } } } },
+              ]
+            }
+          }
+        },
+        include: {
+          wordBank: true,
+          sharedBy: { select: { id: true, name: true, image: true } },
+        },
+      });
+
+      return {
+        individualShares,
+        groupShares,
+        publicShares,
+      };
+    }),
+
+  getWordBankByShareLink: publicProcedure
+    .input(z.object({ shareLink: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const { shareLink } = input;
+
+      const sharedWordBank = await ctx.prisma.sharedWordBank.findUnique({
+        where: { shareLink },
+        include: {
+          wordBank: {
+            include: {
+              words: {
+                include: {
+                  wordMaster: true
+                }
+              }
+            }
+          },
+          sharedBy: true
+        }
+      });
+
+      if (!sharedWordBank) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Shared word bank not found"
+        });
+      }
+
+      // For logged in users, check if they already have access via other means
+      if (ctx.session?.user?.id) {
+        const existingAccess = await ctx.prisma.sharedWordBank.findFirst({
+          where: {
+            wordBankId: sharedWordBank.wordBankId,
+            OR: [
+              { sharedWithUserId: ctx.session.user.id },
+              { sharedWithGroup: { members: { some: { userId: ctx.session.user.id } } } }
+            ]
+          }
+        });
+
+        if (existingAccess) {
+          return {
+            ...sharedWordBank,
+            accessType: existingAccess.sharedWithUserId ? "direct" : "group"
+          };
+        }
+      }
+
+      return {
+        ...sharedWordBank,
+        accessType: "public"
+      };
+    }),
+
+  generateWordBankShareLink: protectedProcedure
+    .input(z.object({ wordBankId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const { wordBankId } = input;
+      const userId = ctx.session.user.id;
+
+      // Verify user owns the word bank
+      const wordBank = await ctx.prisma.wordBank.findUnique({
+        where: { id: wordBankId },
+      });
+
+      if (!wordBank || wordBank.userId !== userId) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to share this word bank."
+        });
+      }
+
+      // Check if already has a public share link
+      const existingShare = await ctx.prisma.sharedWordBank.findFirst({
+        where: {
+          wordBankId,
+          shareLink: { not: null },
+          sharedWithGroupId: null,
+          sharedWithUserId: null
+        },
+      });
+
+      if (existingShare) {
+        return { success: true, shareLink: existingShare.shareLink };
+      }
+
+      // Create new public share record
+      const sharedWordBank = await ctx.prisma.sharedWordBank.create({
+        data: {
+          wordBankId,
+          sharedById: userId,
+          shareLink: crypto.randomUUID(),
+        },
+      });
+
+      return { success: true, shareLink: sharedWordBank.shareLink };
+    }),
+
+  shareWordBankViaEmail: protectedProcedure
+    .input(z.object({
+      wordBankId: z.string(),
+      email: z.string().email(),
+      message: z.string().optional()
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { wordBankId, email, message } = input;
+      const userId = ctx.session.user.id;
+
+      // Verify user owns the word bank
+      const wordBank = await ctx.prisma.wordBank.findUnique({
+        where: { id: wordBankId },
+      });
+
+      if (!wordBank || wordBank.userId !== userId) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to share this word bank."
+        });
+      }
+
+      // Find recipient user
+      const recipient = await ctx.prisma.user.findUnique({
+        where: { email },
+      });
+
+      if (!recipient) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "User with this email not found."
+        });
+      }
+
+      // Check if already shared with this user
+      const existingShare = await ctx.prisma.sharedWordBank.findFirst({
+        where: {
+          wordBankId,
+          sharedWithUserId: recipient.id,
+        },
+      });
+
+      if (existingShare) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "This word bank is already shared with this user."
+        });
+      }
+
+      // Create the share record
+      const sharedWordBank = await ctx.prisma.sharedWordBank.create({
+        data: {
+          wordBankId,
+          sharedById: userId,
+          sharedWithUserId: recipient.id,
+          shareLink: crypto.randomUUID(),
+        },
+      });
+
+      // TODO: Replace with actual email sending logic
+      const shareLink = `/share/${sharedWordBank.shareLink}`;
+      console.log(`Share link sent to ${email}: ${shareLink}`);
+      // await emailService.sendShareEmail({
+      //   to: email,
+      //   subject: "Word Bank Shared With You",
+      //   body: `${ctx.session.user.name} has shared a word bank with you. ${message ? `Message: ${message}` : ''} Click here to view: ${shareLink}`,
+      // });
+
+      return { success: true, sharedWordBank };
+    }),
+
+  revokeWordBankShare: protectedProcedure
+    .input(z.object({ shareId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const { shareId } = input;
+      const userId = ctx.session.user.id;
+
+      // Verify user is the one who shared it
+      const sharedWordBank = await ctx.prisma.sharedWordBank.findUnique({
+        where: { id: shareId },
+      });
+
+      if (!sharedWordBank || sharedWordBank.sharedById !== userId) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have permission to revoke this share."
+        });
+      }
+
+      await ctx.prisma.sharedWordBank.delete({
+        where: { id: shareId },
+      });
+
+      return { success: true };
     }),
 });

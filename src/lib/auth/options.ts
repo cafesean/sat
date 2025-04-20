@@ -137,7 +137,7 @@ export const authOptions: NextAuthOptions = {
         token.languagePreference = user.languagePreference;
         // reviewCount assignment removed
       }
-      console.log("JWT Callback - token:", token, "user:", user); // Add logging
+      // console.log("JWT Callback - token:", token, "user:", user); // Add logging
       return token;
     },
     // async jwt({ token, user }) {
