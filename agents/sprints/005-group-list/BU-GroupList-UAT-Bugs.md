@@ -2,14 +2,14 @@
 
 Identified bugs during User Acceptance Testing of the Group List feature.
 
-- [ ] BU-0001: Prevent duplicate sharing of word banks: Sharing a word bank with another user twice results in a "This word bank is already shared with the specified group" error.
-- [ ] BU-0002: Prevent duplicate group invitations: Generating an invite link for a user already in the group results in a "User is already a member of this group" error. (Backend Verified)
+- [✅] BU-0001: Prevent duplicate sharing of word banks: Sharing a word bank with another user twice results in a "This word bank is already shared with the specified group" error.
+- [✅] BU-0002: Prevent duplicate group invitations: Generating an invite link for a user already in the group results in a "User is already a member of this group" error. (Backend Verified)
 **Bug Report Notes:**
 tRPC failed on group.inviteUserToGroup: This user already has a pending invitation to this group.
 POST /api/trpc/group.inviteUserToGroup
 
 The logic for this should be to just show a friendly message under the input box that an invite is pending with this user, and add an option to resend. We can add a future feature to list all pending invites below the input box, and to allow cancellation of the invite.
-- [ ] BU-0003: Prevent group creators from leaving their own group: Group creators can attempt to leave their own group, resulting in an error. The UI should prevent this action, but the backend should also enforce this rule. (Backend Verified)
+- [✅] BU-0003: Prevent group creators from leaving their own group: Group creators can attempt to leave their own group, resulting in an error. The UI should prevent this action, but the backend should also enforce this rule. (Backend Verified)
 **Bug Report Notes:**
 tRPC failed on group.leaveGroup: As the group creator, you cannot leave this group. You can either transfer ownership to another member or delete the group entirely if you no longer need it.
 
@@ -54,3 +54,14 @@ src/app/groups/invite/[inviteToken]/page.tsx (59:12)
 **Reference:**
 TS-GroupList-TechnicalSolution.md (for relevant code context)
 US-Group-List.md (for user story context)
+
+## Newly Reported Issues
+
+- [✅] BU-0007: TS-1001 - Sharing restrictions not enforced: Users without owner permissions can still add word banks to groups.
+- [ ] BU-0008: TS-1002 - Share link generation broken for non-owners: Users with group access cannot generate share links without errors.
+- [✅] BU-0009: TS-1004 - Editing group names broken: Group admins are unable to edit group names.
+- [ ] BU-0010: TS-1005 - Member role management broken: Group admins cannot manage member roles (promote/demote) or owner status protection is not working.
+- [ ] BU-0011: TS-1011 - Group invite link generation broken for members: Regular group members cannot generate group invite links.
+- [✅] BU-0012: TS-1010 - Member role management UI broken: The UI for group admins to manage member roles is not functioning correctly.
+- [ ] BU-0013: TS-1008 - Conditional sharing UI incorrect: The sharing UI does not correctly show/hide options based on ownership vs. shared access.
+- [ ] BU-0014: TS-1006 - Duplicate "Create Group" buttons still present: Duplicate "Create Group" buttons have not been removed from the UI.

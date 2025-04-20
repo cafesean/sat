@@ -83,23 +83,27 @@ export async function checkWordBankAccess(prisma: PrismaClient, userId: string, 
 		return { hasAccess: true, isOwner: true };
 	}
 
-	// Check group sharing
-	const sharedGroupBank = await prisma.sharedWordBank.findFirst({
-	  where: {
-	    wordBankId,
-	    sharedWithGroupId: { not: null },
-	    sharedWithGroup: {
-	      members: {
-	        some: { userId }
-	      }
-	    }
-	  },
-	  select: { id: true },
+	// Check both group sharing and direct sharing
+	const sharedBank = await prisma.sharedWordBank.findFirst({
+		where: {
+			wordBankId,
+			OR: [
+				{
+					sharedWithGroup: {
+						members: {
+							some: { userId }
+						}
+					}
+				},
+				{ sharedWithUserId: userId }
+			]
+		},
+		select: { id: true },
 	});
 
-	if (sharedGroupBank) {
-	  console.debug(`[AccessCheck] User ${userId} has group access to bank ${wordBankId}`);
-	  return { hasAccess: true, isOwner: false };
+	if (sharedBank) {
+		console.debug(`[AccessCheck] User ${userId} has shared access to bank ${wordBankId}`);
+		return { hasAccess: true, isOwner: false };
 	}
 
 	console.debug(`[AccessCheck] Access denied for user ${userId} to bank ${wordBankId}`);
@@ -108,6 +112,33 @@ export async function checkWordBankAccess(prisma: PrismaClient, userId: string, 
 
 export const vocabRouter = router({
 	// --- Word Bank CRUD ---
+	getShareLink: protectedProcedure
+		.input(z.object({ wordBankId: z.string().cuid() }))
+		.query(async ({ ctx, input }) => {
+			// Check if user is the owner of the word bank
+			const { hasAccess, isOwner } = await checkWordBankAccess(ctx.prisma, ctx.session.user.id, input.wordBankId);
+
+			if (!hasAccess) {
+				throw new TRPCError({
+					code: "FORBIDDEN",
+					message: "You don't have access to this word bank",
+				});
+			}
+
+			if (!isOwner) {
+				throw new TRPCError({
+					code: "FORBIDDEN",
+					message: "Only the owner can generate a share link for this word bank",
+				});
+			}
+
+			const sharedRecord = await ctx.prisma.sharedWordBank.findFirst({
+				where: { wordBankId: input.wordBankId },
+				select: { shareLink: true }
+			});
+			return sharedRecord?.shareLink ?? null;
+		}),
+
 	createWordBank: protectedProcedure.input(wordBankSchema).mutation(async ({ ctx, input }) => {
 		console.log("Validated input received by createWordBank:", input);
 		console.log("Session user:", ctx.session.user);
@@ -151,6 +182,18 @@ export const vocabRouter = router({
 							take: 1,
 							select: { createdAt: true },
 						},
+						sharedWordBanks: { // Include sharedWordBanks for owned banks as well
+							include: {
+								sharedWithGroup: {
+									include: {
+										members: {
+											where: { userId: ctx.session.user.id }, // Filter members to current user
+											select: { role: true, groupId: true }, // Select role and groupId
+										}
+									}
+								}
+							}
+						}
 					},
 					orderBy: { createdAt: "desc" },
 				}),
@@ -173,49 +216,94 @@ export const vocabRouter = router({
 							take: 1,
 							select: { createdAt: true },
 						},
+						sharedWordBanks: { // Include sharedWordBanks for shared banks
+							include: {
+								sharedWithGroup: {
+									include: {
+										members: {
+											where: { userId: ctx.session.user.id }, // Filter members to current user
+											select: { role: true, groupId: true }, // Select role and groupId
+										}
+									}
+								}
+							}
+						}
 					},
 				}),
 			]);
 
-			// Mark shared banks with isShared flag
-			const mappedSharedBanks = sharedBanks.map((bank) => ({
-				...bank,
-				isShared: true,
-			}));
+			// Combine and de-duplicate banks by ID
+			const seenIds = new Set<string>();
+			const wordBanks = [...ownedBanks, ...sharedBanks].filter(bank => {
+				if (seenIds.has(bank.id)) {
+					return false;
+				}
+				seenIds.add(bank.id);
+				return true;
+			});
 
-			const wordBanks = [...ownedBanks, ...mappedSharedBanks];
-			// Define the expected type based on the Prisma query
-			type BankWithRelations = Prisma.WordBankGetPayload<{
+			// Define the expected type based on the Prisma query result structure
+			type BankWithDetails = Prisma.WordBankGetPayload<{
 				include: {
-					words: { select: { interval: true } }; // Corrected type definition
+					words: { select: { interval: true } };
 					practiceSessions: { select: { createdAt: true } };
+					sharedWordBanks: {
+						include: {
+							sharedWithGroup: {
+								include: {
+									members: {
+										where: { userId: string }; // This where clause is in the query, not the result type
+										select: { role: true, groupId: true };
+									};
+								};
+							};
+						};
+					};
 				};
 			}>;
 
-			const wordBanksWithMastery = wordBanks.map((bank: BankWithRelations) => {
+			// Corrected type definition for the mapped result
+			type WordBankWithGroupInfo = Omit<BankWithDetails, 'words' | 'practiceSessions' | 'sharedWordBanks'> & {
+				wordCount: number;
+				masteryPercentage: number;
+				lastPracticedAt: Date | null;
+				sharedGroups: {
+					id: string;
+					name: string;
+					userRole: string | null; // Assuming role is a string or null
+				}[];
+				isShared: boolean;
+			};
+
+
+			const wordBanksWithDetails: WordBankWithGroupInfo[] = wordBanks.map((bank) => {
 				const totalWords = bank.words.length;
-				if (totalWords === 0) {
-					// eslint-disable-next-line @typescript-eslint/no-unused-vars
-					const { words, practiceSessions, ...bankWithoutRelations } = bank;
-					return {
-						...bankWithoutRelations,
-						wordCount: 0,
-						masteryPercentage: 0,
-						lastPracticedAt: practiceSessions[0]?.createdAt ?? null,
-					};
-				}
-				const masteredCount = bank.words.filter((word: { interval: number }) => word.interval > 30).length;
-				const masteryPercentage = Math.round((masteredCount / totalWords) * 100);
+				const masteredCount = bank.words.filter((word) => word.interval > 30).length;
+				const masteryPercentage = totalWords > 0 ? Math.round((masteredCount / totalWords) * 100) : 0;
+
+				// Extract group information and user's role
+				const sharedGroups = bank.sharedWordBanks
+					.map(swb => swb.sharedWithGroup)
+					.filter(group => group !== null) // Filter out null groups if any
+					.map(group => ({
+						id: group.id,
+						name: group.name,
+						userRole: group.members[0]?.role ?? null, // Get the role of the current user
+					}));
+
 				// eslint-disable-next-line @typescript-eslint/no-unused-vars
-				const { words, practiceSessions, ...bankWithoutRelations } = bank;
+				const { words, practiceSessions, sharedWordBanks, ...bankWithoutRelations } = bank;
+
 				return {
 					...bankWithoutRelations,
 					wordCount: totalWords,
 					masteryPercentage: masteryPercentage,
-					lastPracticedAt: practiceSessions[0]?.createdAt ?? null, // Get timestamp or null
+					lastPracticedAt: practiceSessions[0]?.createdAt ?? null,
+					sharedGroups: sharedGroups, // Include shared group information
+					isShared: sharedGroups.length > 0, // A bank is shared if it has any shared groups
 				};
 			});
-			return wordBanksWithMastery;
+			return wordBanksWithDetails;
 		} catch (error) {
 			console.error("Error listing word banks:", error);
 			throw new TRPCError({
@@ -311,7 +399,7 @@ export const vocabRouter = router({
 				});
 				return updatedWordBank;
 			} catch (error) {
-				if (error.code === "P2025") {
+				if (error instanceof Error && 'code' in error && error.code === "P2025") {
 					throw new TRPCError({
 						code: "NOT_FOUND",
 						message: "Word bank not found or you do not have permission to edit it.",
@@ -795,7 +883,10 @@ export const vocabRouter = router({
 			} catch (apiError) {
 				// Catch specific error type if possible
 				console.error("Error calling /api/grade-sentence:", apiError);
-				gradingResult = { isCorrect: false, feedback: `Could not get AI feedback: ${apiError.message}` }; // Include error message
+				gradingResult = {
+					isCorrect: false,
+					feedback: `Could not get AI feedback: ${apiError instanceof Error ? apiError.message : 'Unknown error'}`
+				};
 			}
 
 			// Calculate SM2 update based on easeChosen by passing the required object

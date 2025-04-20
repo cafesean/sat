@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"; // Added Button
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, type RouterOutputs } from "@/utils/trpc";
-import { AlertCircle, LogOut } from "lucide-react"; // Added LogOut
+import { AlertCircle, LogOut, Pencil } from "lucide-react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation"; // Added useRouter
@@ -38,6 +38,18 @@ const GroupDetailsPage = () => {
     },
   });
 
+  const removeMemberMutation = api.group.removeMember.useMutation({
+    onSuccess: () => {
+      toast.success("Member removed from group.");
+      utils.group.getGroupDetails.invalidate({ groupId }); // Invalidate to refetch members list
+    },
+    onError: (error) => {
+      toast.error(`Failed to remove member: ${error.message}`);
+    },
+  });
+
+  const utils = api.useUtils(); // Get utils for invalidation
+
   const handleLeaveGroup = () => {
     leaveGroupMutation.mutate({ groupId });
   };
@@ -60,10 +72,28 @@ const GroupDetailsPage = () => {
     <div className="container mx-auto px-4 py-8 space-y-8">
       {/* Group Header */}
       <Card>
-        <CardHeader>
-          <CardTitle>{group.name}</CardTitle>
-          <CardDescription>Created by {group.creator.name || 'Unknown User'}</CardDescription>
-          {/* TODO: Add Edit/Delete options for admin/creator */}
+        <CardHeader className="flex flex-row items-start justify-between">
+          <div>
+            <CardTitle>{group.name}</CardTitle>
+            <CardDescription>Created by {group.creator.name || 'Unknown User'}</CardDescription>
+          </div>
+          {group.members.find(m => m.userId === session?.user?.id)?.role === 'admin' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                const newName = prompt("Enter new group name:", group.name);
+                if (newName && newName !== group.name) {
+                  api.group.updateGroupName.useMutation().mutate({
+                    groupId: group.id,
+                    name: newName
+                  });
+                }
+              }}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
         </CardHeader>
       </Card>
 
@@ -82,8 +112,41 @@ const GroupDetailsPage = () => {
                   <p className="font-medium">{member.user.name || 'Unnamed User'}</p>
                   <p className="text-sm text-muted-foreground">{member.role}</p>
                 </div>
-                {/* TODO: Add Kick/Promote options for admin */}
-                {/* Example: <Button variant="ghost" size="sm">...</Button> */}
+                {group.members.find(m => m.userId === session?.user?.id)?.role === 'admin' &&
+                  member.userId !== group.creatorId && (
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          const newRole = member.role === 'admin' ? 'member' : 'admin';
+                          api.group.updateMemberRole.useMutation().mutate({
+                            groupId: group.id,
+                            targetUserId: member.userId,
+                            role: newRole
+                          });
+                        }}
+                      >
+                        {member.role === 'admin' ? 'Demote' : 'Promote'}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive"
+                        onClick={() => {
+                          if (confirm(`Remove ${member.user.name} from group?`)) {
+                            removeMemberMutation.mutate({ // Use the correct mutation
+                              groupId: group.id,
+                              targetUserId: member.userId, // Pass the target user ID
+                            });
+                          }
+                        }}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  )
+                }
               </li>
             ))}
           </ul>

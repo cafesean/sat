@@ -101,4 +101,97 @@ describe("Group Router", () => {
       ).resolves.toEqual({ success: true });
     });
   });
+
+  describe("updateGroupName", () => {
+    test("should allow admin to update group name", async () => {
+      const caller = createTestCaller(testUser1);
+      const newName = "Updated Group Name";
+
+      await expect(
+        caller.group.updateGroupName({
+          groupId: testGroup.id,
+          name: newName
+        })
+      ).resolves.toEqual({ success: true });
+
+      const updatedGroup = await prisma.group.findUnique({
+        where: { id: testGroup.id }
+      });
+      expect(updatedGroup?.name).toBe(newName);
+    });
+
+    test("should prevent non-admin from updating group name", async () => {
+      // Add testUser2 as regular member
+      await prisma.groupMember.create({
+        data: {
+          groupId: testGroup.id,
+          userId: testUser2.id,
+        },
+      });
+
+      const caller = createTestCaller(testUser2);
+      await expect(
+        caller.group.updateGroupName({
+          groupId: testGroup.id,
+          name: "Should Fail"
+        })
+      ).rejects.toThrowError("Only group admins can update the group name");
+    });
+  });
+
+  describe("updateMemberRole", () => {
+    beforeEach(async () => {
+      // Add testUser2 as member
+      await prisma.groupMember.create({
+        data: {
+          groupId: testGroup.id,
+          userId: testUser2.id,
+        },
+      });
+    });
+
+    test("should allow admin to promote member to admin", async () => {
+      const caller = createTestCaller(testUser1);
+
+      await expect(
+        caller.group.updateMemberRole({
+          groupId: testGroup.id,
+          targetUserId: testUser2.id,
+          role: "admin"
+        })
+      ).resolves.toEqual({ success: true });
+
+      const updatedMember = await prisma.groupMember.findUnique({
+        where: {
+          groupId_userId: {
+            groupId: testGroup.id,
+            userId: testUser2.id
+          }
+        }
+      });
+      expect(updatedMember?.role).toBe("admin");
+    });
+
+    test("should prevent non-admin from changing roles", async () => {
+      const caller = createTestCaller(testUser2);
+      await expect(
+        caller.group.updateMemberRole({
+          groupId: testGroup.id,
+          targetUserId: testUser1.id,
+          role: "member"
+        })
+      ).rejects.toThrowError("Only group admins can update member roles");
+    });
+
+    test("should prevent changing group creator's role", async () => {
+      const caller = createTestCaller(testUser1);
+      await expect(
+        caller.group.updateMemberRole({
+          groupId: testGroup.id,
+          targetUserId: testUser1.id,
+          role: "member"
+        })
+      ).rejects.toThrowError("Cannot change the role of the group creator");
+    });
+  });
 });

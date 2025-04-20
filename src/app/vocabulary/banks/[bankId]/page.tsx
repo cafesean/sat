@@ -1,4 +1,4 @@
-'use client'
+'use client';
 
 import { AddWordsModal } from '@/components/features/vocab/AddWordsModal'; // Import the modal
 import { ViewNotesDialog } from '@/components/features/vocab/ViewNotesDialog';
@@ -70,7 +70,7 @@ type WordSortKey = 'baseWord' | 'interval' | 'id'; // Corrected sort keys
 type SortDirection = 'asc' | 'desc';
 
 // Helper function to determine mastery level and badge variant
-const getMasteryInfo = (interval: number): { level: string; variant: 'destructive' | 'secondary' | 'outline' | 'default' } => {
+const getMasteryInfo = (interval: number): { level: string; variant: 'destructive' | 'secondary' | 'outline' | 'default'; } => {
   if (interval <= 2) {
     return { level: 'Beginner', variant: 'destructive' }; // Red
   } else if (interval <= 7) {
@@ -82,23 +82,23 @@ const getMasteryInfo = (interval: number): { level: string; variant: 'destructiv
   }
 };
 
-export default function WordBankDetailPage () {
-  const router = useRouter()
-  const params = useParams()
-  const { data: session, status } = useSession()
-  const bankId = params.bankId as string
+export default function WordBankDetailPage() {
+  const router = useRouter();
+  const params = useParams();
+  const { data: session, status } = useSession();
+  const bankId = params.bankId as string;
 
   // Fetch Word Bank Details
   const { data: wordBank, isLoading: isLoadingBank, error: bankError } = api.vocab.getById.useQuery(
     { id: bankId },
     { enabled: status === 'authenticated' && !!bankId }
-  )
+  );
 
   // Fetch Words in the Bank
   const { data: words, isLoading: isLoadingWords, error: wordsError } = api.vocab.listByBank.useQuery(
     { wordBankId: bankId },
     { enabled: status === 'authenticated' && !!bankId }
-  )
+  );
 
   // State for filtering/sorting words
   const [wordFilterText, setWordFilterText] = useState('');
@@ -211,7 +211,7 @@ export default function WordBankDetailPage () {
   const filteredAndSortedWords = useMemo(() => {
     if (!words) return [];
     // Ensure words have the isStarred property (handle potential type mismatch)
-    let processedWords = words.map((w: WordListItem) => ({ ...w, isStarred: w.isStarred ?? false })) as (WordListItem & { isStarred: boolean })[];
+    let processedWords = words.map((w: WordListItem) => ({ ...w, isStarred: w.isStarred ?? false })) as (WordListItem & { isStarred: boolean; })[];
 
 
     // Filter by Starred Status
@@ -269,7 +269,7 @@ export default function WordBankDetailPage () {
 
   const toggleWordSortDirection = () => {
     setWordSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-  }
+  };
 
   // Loading state
   if (status === 'loading' || (isLoadingBank && !wordBank) || (isLoadingWords && !words)) {
@@ -291,23 +291,23 @@ export default function WordBankDetailPage () {
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
   // Auth check
   if (status === 'unauthenticated') {
-    return <div className="container mx-auto p-4">Please sign in to view word banks.</div>
+    return <div className="container mx-auto p-4">Please sign in to view word banks.</div>;
   }
 
   // Error handling
   if (bankError) {
-    return <div className="container mx-auto p-4 text-red-500">Error loading word bank: {bankError.message}</div>
+    return <div className="container mx-auto p-4 text-red-500">Error loading word bank: {bankError.message}</div>;
   }
   if (wordsError) {
-    return <div className="container mx-auto p-4 text-red-500">Error loading words: {wordsError.message}</div>
+    return <div className="container mx-auto p-4 text-red-500">Error loading words: {wordsError.message}</div>;
   }
   if (!wordBank) {
-     return <div className="container mx-auto p-4 text-red-500">Word bank not found or access denied.</div>
+    return <div className="container mx-auto p-4 text-red-500">Word bank not found or access denied.</div>;
   }
 
   return (
@@ -329,16 +329,16 @@ export default function WordBankDetailPage () {
           <div className="flex items-center gap-2">
             <CardTitle className="flex items-center gap-2">
               {wordBank.name}
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              <Button
+                variant="ghost"
+                size="icon"
                 className="h-6 w-6"
                 onClick={() => router.push(`/vocabulary/edit/${bankId}`)}
                 title="Edit word bank"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                 </svg>
               </Button>
             </CardTitle>
@@ -373,40 +373,48 @@ export default function WordBankDetailPage () {
               {shareType && (
                 <div className="absolute right-0 mt-2 w-64 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-10">
                   <div className="py-1">
-                    <div className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200">
-                      Share with:
-                    </div>
-                    <Select value={shareTargetId} onValueChange={setShareTargetId}>
-                      <SelectTrigger className="w-full mx-2 mb-2">
-                        <SelectValue placeholder="Select a group" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {groups?.map(group => (
-                          <SelectItem key={group.id} value={group.id}>
-                            {group.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <div className="flex gap-2 px-2 mb-2">
-                      <Button
-                        size="sm"
-                        onClick={handleShare}
-                        disabled={!shareTargetId || shareMutation.isPending}
-                      >
-                        {shareMutation.isPending ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : null}
-                        Share
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setShareType(null)}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
+                    {wordBank && session && wordBank.userId === session.user.id && (
+                      <>
+                        <div className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200">
+                          Share with:
+                        </div>
+
+
+                        <Select value={shareTargetId} onValueChange={setShareTargetId}>
+                          <SelectTrigger className="w-full mx-2 mb-2">
+                            <SelectValue placeholder="Select a group" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {groups?.map(group => (
+                              <SelectItem key={group.id} value={group.id}>
+                                {group.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+
+                        <div className="flex gap-2 px-2 mb-2">
+                          <Button
+                            size="sm"
+                            onClick={handleShare}
+                            disabled={!shareTargetId || shareMutation.isPending}
+                          >
+                            {shareMutation.isPending ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : null}
+                            Share
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => setShareType(null)}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </>
+                    )}
                     <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-700">
                       <Button
                         variant="link"
@@ -464,22 +472,22 @@ export default function WordBankDetailPage () {
             </div>
             {/* View Mode Toggle Buttons */}
             <div className="flex items-center gap-1 rounded-md bg-muted p-1 ml-2">
-               <Button
-                 variant={viewMode === 'large-grid' ? 'secondary' : 'ghost'}
-                 size="sm" onClick={() => setViewMode('large-grid')} className="h-7 px-2" aria-label="Large grid view">
-                 <View className="h-4 w-4" /> {/* Using View for large grid */}
-               </Button>
-               <Button
-                 variant={viewMode === 'small-grid' ? 'secondary' : 'ghost'}
-                 size="sm" onClick={() => setViewMode('small-grid')} className="h-7 px-2" aria-label="Small grid view">
-                 <Grid className="h-4 w-4" />
-               </Button>
-               <Button
-                 variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-                 size="sm" onClick={() => setViewMode('list')} className="h-7 px-2" aria-label="List view">
-                 <List className="h-4 w-4" />
-               </Button>
-             </div>
+              <Button
+                variant={viewMode === 'large-grid' ? 'secondary' : 'ghost'}
+                size="sm" onClick={() => setViewMode('large-grid')} className="h-7 px-2" aria-label="Large grid view">
+                <View className="h-4 w-4" /> {/* Using View for large grid */}
+              </Button>
+              <Button
+                variant={viewMode === 'small-grid' ? 'secondary' : 'ghost'}
+                size="sm" onClick={() => setViewMode('small-grid')} className="h-7 px-2" aria-label="Small grid view">
+                <Grid className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                size="sm" onClick={() => setViewMode('list')} className="h-7 px-2" aria-label="List view">
+                <List className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           {/* Word List - Conditional Rendering based on viewMode */}
@@ -501,29 +509,29 @@ export default function WordBankDetailPage () {
 
               {/* Small Grid View */}
               {viewMode === 'small-grid' && (
-                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                   {filteredAndSortedWords.map((word) => (
-                     <WordCardSmallGrid
-                       key={word.id}
-                       word={word}
-                       bankId={bankId}
-                     />
-                   ))}
-                 </div>
-               )}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                  {filteredAndSortedWords.map((word) => (
+                    <WordCardSmallGrid
+                      key={word.id}
+                      word={word}
+                      bankId={bankId}
+                    />
+                  ))}
+                </div>
+              )}
 
               {/* List View */}
               {viewMode === 'list' && (
-                 <div className="space-y-1 border rounded-md">
-                   {filteredAndSortedWords.map((word) => (
-                     <WordListItemView
-                       key={word.id}
-                       word={word}
-                       bankId={bankId}
-                     />
-                   ))}
-                 </div>
-               )}
+                <div className="space-y-1 border rounded-md">
+                  {filteredAndSortedWords.map((word) => (
+                    <WordListItemView
+                      key={word.id}
+                      word={word}
+                      bankId={bankId}
+                    />
+                  ))}
+                </div>
+              )}
             </>
           ) : (
             <p className="text-muted-foreground text-center py-6">
@@ -564,6 +572,6 @@ export default function WordBankDetailPage () {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
-  )
+    </div >
+  );
 }

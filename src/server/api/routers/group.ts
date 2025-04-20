@@ -1,7 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, publicProcedure, router } from "../trpc";
-import { checkWordBankAccess } from "./vocab";
 
 export const groupRouter = router({
   createGroup: protectedProcedure
@@ -35,22 +34,25 @@ export const groupRouter = router({
       const { groupId, email, generateShareLink } = input;
       const userId = ctx.session.user.id;
 
-      // Verify the current user is an admin of the group
+      // Verify the current user is a member of the group
       const groupMember = await ctx.prisma.groupMember.findUnique({
         where: {
           groupId_userId: {
             groupId: groupId,
             userId: userId,
           },
-          role: "admin",
         },
       });
 
       if (!groupMember) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Only group admins can invite users." });
+        throw new TRPCError({ code: "FORBIDDEN", message: "You must be a group member to perform this action." });
       }
 
       if (email) {
+        // For email invites, require admin role
+        if (groupMember.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Only group admins can invite users by email." });
+        }
         const invitedUser = await ctx.prisma.user.findUnique({
           where: { email },
         });
@@ -111,6 +113,13 @@ export const groupRouter = router({
 
         return { success: true, inviteToken: invite.inviteToken };
       } else if (generateShareLink) {
+        // Log for debugging BU-0011
+        console.log(`Attempting to generate share link for group ${groupId} by user ${userId}`);
+        
+        // Require admin role for generating share links
+        if (groupMember.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Only group admins can generate share links." });
+        }
 
         const invite = await ctx.prisma.groupInvite.create({
           data: {
@@ -356,12 +365,85 @@ export const groupRouter = router({
       return { success: true };
     }),
 
-  updateGroup: protectedProcedure
+  updateGroupName: protectedProcedure
     .input(z.object({ groupId: z.string(), name: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const { groupId, name } = input;
       const userId = ctx.session.user.id;
 
+      // Verify caller is an admin of the group
+      const groupMember = await ctx.prisma.groupMember.findUnique({
+        where: {
+          groupId_userId: {
+            groupId,
+            userId,
+          },
+          role: "admin",
+        },
+      });
+
+      if (!groupMember) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only group admins can update the group name."
+        });
+      }
+
+      await ctx.prisma.group.update({
+        where: { id: groupId },
+        data: { name },
+      });
+
+      return { success: true };
+    }),
+
+  updateMemberRole: protectedProcedure
+    .input(z.object({
+      groupId: z.string(),
+      targetUserId: z.string(),
+      role: z.enum(['admin', 'member'])
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { groupId, targetUserId, role } = input;
+      const userId = ctx.session.user.id;
+
+      // Verify caller is an admin of the group
+      const callerMember = await ctx.prisma.groupMember.findUnique({
+        where: {
+          groupId_userId: {
+            groupId,
+            userId,
+          },
+          role: "admin",
+        },
+      });
+
+      if (!callerMember) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only group admins can update member roles."
+        });
+      }
+
+      // Verify target user is a member
+      const targetMember = await ctx.prisma.groupMember.findUnique({
+        where: {
+          groupId_userId: {
+            groupId,
+            userId: targetUserId,
+          },
+        },
+      });
+
+      // Explicitly check if target user is a member (Defensive check for BU-0010)
+      if (!targetMember) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Target user is not a member of this group."
+        });
+      }
+
+      // Get group to check creator
       const group = await ctx.prisma.group.findUnique({
         where: { id: groupId },
         select: { creatorId: true },
@@ -371,13 +453,98 @@ export const groupRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Group not found." });
       }
 
-      if (group.creatorId !== userId) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Only the group creator can update the group." });
+      // Verify target is not the creator
+      if (group.creatorId === targetUserId) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Cannot change the role of the group creator."
+        });
       }
 
-      await ctx.prisma.group.update({
+      // Update the role
+      await ctx.prisma.groupMember.update({
+        where: {
+          groupId_userId: {
+            groupId,
+            userId: targetUserId,
+          },
+        },
+        data: { role },
+      });
+
+      return { success: true };
+    }),
+
+  removeMember: protectedProcedure
+    .input(z.object({
+      groupId: z.string(),
+      targetUserId: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { groupId, targetUserId } = input;
+      const userId = ctx.session.user.id;
+
+      // Verify caller is an admin of the group
+      const callerMember = await ctx.prisma.groupMember.findUnique({
+        where: {
+          groupId_userId: {
+            groupId,
+            userId,
+          },
+          role: "admin",
+        },
+      });
+
+      if (!callerMember) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only group admins can remove members."
+        });
+      }
+
+      // Verify target user is a member
+      const targetMember = await ctx.prisma.groupMember.findUnique({
+        where: {
+          groupId_userId: {
+            groupId,
+            userId: targetUserId,
+          },
+        },
+      });
+
+      if (!targetMember) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Target user is not a member of this group."
+        });
+      }
+
+      // Get group to check creator
+      const group = await ctx.prisma.group.findUnique({
         where: { id: groupId },
-        data: { name: name },
+        select: { creatorId: true },
+      });
+
+      if (!group) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Group not found." });
+      }
+
+      // Verify target is not the creator
+      if (group.creatorId === targetUserId) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Cannot remove the group creator."
+        });
+      }
+
+      // Remove the member
+      await ctx.prisma.groupMember.delete({
+        where: {
+          groupId_userId: {
+            groupId,
+            userId: targetUserId,
+          },
+        },
       });
 
       return { success: true };
@@ -392,31 +559,32 @@ export const groupRouter = router({
       const { groupId, wordBankId } = input;
       const userId = ctx.session.user.id;
 
-      // Verify user is admin of the group
-      const groupMember = await ctx.prisma.groupMember.findUnique({
-        where: {
-          groupId_userId: {
-            groupId,
-            userId,
-          },
-          role: "admin",
-        },
+      // Verify user is the creator of the group (TS-1001)
+      const group = await ctx.prisma.group.findUnique({
+          where: { id: groupId },
+          select: { creatorId: true },
       });
 
-      if (!groupMember) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Only group admins can share word banks with the group."
-        });
+      if (!group) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Group not found." });
       }
 
-      // Verify user has access to the word bank (either owner or via group sharing)
-      const { hasAccess } = await checkWordBankAccess(ctx.prisma, userId, wordBankId);
-      
-      if (!hasAccess) {
+      if (group.creatorId !== userId) {
+          throw new TRPCError({
+              code: "FORBIDDEN",
+              message: "Only the group creator can share word banks with the group."
+          });
+      }
+
+      // Verify user is the direct owner of the word bank
+      const wordBank = await ctx.prisma.wordBank.findUnique({
+        where: { id: wordBankId },
+      });
+
+      if (!wordBank || wordBank.userId !== userId) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "You don't have permission to share this word bank."
+          message: "You can only share word banks you directly own."
         });
       }
 
@@ -614,15 +782,35 @@ export const groupRouter = router({
       const { wordBankId } = input;
       const userId = ctx.session.user.id;
 
-      // Verify user owns the word bank
+      // Verify user has access to the word bank (owner, direct share, or group share) (TS-1002)
       const wordBank = await ctx.prisma.wordBank.findUnique({
         where: { id: wordBankId },
       });
 
-      if (!wordBank || wordBank.userId !== userId) {
+      if (!wordBank) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Word bank not found." });
+      }
+
+      let hasAccess = wordBank.userId === userId; // Check direct ownership
+
+      if (!hasAccess) {
+        // Check direct share or group share
+        const shareAccess = await ctx.prisma.sharedWordBank.findFirst({
+          where: {
+            wordBankId: wordBankId,
+            OR: [
+              { sharedWithUserId: userId },
+              { sharedWithGroup: { members: { some: { userId: userId } } } }
+            ]
+          }
+        });
+        hasAccess = !!shareAccess;
+      }
+
+      if (!hasAccess) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "You don't have permission to share this word bank."
+          message: "You don't have permission to generate a share link for this word bank."
         });
       }
 

@@ -43,9 +43,7 @@ export function GroupList() {
         <div className="flex flex-col items-center justify-center p-8 text-center space-y-4">
           <Users className="h-12 w-12 text-gray-400" />
           <p className="text-gray-500">You haven't joined any groups yet.</p>
-          <Button asChild>
-            <Link href="/vocabulary/groups/create">Create your first group</Link>
-          </Button>
+          {/* Only show one create group button */}
         </div>
       ) : (
         <div className="space-y-2 px-2 sm:px-4 lg:px-6">

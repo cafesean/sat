@@ -1,56 +1,34 @@
-# Sprint Plan: 005-group-list - Groups Feature and Sharing
+# Sprint Plan: Group and Word Bank Sharing Enhancements
 
-## Sprint Goal
+## Overview
+This sprint focuses on refining the group and word bank sharing features based on recent user feedback. The goals are to improve permission handling, UI consistency, and group management capabilities.
 
-Implement the Groups feature to allow users to collaborate on vocabulary learning through group creation, membership management, and shared word banks, including the ability to share word banks with other users.
+---
 
-## User Stories / Tasks
+## Tasks
 
-### Sharing Word Banks
+### Backend Tasks
 
-*   **US: As a user, I want to be able to share my word banks with other users so that we can collaborate on vocabulary learning.**
-    *   Implement a "Share" button/option on the Word Bank details page.
-    *   Allow users to generate a shareable link or invite specific users via email.
-    *   Implement logic to handle shared word banks:
-        *   Allow recipients to view the shared word bank (read-only).
-        *   Allow recipients to copy the shared word bank to their own account.
+- [✅] TS-1001: Enforce sharing restrictions so only owners can add word banks to groups; users with access via groups can only generate share links.
+- [✅] TS-1002: Fix `wordBank.shareWordBank` procedure to allow users with access (not just owners) to generate share links without errors.
+- [✅] TS-1003: Ensure backend de-duplicates word banks in the main list to prevent duplicate entries for owners.
+- [✅] TS-1004: Implement backend support for editing group names by group admins.
+- [✅] TS-1005: Implement backend support for group admins to manage member roles, including promoting/demoting admins but protecting the group owner’s admin status.
+- [✅] TS-1011: Modify `group.inviteUserToGroup` to allow any group member (not just admins) to generate group invite links.
 
-### Groups Feature
+### Frontend Tasks
 
-*   **US: As a user, I want to be able to create groups and invite other users so that we can learn vocabulary together.**
-    *   Implement a "Groups" section in the app.
-    *   Allow users to create new groups.
-    *   Allow group creators to invite other users to the group (via email or shareable link).
-    *   Implement logic for group membership management (accept/reject invites).
-*   **US: As a group member, I want to contribute to a shared word bank owned by the group so that we can build a collective vocabulary resource.**
-    *   Implement the concept of a "Group Word Bank" that is owned by the group, not an individual user.
-    *   Any word cards added to a Group Word Bank are automatically accessible to all group members.
-    *   Ensure that group members can view, add, and practice with words in the Group Word Bank.
-*   **US: As an invited user, I want to be able to accept or reject a group invitation so that I can control which groups I join.**
-    *   Implement a clear process for users to accept or reject invitations received via email or in-app notification.
-    *   Update the user's group membership status accordingly.
-*   **US: As a group member, I want to be able to view the list of members in a group so that I know who I am collaborating with.**
-    *   Display a list of all members on the Group Details page.
-    *   Show basic information about each member (e.g., username).
-*   **US: As a group member, I want to be able to leave a group so that I can remove myself from collaborations that are no longer relevant.**
-    *   Implement a "Leave Group" option on the Group Details page.
-    *   Include a confirmation step to prevent accidental departures.
-    *   Remove the user's association with the group and the Group Word Bank upon leaving.
-*   **US: As a group administrator, I want to be able to delete a group so that I can disband collaborations when they are no longer needed.**
-    *   Implement a "Delete Group" option on the Group Details page, visible only to administrators.
-    *   Include a confirmation step with a warning about data loss (Group Word Bank).
-    *   Remove the group and its associated Group Word Bank from the system.
-*   **US: As a group administrator, I want to be able to manage group member roles so that I can control permissions within the group.**
-    *   Implement the concept of different roles (e.g., Admin, Member) with varying permissions.
-    *   Allow administrators to assign and change member roles on the Group Details page.
-*   **US: As a user, I want to receive notifications about group activities so that I can stay informed about collaborations I am part of.**
-    *   Implement in-app and/or email notifications for key group events (e.g., invitations, new members, words added to Group Word Bank, group deletion, role changes).
-    *   Allow users to manage their notification preferences for groups.
+- [✅] TS-1006: Remove duplicate "Create Group" buttons from the UI.
+- [✅] TS-1007: Display a shared icon on word banks that are part of a group.
+- [✅] TS-1008: Update sharing UI to conditionally show options based on ownership vs. shared access (e.g., only show "Generate Share Link" for non-owners, hide "Share with" dropdown and buttons for guest users).
+- [✅] TS-1009: Add UI for group admins to edit group names.
+- [✅] TS-1010: Add UI for group admins to manage member roles, with restrictions on changing the owner’s admin status.
 
-## Key User Experience Considerations
+---
 
-*   **Intuitive Sharing and Group Management:** Make it easy for users to share word banks and create/manage groups, with clear distinction between personal and group-owned word banks.
-*   **Seamless Integration:** Integrate the new features seamlessly into the existing app interface.
-*   **Clear Feedback:** Provide clear feedback to the user during sharing, and group management.
-*   **Performance:** Optimize the performance of the new features.
-*   **Mobile Responsiveness:** Ensure all new features are fully responsive and easy to use on mobile devices.
+## Notes
+
+- Backend tasks TS-1001, TS-1002, and TS-1003 have partial implementations but require refinement based on the latest feedback.
+- Frontend tasks will require collaboration with the frontend team to ensure UI/UX consistency.
+- Testing and validation should cover permission boundaries, UI correctness, and edge cases such as group ownership transfer.
+- Task TS-1011 changes the permission model for group invitations; further discussion may be needed to confirm this is the desired behavior.

@@ -1,15 +1,23 @@
 'use client'
 
 import { Button } from "@/components/ui/button";
-import { api, type RouterOutputs } from "@/utils/trpc";
-import { Pencil, Play, Settings, Users } from "lucide-react";
+import { Pencil, Settings, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { ShareWordBankDialog } from "./ShareWordBankDialog";
 
 // Type for the props, matching the data structure from listWordBanks
-type WordBankListItemProps = RouterOutputs['vocab']['listWordBanks'][number] & {
+type WordBankListItemProps = {
+  id: string;
+  name: string;
+  description?: string | null;
+  wordCount: number;
+  masteryPercentage: number;
+  lastPracticedAt?: Date | null;
   isShared?: boolean;
+  isAdmin?: boolean;
+  groupId?: string | null;
+  canShare?: boolean; // Add canShare prop
 };
 
 export function WordBankListItem({
@@ -18,30 +26,15 @@ export function WordBankListItem({
   description,
   wordCount,
   masteryPercentage,
-  // Add missing props to satisfy the type, even if unused
-  createdAt,
-  updatedAt,
-  userId,
   isShared = false,
+  groupId,
+  isAdmin = false, // Add isAdmin prop to function parameters
 }: WordBankListItemProps) {
   const router = useRouter();
 
   // Mutation hook for starting a practice session
-  const startSessionMutation = api.vocab.startVocabSession.useMutation({
-    onSuccess: (data) => {
-      toast.success('Practice session started!');
-      router.push(`/vocabulary/practice/${data.practiceSessionId}`);
-    },
-    onError: (error) => {
-      toast.error(`Failed to start session: ${error.message}`);
-    }
-  });
-
-  const handleStartPractice = (e: React.MouseEvent) => {
-    e.preventDefault(); // Prevent potential parent link navigation if wrapped
-    e.stopPropagation();
-    startSessionMutation.mutate({ wordBankId: id });
-  };
+  // Removed startVocabSession mutation usage due to missing backend procedure
+  // You may re-add this when the backend procedure is available
 
   return (
     <div className="flex items-center justify-between gap-4 p-4 border rounded-md hover:bg-muted/50">
@@ -67,17 +60,7 @@ export function WordBankListItem({
 
         {/* Action Buttons - Compact */}
         <div className="flex items-center gap-1"> {/* Wrap buttons for closer spacing */}
-          <Button
-            variant="secondary" // Colored practice button
-            size="icon" // Icon only for compactness
-            onClick={handleStartPractice}
-            disabled={startSessionMutation.isPending}
-            title="Learn this bank"
-          >
-            <Play className="h-4 w-4" />
-            <span className="sr-only">Learn</span>
-            {/* Removed loading text for icon button */}
-          </Button>
+          {/* Removed practice button due to missing mutation */}
           <Link href={`/vocabulary/banks/${id}`} passHref>
             <Button variant="outline" size="icon" title="Manage Words">
                <Settings className="h-4 w-4" />
@@ -90,6 +73,13 @@ export function WordBankListItem({
               <span className="sr-only">Edit Bank</span>
             </Button>
           </Link>
+          {/* Conditionally render ShareWordBankDialog based on isAdmin */}
+          {groupId && !isShared && isAdmin && (
+            <ShareWordBankDialog
+              groupId={groupId || null}
+              wordBanks={[{ id, name, description: description ?? null, wordCount }]}
+            />
+          )}
         </div>
       </div>
     </div>
