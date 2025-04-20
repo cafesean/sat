@@ -5,7 +5,7 @@ Implementation of spaced repetition system (SRS) practice enhancements including
 
 ## Technical Requirements
 1. **Repeat Session**
-   - New API endpoint to clone completed session
+   - Implement logic to clone completed session
    - UI button to trigger repeat
    - Preserve original session settings
 
@@ -21,29 +21,7 @@ Implementation of spaced repetition system (SRS) practice enhancements including
 
 4. **Word Starring**
    - Add `starred` boolean field to Word model
-   - API endpoints to toggle star status
-   - UI components for starring
-   - Filtering capability for starred words
-
-## Technical Requirements
-1. **Repeat Session**
-   - New API endpoint to clone completed session
-   - UI button to trigger repeat
-   - Preserve original session settings
-
-2. **Card Randomization**
-   - Randomize word order before session start
-   - Maintain randomization while respecting SRS priorities
-
-3. **Spaced Repetition Integration**
-   - Calculate word priority based on:
-     - Previous performance
-     - Time since last review
-     - Mastery level
-
-4. **Word Starring**
-   - Add `starred` boolean field to Word model
-   - API endpoints to toggle star status
+   - Implement logic to toggle star status
    - UI components for starring
    - Filtering capability for starred words
 
@@ -60,10 +38,10 @@ Implementation of spaced repetition system (SRS) practice enhancements including
   - UI component to display multiple sample sentences
 
 - **Backend**:
-  - Session cloning service
+  - Session cloning logic
   - Word randomization service
   - SRS priority calculation service
-  - Star toggle API endpoints
+  - Star toggle logic
   - Gemini API integration update for multiple sentences
 
 ## Data Model Changes
@@ -75,25 +53,18 @@ model Word {
 }
 ```
 
-## API Changes
-1. `POST /api/practice/sessions/:id/clone` - Clone existing session
-2. `PUT /api/words/:id/star` - Toggle star status
-3. `GET /api/words?starred=true` - Filter starred words
-4. Update relevant API endpoints (e.g., word details, practice session) to return multiple sample sentences
-
 ## Implementation Tasks
-- [ ] Add starred field to Word model
-- [ ] Add sampleSentences field to Word model
-- [ ] Implement session cloning endpoint
-- [ ] Create word randomization service
-- [ ] Implement SRS priority algorithm
-- [ ] Build Repeat Session UI component
-- [ ] Implement star toggle UI
-- [ ] Add starred words filter
-- [ ] Update Gemini API integration for multiple sentences
-- [ ] Update UI to display multiple sample sentences
-- [ ] Write unit tests for new services
-- [ ] Add integration tests for new endpoints
+- [ ] TS004-2: Add sampleSentences field to Word model
+- [ ] TS004-3: Implement session cloning logic
+- [ ] TS004-4: Create word randomization service
+- [ ] TS004-5: Implement SRS priority algorithm
+- [ ] TS004-6: Build Repeat Session UI component
+- [ ] TS004-7: Implement star toggle UI
+- [ ] TS004-8: Add starred words filter
+- [ ] TS004-9: Update Gemini API integration for multiple sentences
+- [ ] TS004-10: Update UI to display multiple sample sentences
+- [ ] TS004-11: Write unit tests for new services
+- [ ] TS004-12: Add integration tests for new features
 
 ## Testing Considerations
 1. Verify session cloning preserves all settings

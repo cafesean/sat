@@ -40,7 +40,6 @@ Implementation of collaborative group features including group creation, shared 
   - Shared Word Bank service
   - Notification service
   - Word Bank sharing service (generate link, handle email invites)
-  - API endpoints for shared word bank access and copying
 
 ## Data Model Changes
 ```prisma
@@ -89,34 +88,22 @@ model SharedWordBank {
 // }
 ```
 
-## API Changes
-1. `POST /api/groups` - Create new group
-2. `POST /api/groups/:id/invite` - Send group invitation
-3. `POST /api/groups/:id/join` - Accept invitation
-4. `GET /api/groups/:id/members` - List group members
-5. `PUT /api/groups/:id/members/:userId/role` - Update member role
-6. `DELETE /api/groups/:id/members/me` - Leave group
-7. `DELETE /api/groups/:id` - Delete group
-8. `POST /api/wordbanks/:id/share` - Generate shareable link/send email invite
-9. `GET /api/sharedwordbanks/:shareLink` - View shared word bank (read-only)
-10. `POST /api/sharedwordbanks/:shareLink/copy` - Copy shared word bank
-
 ## Implementation Tasks
-- [ ] Implement Group and GroupMember models
-- [ ] Implement SharedWordBank model (and potentially adjust WordBank model for group ownership)
-- [ ] Create group management endpoints
-- [ ] Build invitation system
-- [ ] Implement shared Word Bank functionality (distinguish between group-owned and individually shared)
-- [ ] Develop role-based permission system
-- [ ] Create notification service
-- [ ] Implement Word Bank sharing functionality (link generation, email)
-- [ ] Build group management UI
-- [ ] Implement member invitation flow
-- [ ] Add notification center UI
-- [ ] Build UI for sharing word banks
-- [ ] Build UI for viewing/copying shared word banks
-- [ ] Write unit tests for new services
-- [ ] Add integration tests for group and sharing features
+- [x] TS005-1: Implement Group and GroupMember models
+- [x] TS005-2: Implement SharedWordBank model (and potentially adjust WordBank model for group ownership)
+- [ ] TS005-3: Create group management logic
+- [x] TS005-4: Build invitation system
+- [ ] TS005-5: Implement shared Word Bank functionality (distinguish between group-owned and individually shared)
+- [x] TS005-6: Develop role-based permission system
+- [ ] TS005-7: Create notification service
+- [ ] TS005-8: Implement Word Bank sharing functionality (link generation, email)
+- [ ] TS005-9: Build group management UI
+- [ ] TS005-10: Implement member invitation flow
+- [ ] TS005-11: Add notification center UI
+- [ ] TS005-12: Build UI for sharing word banks
+- [ ] TS005-13: Build UI for viewing/copying shared word banks
+- [ ] TS005-14: Write unit tests for new services
+- [ ] TS005-15: Add integration tests for group and sharing features
 
 ## Testing Considerations
 1. Verify group creation and deletion flows

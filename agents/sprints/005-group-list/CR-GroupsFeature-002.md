@@ -27,5 +27,5 @@ This document contains the code review feedback for the backend implementation o
 ## Conclusion
 The backend foundation is solid, but the invitation mechanism needs clarification and schema support. Once addressed, the feature can be fully implemented and integrated.
 
----
+----
 This document should be used by the development team to guide the next steps in the Groups feature implementation.

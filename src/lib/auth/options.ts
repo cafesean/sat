@@ -126,7 +126,7 @@ export const authOptions: NextAuthOptions = {
           // reviewCount assignment removed
         }
       }
-      console.log("Session Callback - session:", session, "token:", token, "user:", user); // Add logging
+      // console.log("Session Callback - session:", session, "token:", token, "user:", user); // Add logging
       return session;
     },
     async jwt({ token, user }) {

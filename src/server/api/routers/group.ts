@@ -50,7 +50,6 @@ export const groupRouter = router({
       }
 
       if (email) {
-        // TODO: Implement email invitation logic
         const invitedUser = await ctx.prisma.user.findUnique({
           where: { email },
         });
@@ -69,19 +68,31 @@ export const groupRouter = router({
         });
 
         // Send email with invite link
-        await ctx.prisma.emailInvite.create({
-          data: {
-            email: invitedUser.email,
-            token: invite.inviteToken,
-            expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-            groupId: groupId,
+        // TODO: Replace with actual email sending logic
+        const inviteLink = `/groups/invite/${invite.inviteToken}`;
+        console.log(`Invite link: ${inviteLink}`);
+        // await emailService.sendInviteEmail({
+        //   to: invitedUser.email,
+        //   subject: "Group Invitation",
+        //   body: `You have been invited to join a group. Click here to accept: ${inviteLink}`,
+        // });
+
+        return { success: true, inviteToken: invite.inviteToken };
+      } else if (generateShareLink) {
+        // Check if the user is already a member
+        const existingMember = await ctx.prisma.groupMember.findUnique({
+          where: {
+            groupId_userId: {
+              groupId: groupId,
+              userId: ctx.session.user.id,
+            },
           },
         });
 
-        // TODO: Actually send email via email service
-        console.log(`Invite link: /groups/invite/${invite.inviteToken}`);
-        return { success: true, inviteToken: invite.inviteToken };
-      } else if (generateShareLink) {
+        if (existingMember) {
+          throw new TRPCError({ code: "CONFLICT", message: "User is already a member of this group." });
+        }
+
         const invite = await ctx.prisma.groupInvite.create({
           data: {
             groupId,
@@ -91,9 +102,9 @@ export const groupRouter = router({
         });
         return { success: true, inviteToken: invite.inviteToken };
       } else {
-        throw new TRPCError({ 
-          code: "BAD_REQUEST", 
-          message: "Invalid input. Provide either email or request to generate a share link." 
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Invalid input. Provide either email or request to generate a share link."
         });
       }
     }),
@@ -101,12 +112,19 @@ export const groupRouter = router({
   acceptGroupInvite: protectedProcedure
     .input(z.object({ inviteToken: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      const { inviteToken } = input;
+      const userId = ctx.session.user.id;
+
       const invitation = await ctx.prisma.groupInvite.findUnique({
-        where: { inviteToken: input.inviteToken },
+        where: { inviteToken },
       });
-      
+
       if (!invitation) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Invitation not found." });
+      }
+
+      if (invitation.invitedUserId && invitation.invitedUserId !== userId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "This invitation is not for you." });
       }
 
       // Check if the user is already a member
@@ -114,7 +132,7 @@ export const groupRouter = router({
         where: {
           groupId_userId: {
             groupId: invitation.groupId,
-            userId: ctx.session.user.id,
+            userId: userId,
           },
         },
       });
@@ -130,7 +148,7 @@ export const groupRouter = router({
       const newMember = await ctx.prisma.groupMember.create({
         data: {
           groupId: invitation.groupId,
-          userId: ctx.session.user.id,
+          userId: userId,
         },
       });
 
@@ -145,11 +163,14 @@ export const groupRouter = router({
   leaveGroup: protectedProcedure
     .input(z.object({ groupId: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      const { groupId } = input;
+      const userId = ctx.session.user.id;
+
       const groupMember = await ctx.prisma.groupMember.findUnique({
         where: {
           groupId_userId: {
-            groupId: input.groupId,
-            userId: ctx.session.user.id,
+            groupId: groupId,
+            userId: userId,
           },
         },
       });
@@ -159,22 +180,22 @@ export const groupRouter = router({
       }
 
       const group = await ctx.prisma.group.findUnique({
-        where: { id: input.groupId },
+        where: { id: groupId },
         select: { creatorId: true },
       });
 
-      if (group?.creatorId === ctx.session.user.id) {
-        throw new TRPCError({ 
-          code: "FORBIDDEN", 
-          message: "Group creators cannot leave their own group. Please delete the group instead." 
+      if (group?.creatorId === userId) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Group creators cannot leave their own group. Please delete the group instead.",
         });
       }
 
       await ctx.prisma.groupMember.delete({
         where: {
           groupId_userId: {
-            groupId: input.groupId,
-            userId: ctx.session.user.id,
+            groupId: groupId,
+            userId: userId,
           },
         },
       });
@@ -184,11 +205,14 @@ export const groupRouter = router({
   getGroupDetails: protectedProcedure
     .input(z.object({ groupId: z.string() }))
     .query(async ({ ctx, input }) => {
+      const { groupId } = input;
+      const userId = ctx.session.user.id;
+
       const groupMember = await ctx.prisma.groupMember.findUnique({
         where: {
           groupId_userId: {
-            groupId: input.groupId,
-            userId: ctx.session.user.id,
+            groupId: groupId,
+            userId: userId,
           },
         },
       });
@@ -198,18 +222,18 @@ export const groupRouter = router({
       }
 
       const group = await ctx.prisma.group.findUnique({
-        where: { id: input.groupId },
+        where: { id: groupId },
         include: {
           creator: { select: { id: true, name: true, image: true } },
-          members: { 
-            include: { 
-              user: { select: { id: true, name: true, image: true } } 
-            } 
+          members: {
+            include: {
+              user: { select: { id: true, name: true, image: true } }
+            }
           },
-          sharedWordBanks: { 
-            include: { 
-              wordBank: true 
-            } 
+          sharedWordBanks: {
+            include: {
+              wordBank: true
+            }
           },
         },
       });
@@ -224,11 +248,14 @@ export const groupRouter = router({
   getGroupMembers: protectedProcedure
     .input(z.object({ groupId: z.string() }))
     .query(async ({ ctx, input }) => {
+      const { groupId } = input;
+      const userId = ctx.session.user.id;
+
       const groupMember = await ctx.prisma.groupMember.findUnique({
         where: {
           groupId_userId: {
-            groupId: input.groupId,
-            userId: ctx.session.user.id,
+            groupId: groupId,
+            userId: userId,
           },
         },
       });
@@ -238,7 +265,7 @@ export const groupRouter = router({
       }
 
       const members = await ctx.prisma.groupMember.findMany({
-        where: { groupId: input.groupId },
+        where: { groupId: groupId },
         include: { user: { select: { id: true, name: true, image: true } } },
       });
       return members;
@@ -246,8 +273,9 @@ export const groupRouter = router({
 
   getUsersGroups: protectedProcedure
     .query(async ({ ctx }) => {
+      const userId = ctx.session.user.id;
       const memberships = await ctx.prisma.groupMember.findMany({
-        where: { userId: ctx.session.user.id },
+        where: { userId: userId },
         include: {
           group: {
             include: {

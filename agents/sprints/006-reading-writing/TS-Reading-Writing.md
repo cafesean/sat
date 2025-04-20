@@ -106,38 +106,21 @@ model QuestionChat {
 }
 ```
 
-## API Changes
-1. `POST /api/reading-writing/generate` - Generate new passage/questions (AI)
-2. `GET /api/reading-writing/passages/:id` - Get passage with questions
-3. `POST /api/reading-writing/sessions` - Start practice session (can take passageId or questionSetId)
-4. `POST /api/reading-writing/sessions/:id/answers` - Submit answers
-5. `POST /api/reading-writing/question-sets` - Create custom question set (including passages/questions)
-6. `GET /api/reading-writing/question-sets` - List user's question sets
-7. `GET /api/reading-writing/question-sets/:id` - Get details of a question set
-8. `PUT /api/reading-writing/question-sets/:id` - Update question set
-9. `DELETE /api/reading-writing/question-sets/:id` - Delete question set
-10. `POST /api/reading-writing/question-sets/:id/share` - Share question set (e.g., with user ID)
-11. `GET /api/reading-writing/shared-question-sets` - List sets shared with the user
-12. `POST /api/reading-writing/words/:word/lookup` - Word definition lookup
-13. `POST /api/reading-writing/words/:word/add-to-bank` - Add word to bank
-14. `GET /api/reading-writing/questions/:id/chat` - Get chat history for a question
-15. `POST /api/reading-writing/questions/:id/chat` - Post a message to the question chat (user or AI response)
-
 ## Implementation Tasks
-- [ ] Implement Passage, Question, Difficulty models
-- [ ] Implement QuestionSet and SharedQuestionSet models
-- [ ] Implement QuestionChat model
-- [ ] Create Gemini API integration service for passage/question generation and chat responses
-- [ ] Build passage/question generation logic
-- [ ] Develop practice session interface (handling both single passages and question sets)
-- [ ] Implement answer submission and feedback logic
-- [ ] Create question explanation display
-- [ ] Build word highlighting feature (UI and backend logic for lookup/add to bank)
-- [ ] Implement Question Set CRUD operations (API and UI)
-- [ ] Implement Question Set sharing functionality (API and UI)
-- [ ] Implement Chat feature (API and UI) for questions
-- [ ] Write unit tests for new services (generation, sharing, chat)
-- [ ] Add integration tests for reading/writing features (practice flow, set creation/sharing, chat)
+- [ ] TS006-1: Implement Passage, Question, Difficulty models
+- [ ] TS006-2: Implement QuestionSet and SharedQuestionSet models
+- [ ] TS006-3: Implement QuestionChat model
+- [ ] TS006-4: Create Gemini API integration service for passage/question generation and chat responses
+- [ ] TS006-5: Build passage/question generation logic
+- [ ] TS006-6: Develop practice session interface (handling both single passages and question sets)
+- [ ] TS006-7: Implement answer submission and feedback logic
+- [ ] TS006-8: Create question explanation display
+- [ ] TS006-9: Build word highlighting feature (UI and backend logic for lookup/add to bank)
+- [ ] TS006-10: Implement Question Set CRUD operations (logic and UI)
+- [ ] TS006-11: Implement Question Set sharing functionality (logic and UI)
+- [ ] TS006-12: Implement Chat feature (logic and UI) for questions
+- [ ] TS006-13: Write unit tests for new services
+- [ ] TS006-14: Add integration tests for reading/writing features (practice flow, set creation/sharing, chat)
 
 ## Testing Considerations
 1. Validate passage/question generation quality and relevance
