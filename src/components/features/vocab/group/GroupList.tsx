@@ -1,7 +1,9 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { api } from "@/utils/trpc";
-import { Loader2 } from "lucide-react";
+import { Loader2, Users } from "lucide-react";
+import Link from "next/link";
 import { GroupListItem } from "./GroupListItem";
 
 export function GroupList() {
@@ -25,19 +27,33 @@ export function GroupList() {
     );
   }
 
-  if (!groups || groups.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center p-8 text-center">
-        <p className="text-gray-500">You haven't joined any groups yet.</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-2">
-      {groups.map((group) => (
-        <GroupListItem key={group.id} group={group} />
-      ))}
+    <div className="pb-6">
+      <div className="flex items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <Users className="h-5 w-5" />
+          Your Groups
+        </h2>
+        <Button asChild size="sm">
+          <Link href="/vocabulary/groups/create">Create Group</Link>
+        </Button>
+      </div>
+
+      {!groups || groups.length === 0 ? (
+        <div className="flex flex-col items-center justify-center p-8 text-center space-y-4">
+          <Users className="h-12 w-12 text-gray-400" />
+          <p className="text-gray-500">You haven't joined any groups yet.</p>
+          <Button asChild>
+            <Link href="/vocabulary/groups/create">Create your first group</Link>
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-2 px-2 sm:px-4 lg:px-6">
+          {groups.map((group) => (
+            <GroupListItem key={group.id} group={group} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

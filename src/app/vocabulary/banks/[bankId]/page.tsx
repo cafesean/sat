@@ -14,12 +14,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-// Remove Collapsible imports, no longer used directly here
-// import {
-//   Collapsible,
-//   CollapsibleContent,
-//   CollapsibleTrigger,
-// } from "@/components/ui/collapsible";
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from '@/components/ui/skeleton';
@@ -112,18 +106,84 @@ export default function WordBankDetailPage () {
   const [wordSortKey, setWordSortKey] = useState<WordSortKey>('id'); // 'id' is now a valid key
   const [wordSortDirection, setWordSortDirection] = useState<SortDirection>('asc');
   const [showStarredOnly, setShowStarredOnly] = useState(false); // State for starred filter
-  // const [newWordsText, setNewWordsText] = useState(''); // Removed state for old add words UI
-  // Remove state related to inline editing, now handled in WordCard components
-  // const [editingWordId, setEditingWordId] = useState<string | null>(null);
-  // const [editingWordText, setEditingWordText] = useState<string>('');
   const [wordToDelete, setWordToDelete] = useState<WordListItem | null>(null); // State for delete confirmation
   const [viewMode, setViewMode] = useLocalStorage<'large-grid' | 'small-grid' | 'list'>('wordBankDetailViewMode', 'large-grid'); // Add view mode state
+  const [shareType, setShareType] = useState<"user" | "group" | null>(null); // State for share dropdown visibility
+
+  // State for sharing functionality
+  const [shareTargetId, setShareTargetId] = useState("");
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
 
   // tRPC utils for cache invalidation
   const utils = api.useUtils();
 
-  // Removed mutation for old add words UI
-  // Removed handler for old add words UI
+  // Fetch user's groups for sharing
+  const { data: groups } = api.group.getUsersGroups.useQuery(undefined, {
+    enabled: status === 'authenticated'
+  });
+
+  // Fetch who the word bank is shared with (optional, for displaying shared status)
+  // const { data: sharedWith } = api.wordBank.getWordBanksSharedWithUser.useQuery({ wordBankId }, {
+  //   enabled: status === 'authenticated' && !!wordBankId
+  // });
+
+  // Mutation for sharing the word bank
+  const shareMutation = api.wordBank.shareWordBank.useMutation({
+    onSuccess: () => {
+      toast.success("Word bank shared successfully");
+      setShareTargetId("");
+      // Invalidate queries to potentially update shared status display
+      // utils.wordBank.getWordBanksSharedWithUser.invalidate({ wordBankId });
+    },
+    onError: (error) => {
+      toast.error(`Failed to share word bank: ${error.message}`);
+    }
+  });
+
+  // Mutation for generating a share link
+  const generateShareLink = api.wordBank.shareWordBank.useMutation({
+    onSuccess: (data) => {
+      const shareLink = data.shareLink || data.sharedWordBank?.shareLink;
+      if (!shareLink) {
+        throw new Error("Failed to generate share link");
+      }
+      // Ensure window is defined before accessing location
+      if (typeof window !== 'undefined') {
+        navigator.clipboard.writeText(`${window.location.origin}/share/${shareLink}`);
+        toast.success("Share link copied to clipboard");
+      } else {
+        toast.error("Could not copy share link (window not available)");
+      }
+      setIsGeneratingLink(false);
+    },
+    onError: (error) => {
+      toast.error(`Failed to generate share link: ${error.message}`);
+      setIsGeneratingLink(false);
+    }
+  });
+
+  // Handler for sharing
+  const handleShare = () => {
+    if (!shareTargetId) {
+      toast.warning(`Please select a ${shareType} to share with`);
+      return;
+    }
+
+    shareMutation.mutate({
+      wordBankId: bankId,
+      [shareType === "group" ? "sharedWithGroupId" : "sharedWithUserId"]: shareTargetId
+    });
+  };
+
+  // Handler for generating share link
+  const handleGenerateLink = () => {
+    setIsGeneratingLink(true);
+    generateShareLink.mutate({
+      wordBankId: bankId,
+      generateShareLink: true
+    });
+  };
+
   // Mutation for deleting a word
   const deleteWordMutation = api.vocab.deleteWord.useMutation({
     onSuccess: (data) => {
@@ -140,13 +200,6 @@ export default function WordBankDetailPage () {
     }
   });
 
-  // Remove mutations and handlers related to inline editing, now handled in WordCard components
-  // const toggleStarMutation = ...
-  // const updateWordMutation = ...
-  // const handleEditClick = ...
-  // const handleCancelEdit = ...
-  // const handleSaveEdit = ...
-  // const handleEditKeyDown = ...
 
   // Handler for delete request from child components
   const handleDeleteRequest = (word: WordListItem) => {
@@ -313,6 +366,64 @@ export default function WordBankDetailPage () {
                 Practice
               </Button>
             )}
+            <div className="relative">
+              <Button variant="secondary" onClick={() => setShareType("group")}>
+                Share
+              </Button>
+              {shareType && (
+                <div className="absolute right-0 mt-2 w-64 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-10">
+                  <div className="py-1">
+                    <div className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200">
+                      Share with:
+                    </div>
+                    <Select value={shareTargetId} onValueChange={setShareTargetId}>
+                      <SelectTrigger className="w-full mx-2 mb-2">
+                        <SelectValue placeholder="Select a group" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {groups?.map(group => (
+                          <SelectItem key={group.id} value={group.id}>
+                            {group.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="flex gap-2 px-2 mb-2">
+                      <Button
+                        size="sm"
+                        onClick={handleShare}
+                        disabled={!shareTargetId || shareMutation.isPending}
+                      >
+                        {shareMutation.isPending ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : null}
+                        Share
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setShareType(null)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                    <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-700">
+                      <Button
+                        variant="link"
+                        size="sm"
+                        onClick={handleGenerateLink}
+                        disabled={isGeneratingLink}
+                      >
+                        {isGeneratingLink ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : null}
+                        Generate Share Link
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>

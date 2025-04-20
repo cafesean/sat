@@ -68,7 +68,18 @@ export const groupRouter = router({
           },
         });
 
-        // TODO: Send email with invite link
+        // Send email with invite link
+        await ctx.prisma.emailInvite.create({
+          data: {
+            email: invitedUser.email,
+            token: invite.inviteToken,
+            expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+            groupId: groupId,
+          },
+        });
+
+        // TODO: Actually send email via email service
+        console.log(`Invite link: /groups/invite/${invite.inviteToken}`);
         return { success: true, inviteToken: invite.inviteToken };
       } else if (generateShareLink) {
         const invite = await ctx.prisma.groupInvite.create({
@@ -240,7 +251,12 @@ export const groupRouter = router({
         include: {
           group: {
             include: {
-              members: true // Include members in the group object
+              creator: { select: { id: true, name: true, image: true } },
+              members: {
+                include: {
+                  user: { select: { id: true, name: true, image: true } }
+                }
+              }
             }
           }
         },

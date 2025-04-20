@@ -22,7 +22,7 @@ const getMasteryInfo = (interval: number): { level: string; variant: 'destructiv
 interface WordCardLargeGridProps {
   word: WordListItem;
   bankId: string;
-  onDeleteRequest: (word: WordListItem) => void;
+  onDeleteRequest?: (word: WordListItem) => void; // Made optional
 }
 
 export function WordCardLargeGrid({ word, bankId, onDeleteRequest }: WordCardLargeGridProps) {
@@ -152,7 +152,7 @@ export function WordCardLargeGrid({ word, bankId, onDeleteRequest }: WordCardLar
             <Button
               variant="ghost" size="icon"
               className="h-6 w-6 text-destructive/70 hover:text-destructive"
-              onClick={(e) => { e.stopPropagation(); onDeleteRequest(word); }}
+              onClick={(e) => { e.stopPropagation(); onDeleteRequest?.(word); }}
               title="Delete word"
             >
                <Trash2 className="h-3 w-3" />

@@ -5,6 +5,8 @@ import { Card } from "@/components/ui/card";
 import type { RouterOutputs } from "@/utils/trpc";
 import { api } from "@/utils/trpc";
 import { Loader2 } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { InviteUserModal } from "./InviteUserModal";
 
 type SharedWordBank = RouterOutputs["wordBank"]["getWordBanksSharedWithGroup"][number];
 
@@ -13,6 +15,7 @@ interface GroupDetailsProps {
 }
 
 export function GroupDetails({ groupId }: GroupDetailsProps) {
+  const { data: session } = useSession();
   const {
     data: group,
     isLoading: isLoadingGroup,
@@ -52,13 +55,24 @@ export function GroupDetails({ groupId }: GroupDetailsProps) {
     );
   }
 
+  const isAdmin = group.members.some(
+    (m) => m.userId === session?.user?.id && m.role === "ADMIN"
+  );
+
   return (
     <div className="space-y-6">
       <Card className="p-6">
         <h2 className="text-xl font-semibold mb-4">{group.name}</h2>
         
         <div className="mb-6">
-          <h3 className="font-medium mb-2">Members ({group.members.length})</h3>
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="font-medium">Members ({group.members.length})</h3>
+            {isAdmin && (
+              <InviteUserModal groupId={groupId}>
+                <Button size="sm">Invite Members</Button>
+              </InviteUserModal>
+            )}
+          </div>
           <div className="space-y-2">
             {group.members.map((member) => (
               <div key={member.userId} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded">

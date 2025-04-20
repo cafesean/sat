@@ -3,6 +3,30 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 
 export const wordBankRouter = router({
+  getWordBank: protectedProcedure
+    .input(z.object({ wordBankId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const wordBank = await ctx.prisma.wordBank.findUnique({
+        where: { id: input.wordBankId },
+        include: {
+          words: {
+            include: {
+              wordMaster: true
+            }
+          }
+        }
+      });
+
+      if (!wordBank) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Word bank not found" });
+      }
+
+      if (wordBank.userId !== ctx.session.user.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You don't have access to this word bank" });
+      }
+
+      return wordBank;
+    }),
   shareWordBank: protectedProcedure
     .input(z.object({
       wordBankId: z.string(),
@@ -98,15 +122,22 @@ export const wordBankRouter = router({
 
         return { success: true, sharedWordBank };
       } else if (generateShareLink) {
+        console.log(`Attempting to create shared word bank with share link for bankId: ${wordBankId}`);
         const sharedWordBank = await ctx.prisma.sharedWordBank.create({
           data: {
             wordBankId,
             sharedById: userId,
-            shareLink: crypto.randomUUID()
+            shareLink: crypto.randomUUID(),
+            // Store group invite info if sharing with a group
+            ...(sharedWithGroupId ? { sharedWithGroupId } : {})
           }
         });
 
-        return { success: true, shareLink: sharedWordBank.shareLink };
+        return {
+          success: true,
+          shareLink: sharedWordBank.shareLink,
+          isGroupInvite: !!sharedWithGroupId
+        };
       } else {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -138,7 +169,12 @@ export const wordBankRouter = router({
             include: {
               words: {
                 include: {
-                  wordMaster: true
+                  wordMaster: true,
+                  _count: {
+                    select: {
+                      practiceLogs: true
+                    }
+                  }
                 }
               }
             }
@@ -151,11 +187,20 @@ export const wordBankRouter = router({
       }
 
       // Check access permissions
-      if (sharedWordBank.sharedWithUserId && sharedWordBank.sharedWithUserId !== userId) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "You don't have access to this shared word bank." });
-      }
-
-      if (sharedWordBank.sharedWithGroupId) {
+      // Allow access if shareLink is used, regardless of authentication
+      // If sharedWithUserId or sharedWithGroupId is set, require authentication and membership/ownership
+      if (sharedWordBank.shareLink) {
+        // Access is allowed via share link for anyone
+      } else if (sharedWordBank.sharedWithUserId) {
+        // If shared with a specific user, require authentication and matching user ID
+        if (!userId || sharedWordBank.sharedWithUserId !== userId) {
+           throw new TRPCError({ code: "FORBIDDEN", message: "You don't have access to this shared word bank." });
+        }
+      } else if (sharedWordBank.sharedWithGroupId) {
+        // If shared with a group, require authentication and group membership
+        if (!userId) {
+           throw new TRPCError({ code: "UNAUTHORIZED", message: "You must be logged in to access this shared word bank." });
+        }
         const groupMember = await ctx.prisma.groupMember.findUnique({
           where: {
             groupId_userId: {
@@ -168,6 +213,9 @@ export const wordBankRouter = router({
         if (!groupMember) {
           throw new TRPCError({ code: "FORBIDDEN", message: "You don't have access to this shared word bank." });
         }
+      } else {
+         // Should not happen if sharedWordBank is found, but as a fallback
+         throw new TRPCError({ code: "FORBIDDEN", message: "Access to this shared word bank is restricted." });
       }
 
       return sharedWordBank;

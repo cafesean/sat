@@ -21,6 +21,14 @@ This document outlines the technical approach for implementing the features defi
     *   `joinedAt`: DateTime (@default(now()))
     *   `role`: String (e.g., 'admin', 'member')
     *   @@unique([groupId, userId])
+*   **GroupInvite Table:** (Handles group invitations via shareable links)
+    *   `id`: String (@id, @default(cuid()))
+    *   `groupId`: String (@relation to Group)
+    *   `createdById`: String (@relation to User)
+    *   `createdAt`: DateTime (@default(now()))
+    *   `expiresAt`: DateTime
+    *   `token`: String @unique
+    *   `used`: Boolean @default(false)
 *   **SharedWordBank Table:** (Linking WordBanks to Groups or direct shares)
     *   `id`: String (@id, @default(cuid()))
     *   `wordBankId`: String (@relation to WordBank)
@@ -42,6 +50,8 @@ This document outlines the technical approach for implementing the features defi
     *   `getGroupDetails`: Query to fetch group information and members.
     *   `getGroupMembers`: Query to fetch members of a specific group.
     *   `getUsersGroups`: Query to fetch all groups a user belongs to.
+    *   `generateGroupInviteLink`: Mutation to create a shareable invite link.
+    *   `validateGroupInviteToken`: Query to validate an invite token.
 *   **`wordBankRouter`:**
     *   ✅ `shareWordBank`: Mutation to create a SharedWordBank entry (direct or to a group).
     *   ✅ `getSharedWordBank`: Query to fetch a shared word bank (read-only view).
@@ -196,18 +206,28 @@ This technical solution will be broken down into smaller, actionable tasks for t
     *   [x] Run Prisma migrations.
 *   **API (tRPC):**
     *   [x] Develop `groupRouter` with procedures: `createGroup`, `inviteUserToGroup`, `acceptGroupInvite`, `leaveGroup`, `getGroupDetails`, `getGroupMembers`, `getUsersGroups`.
-    *   [ ] Add/Modify `wordBankRouter` procedures: `shareWordBank`, `getSharedWordBank`, `copySharedWordBank`, `getWordBanksSharedWithUser`, `getWordBanksSharedWithGroup`.
+    *   [x] Implement group invite UI in `InviteUserModal`
+    *   [x] Create group invite acceptance page (`/groups/invite/[inviteToken]`)
+    *   [ ] **Implement `wordBankRouter` procedures for sharing and fetching shared word banks (Crucial for end-to-end group sharing):**
+        *   [ ] `shareWordBank`: Mutation to create a SharedWordBank entry (direct or to a group).
+        *   [ ] `getSharedWordBank`: Query to fetch a shared word bank (read-only view).
+        *   [ ] `copySharedWordBank`: Mutation to copy a shared word bank to the user's account.
+        *   [ ] `getWordBanksSharedWithUser`: Query to fetch word banks shared directly with the user.
+        *   [ ] `getWordBanksSharedWithGroup`: Query to fetch word banks shared with a specific group the user is a member of.
     *   [ ] Implement API logic to add words to a group-owned word bank.
     *   [ ] Add/Modify `practiceRouter` procedures: `startPracticeSession` (including randomization and SRS integration), `submitPracticeAnswer` (including SRS update), `repeatPracticeSession`.
     *   [ ] Develop `readingWritingRouter` with procedures: `startReadingWritingSession` (including Gemini API call), `submitAnswerAttempt`, `getReadingWritingSession`, `generatePassageAndQuestions`, `createQuestionSet`, `shareQuestionSet`, `getSharedQuestionSet`, `copySharedQuestionSet`, `askQuestionAboutPassage`.
     *   [ ] Update Gemini API wrapper (`src/lib/api/gemini.ts`) to support multiple sample sentences and R&W content generation.
+    *   [ ] Implement email sending for group invites (TODO in inviteUserToGroup procedure)
 *   **Frontend Components & Integration:**
     *   [x] Build `GroupList` component.
     *   [x] Build `GroupDetails` component.
     *   [x] Build `CreateGroupModal` component.
     *   [x] Build `InviteUserModal` component.
     *   [x] Build `SharedWordBankView` component.
-    *   [ ] Modify `WordBankDetails` component to include sharing functionality.
+    *   [x] Integrate `GroupList` component into application navigation/page.
+    *   [x] Build dynamic group details page (`/vocabulary/groups/[groupId]`) using the `GroupDetails` component and `getGroupDetails` tRPC query.
+    *   [ ] **Modify `WordBankDetails` component to include sharing functionality (Needed for end-to-end sharing flow).**
     *   [ ] Modify `PracticeSession` component to integrate SRS, randomization, display star icon, and handle starring.
     *   [ ] Build `PracticeComplete` component with "Repeat Session" button.
     *   [ ] Modify `WordDetails` component to display multiple sample sentences.
@@ -222,6 +242,8 @@ This technical solution will be broken down into smaller, actionable tasks for t
     *   [ ] Build `WordHighlightModal` component.
     *   [ ] Implement filtering for starred words in `WordBankDetails`.
     *   [ ] Ensure mobile responsiveness for all new components and features.
+    *   [ ] Integrate `InviteUserModal` into `GroupDetails` component
+    *   [ ] Create group invite acceptance page (`/groups/invite/[inviteToken]`)
 *   **Testing:**
     *   [ ] Write unit tests for all new and modified API procedures.
     *   [ ] Write integration tests for API endpoints and database interactions.

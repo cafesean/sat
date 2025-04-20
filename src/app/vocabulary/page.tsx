@@ -1,6 +1,7 @@
 'use client'
 
 import { AddWordsModal } from "@/components/features/vocab/AddWordsModal"; // Import the new modal
+import { GroupList } from "@/components/features/vocab/group/GroupList";
 import { PracticeHistoryTabContent } from "@/components/features/vocab/PracticeHistoryTabContent";
 import { WordBankListItem as WordBankListItemComponent } from "@/components/features/vocab/WordBankListItem";
 import { Button } from "@/components/ui/button";
@@ -255,6 +256,27 @@ export default function VocabularyPage() {
             )}
           </>
         )}
+      </div>
+
+      {/* Groups Section */}
+      <div className="mt-12">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-semibold tracking-tight">Groups</h2>
+          <div className="flex gap-2">
+            <Button variant="outline" asChild>
+              <Link href="/vocabulary/groups">
+                View All
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link href="/vocabulary/groups/create">
+                <Plus className="mr-2 h-4 w-4" />
+                Create Group
+              </Link>
+            </Button>
+          </div>
+        </div>
+        <GroupList />
       </div>
 
       {/* Practice History Section */}
