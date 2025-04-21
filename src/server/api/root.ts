@@ -2,6 +2,7 @@ import { adminRouter } from "./routers/admin"; // Import admin router
 import { authRouter } from "./routers/auth"; // Import the new auth router
 import { groupRouter } from "./routers/group"; // Import the new group router
 import { notificationRouter } from "./routers/notification";
+import { practiceRouter } from "./routers/practice";
 import { readingWritingRouter } from "./routers/readingWriting";
 import { userRouter } from "./routers/user";
 import { vocabRouter } from "./routers/vocab";
@@ -18,6 +19,7 @@ export const appRouter = router({
   vocab: vocabRouter,
   admin: adminRouter, // Add admin router
   group: groupRouter, // Add the group router
+  practice: practiceRouter, // Add practice router
   readingWriting: readingWritingRouter,
   wordBank: wordBankRouter, // Add word bank router
   notification: notificationRouter, // Add notification router

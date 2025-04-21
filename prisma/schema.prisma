@@ -74,7 +74,7 @@ model WordMaster {
   language         String   @default("en")
   wordType         String?
   definition       String?
-  sampleSentences  Json
+  sampleSentences  String[]
   translations     Json
   isDictionaryWord Boolean  @default(false)
   createdAt        DateTime @default(now())
@@ -108,6 +108,7 @@ model Word {
   nextDueAtReviewCount Int               @default(0)
   timesSeen            Int               @default(0)
   successRate          Float             @default(0)
+  sampleSentences      String[]          @default([])
   wordBank             WordBank          @relation(fields: [wordBankId], references: [id], onDelete: Cascade)
   wordMaster           WordMaster        @relation(fields: [wordMasterId], references: [id], onDelete: Cascade)
   practiceLogs         WordPracticeLog[]
@@ -120,7 +121,7 @@ model WordPracticeLog {
   wordId            String
   practiceSessionId String
   timestamp         DateTime        @default(now())
-  userSentence      String
+  userSentences     String[]
   isCorrect         Boolean
   aiFeedback        String?
   easeChosen        Int

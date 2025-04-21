@@ -1,6 +1,6 @@
 'use client'
 
-import { LearnWords } from '@/components/features/vocab/LearnWords';
+import { LearnWordsWithSession } from '@/components/features/vocab/LearnWordsWithSession';
 import { Button } from '@/components/ui/button';
 import { api } from '@/utils/trpc';
 import { ArrowLeft, Loader2, Plus } from 'lucide-react';
@@ -53,7 +53,7 @@ export default function LearnWordsPage() {
       </Button>
       <h1 className="text-2xl font-bold">Learn Words: {wordBank.name}</h1>
       {words.length > 0 ? (
-        <LearnWords words={words} />
+        <LearnWordsWithSession words={words} wordBankId={bankId} />
       ) : (
         <Button onClick={() => router.push(`/vocabulary/edit/${bankId}`)}><Plus className="mr-2 h-4 w-4" />Add Words</Button>
       )}

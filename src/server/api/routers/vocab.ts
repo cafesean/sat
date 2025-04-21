@@ -570,6 +570,7 @@ export const vocabRouter = router({
 			z.object({
 				wordId: z.string().cuid(),
 				ease: z.number().min(1).max(4), // 1=Again, 2=Hard, 3=Good, 4=Easy
+				sessionId: z.string().cuid().optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -617,7 +618,13 @@ export const vocabRouter = router({
 		}),
 
 	// Rate word using review-count SRS
-	rateWordReviewCount: protectedProcedure.input(rateWordReviewCountSchema).mutation(async ({ ctx, input }) => {
+	rateWordReviewCount: protectedProcedure
+	  .input(
+	    rateWordReviewCountSchema.extend({
+	      sessionId: z.string().cuid().optional(),
+	    })
+	  )
+	  .mutation(async ({ ctx, input }) => {
 		// Verify word ownership
 		const word = await ctx.prisma.word.findUnique({
 			where: { id: input.wordId },

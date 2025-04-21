@@ -1,11 +1,13 @@
-// Simplified SM-2 algorithm implementation
+// Enhanced SM-2 algorithm implementation with priority scoring
 // easeChosen: 1=Again, 2=Hard, 3=Good, 4=Easy
 
-// Define the necessary properties from the Word model
 interface WordSrsData {
   repetitions: number;
-  easeFactor: number | null; // Schema allows null, handle it
+  easeFactor: number | null;
   interval: number;
+  isStarred: boolean;
+  sampleSentences: string[];
+  successRate: number;
 }
 
 interface SrsUpdate {
@@ -13,51 +15,60 @@ interface SrsUpdate {
   easeFactor: number;
   repetitions: number;
   nextReviewDate: Date;
+  priorityScore: number;
 }
 
-// Default ease factor
 const DEFAULT_EASE_FACTOR = 2.5;
-// Minimum ease factor
 const MIN_EASE_FACTOR = 1.3;
+const STAR_PRIORITY_BOOST = 1.5;
+const SENTENCE_USAGE_FACTOR = 0.1;
 
 export function calculateNextReview(wordSrsData: WordSrsData, easeChosen: number): SrsUpdate {
-  let { repetitions, easeFactor, interval } = wordSrsData;
+  let { repetitions, easeFactor, interval, isStarred, sampleSentences, successRate } = wordSrsData;
 
-  // Ensure easeFactor is initialized if null
+  // Initialize easeFactor if null
   easeFactor = easeFactor ?? DEFAULT_EASE_FACTOR;
 
-  if (easeChosen < 3) { // If response quality is low (Again/Hard)
-    repetitions = 0; // Reset repetitions count
-    interval = 1; // Reset interval to 1 day
-  } else { // If response quality is good (Good/Easy)
-    repetitions += 1; // Increment repetitions count
-
-    if (repetitions === 1) {
-      interval = 1; // First successful repetition
-    } else if (repetitions === 2) {
-      interval = 6; // Second successful repetition
-    } else {
-      // Subsequent repetitions: interval = previous interval * ease factor
-      interval = Math.ceil(interval * easeFactor);
-    }
+  // Calculate base interval using SM-2 algorithm
+  if (easeChosen < 3) { // Again/Hard
+    repetitions = 0;
+    interval = 1;
+  } else { // Good/Easy
+    repetitions += 1;
+    interval = repetitions === 1 ? 1 :
+               repetitions === 2 ? 6 :
+               Math.ceil(interval * easeFactor);
   }
 
-  // Update ease factor based on user feedback
-  // Formula: EF' = EF + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02))
-  // where q is the quality of response (1-4 mapped to 0-5 scale for formula, simplified here)
-  // Simplified adjustment:
-  easeFactor = easeFactor + (0.1 - (4 - easeChosen) * (0.08 + (4 - easeChosen) * 0.02));
+  // Adjust ease factor based on response
+  easeFactor = Math.max(
+    MIN_EASE_FACTOR,
+    easeFactor + (0.1 - (4 - easeChosen) * (0.08 + (4 - easeChosen) * 0.02))
+  );
 
-  // Clamp ease factor to minimum value
-  if (easeFactor < MIN_EASE_FACTOR) {
-    easeFactor = MIN_EASE_FACTOR;
+  // Calculate priority score
+  let priorityScore = 1.0;
+  
+  // Boost priority for starred words
+  if (isStarred) {
+    priorityScore *= STAR_PRIORITY_BOOST;
   }
+  
+  // Adjust based on sample sentence usage
+  priorityScore *= 1 + ((sampleSentences?.length ?? 0) * SENTENCE_USAGE_FACTOR);
+  
+  // Adjust based on recent success rate
+  priorityScore *= 0.5 + (successRate / 2);
 
-  // Calculate next review date
+  // Calculate next review date with priority adjustment
   const now = new Date();
   const nextReviewDate = new Date(now);
-  nextReviewDate.setDate(now.getDate() + interval);
-  // Set time to beginning of the day for consistency
+  const daysToAdd = Math.max(1, Math.floor(interval / priorityScore));
+  if (isNaN(daysToAdd) || !isFinite(daysToAdd)) {
+    nextReviewDate.setDate(now.getDate() + 1);
+  } else {
+    nextReviewDate.setDate(now.getDate() + daysToAdd);
+  }
   nextReviewDate.setHours(0, 0, 0, 0);
 
   return {
@@ -65,5 +76,18 @@ export function calculateNextReview(wordSrsData: WordSrsData, easeChosen: number
     easeFactor,
     repetitions,
     nextReviewDate,
+    priorityScore,
   };
+}
+
+/**
+ * Calculates the priority order for words in a practice session
+ * @param words Array of words with SRS data
+ * @returns Sorted array of words by priority
+ */
+export function prioritizeWords(words: WordSrsData[]): WordSrsData[] {
+  return words.map(word => {
+    const priorityScore = calculateNextReview(word, 3).priorityScore;
+    return { ...word, priorityScore };
+  }).sort((a, b) => b.priorityScore - a.priorityScore);
 }

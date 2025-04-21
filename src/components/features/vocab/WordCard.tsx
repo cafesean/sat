@@ -175,7 +175,9 @@ export function WordCard({ word, bankId, viewMode, onDeleteRequest, onStarToggle
               <div className="space-y-1.5 text-xs text-neutral-600">
                 {word.wordMaster.wordType && <p><strong>Type:</strong> {word.wordMaster.wordType}</p>}
                 {word.wordMaster.definition && <p><strong>Def:</strong> {word.wordMaster.definition}</p>}
-                {(word.wordMaster.sampleSentences as any)?.default && <p><strong>Ex:</strong> <em>{(word.wordMaster.sampleSentences as any).default}</em></p>}
+                {word.wordMaster.sampleSentences && Object.entries(word.wordMaster.sampleSentences as Record<string, string>).map(([key, sentence]) => (
+                  <p key={key}><strong>Ex {key}:</strong> <em>{sentence}</em></p>
+                ))}
                 {(word.wordMaster.translations as any)?.default && <p><strong>Trans:</strong> {(word.wordMaster.translations as any).default}</p>}
                 {!word.wordMaster.wordType && !word.wordMaster.definition && !(word.wordMaster.sampleSentences as any)?.default && !(word.wordMaster.translations as any)?.default && (
                   <p className="text-muted-foreground italic">No details available.</p>
@@ -256,7 +258,9 @@ export function WordCard({ word, bankId, viewMode, onDeleteRequest, onStarToggle
               <div className="space-y-1.5 text-xs text-neutral-600">
                 {word.wordMaster.wordType && <p><strong>Type:</strong> {word.wordMaster.wordType}</p>}
                 {word.wordMaster.definition && <p><strong>Def:</strong> {word.wordMaster.definition}</p>}
-                {(word.wordMaster.sampleSentences as any)?.default && <p><strong>Ex:</strong> <em>{(word.wordMaster.sampleSentences as any).default}</em></p>}
+                {word.wordMaster.sampleSentences && Object.entries(word.wordMaster.sampleSentences as Record<string, string>).map(([key, sentence]) => (
+                  <p key={key}><strong>Ex {key}:</strong> <em>{sentence}</em></p>
+                ))}
                 {(word.wordMaster.translations as any)?.default && <p><strong>Trans:</strong> {(word.wordMaster.translations as any).default}</p>}
               </div>
             ) : (

@@ -1,74 +1,51 @@
-# Technical Solution: SRS Practice Enhancements
+# TS-SRS-Practice: Technical Solution Proposal for Enhancing getPrioritizedWords API for Infinite SRS Practice Sessions
 
-## Overview
-Implementation of spaced repetition system (SRS) practice enhancements including session repeat, card randomization, and word starring features.
+## Objective
+Enhance the existing getPrioritizedWords API and related components to support infinite spaced repetition system (SRS) practice sessions with pagination and session state tracking. This will improve learning effectiveness and user experience by enabling continuous, prioritized word practice.
 
-## Technical Requirements
-1. **Repeat Session**
-   - Implement logic to clone completed session
-   - UI button to trigger repeat
-   - Preserve original session settings
+## Proposed Solution
 
-2. **Card Randomization**
-   - Randomize word order before session start
-   - Maintain randomization while respecting SRS priorities
+### 1. Session State Tracking
+- Extend the `PracticeSession` model in the Prisma schema to include a new field, e.g., `lastFetchedWordId` (String, optional) or `lastFetchedOffset` (Int, optional).
+- This field will store the ID or offset of the last word fetched in the current practice session.
+- Update this field after each batch of words is fetched to maintain session state.
 
-3. **Spaced Repetition Integration**
-   - Calculate word priority based on:
-     - Previous performance
-     - Time since last review
-     - Mastery level
+### 2. Pagination in getPrioritizedWords API
+- Modify the `getPrioritizedWords` API to accept an additional input parameter: `cursor` (string) or `offset` (number).
+- When provided, the API will fetch words starting after the cursor or offset, ordered by SRS priority (interval ascending, nextReviewDate ascending).
+- Use cursor-based pagination (preferred) or offset-based pagination depending on database capabilities and performance considerations.
+- If no cursor/offset is provided, fetch from the beginning as currently implemented.
 
-4. **Word Starring**
-   - Add `starred` boolean field to Word model
-   - Implement logic to toggle star status
-   - UI components for starring
-   - Filtering capability for starred words
+### 3. Frontend Integration
+- Update the frontend component `LearnWordsWithSession` to:
+  - Track the cursor or offset of the last fetched word.
+  - Pass this cursor/offset in subsequent calls to `getPrioritizedWords`.
+  - Append newly fetched words to the existing word list to enable infinite scrolling/practice.
+- Handle session start and end mutations to initialize and clear session state accordingly.
 
-5. **Improved Sample Sentences**
-   - Modify Gemini API call to request multiple sentences
-   - Update data model to store multiple sentences
-   - Update UI to display multiple sentences
+### 4. Consistent Batches and Reshuffling
+- Ensure the API returns consistent batches of words until all due words are exhausted.
+- When all due words are reviewed, reshuffle or restart the session as per SRS logic.
+- Reset the cursor/offset and update session state accordingly.
 
-## System Components
-- **Frontend**:
-  - New Repeat Session button component
-  - Star toggle UI component
-  - Starred words filter component
-  - UI component to display multiple sample sentences
+### 5. Unit Testing
+- Extend existing tests in `practice.test.ts` to cover:
+  - Pagination behavior with cursor/offset.
+  - Session state updates after fetching words.
+  - Edge cases such as end of word list and session restart.
+- Mock database queries to verify correct filtering and ordering with pagination.
 
-- **Backend**:
-  - Session cloning logic
-  - Word randomization service
-  - SRS priority calculation service
-  - Star toggle logic
-  - Gemini API integration update for multiple sentences
+## Benefits
+- Enables infinite, prioritized word practice sessions.
+- Improves user experience by seamless word loading.
+- Maintains accurate session state for better tracking and analytics.
 
-## Data Model Changes
-```prisma
-model Word {
-  // Existing fields
-  starred Boolean @default(false)
-  sampleSentences String[] // Assuming storing as an array of strings
-}
-```
+## Next Steps
+- Implement schema migration to add session state field.
+- Update API and frontend code as described.
+- Write and run unit tests.
+- Perform integration testing to validate end-to-end flow.
 
-## Implementation Tasks
-- [ ] TS004-2: Add sampleSentences field to Word model
-- [ ] TS004-3: Implement session cloning logic
-- [ ] TS004-4: Create word randomization service
-- [ ] TS004-5: Implement SRS priority algorithm
-- [ ] TS004-6: Build Repeat Session UI component
-- [ ] TS004-7: Implement star toggle UI
-- [ ] TS004-8: Add starred words filter
-- [ ] TS004-9: Update Gemini API integration for multiple sentences
-- [ ] TS004-10: Update UI to display multiple sample sentences
-- [ ] TS004-11: Write unit tests for new services
-- [ ] TS004-12: Add integration tests for new features
+---
 
-## Testing Considerations
-1. Verify session cloning preserves all settings
-2. Test randomization doesn't affect SRS priorities
-3. Validate star status persists across sessions
-4. Confirm starred words filter works correctly
-5. Verify multiple sample sentences are fetched and displayed correctly
+This proposal outlines the technical approach to enhance the SRS practice feature with pagination and session state tracking for infinite practice sessions.

@@ -46,11 +46,16 @@ function cleanJsonResponse(text: string): string {
 
 /**
  * Enriches a word with definition, sample sentences, translation, and word type using Gemini.
+ * @param word The word to enrich
+ * @param languagePreference Target translation language
+ * @param gradeLevel Optional grade level for content difficulty
+ * @param existingSentences Optional array of existing sample sentences to build upon
  */
 export async function enrichWord(
   word: string,
   languagePreference?: string,
-  gradeLevel?: number | null
+  gradeLevel?: number | null,
+  existingSentences: string[] = []
 ): Promise<{ definition: string; sampleSentences: string[]; translation: string; wordType: string } | null> {
   if (!env.GEMINI_API_KEY) return null;
 
@@ -58,8 +63,18 @@ export async function enrichWord(
     For the English word "${word}", provide the following in JSON format:
     1. "wordType": The primary part of speech (e.g., "noun", "verb", "adjective", "adverb").
     2. "definition": A concise definition suitable for ${gradeLevel ? `a grade ${gradeLevel} student` : 'an SAT student'}.
-    3. "sampleSentences": An array of 3-5 clear sample sentences using the word in different contexts${gradeLevel ? ` at a grade ${gradeLevel} reading level` : ''}.
+    3. "sampleSentences": An array of 5-7 clear sample sentences demonstrating:
+        - Different grammatical forms (if applicable)
+        - Various contexts (academic, casual, professional)
+        - Different sentence structures (simple, compound, complex)
+        ${existingSentences.length > 0 ? `Build upon these existing sentences:\n${existingSentences.map(s => `- ${s}`).join('\n')}` : ''}
     4. "translation": The ${languagePreference || 'Chinese'} translation of the word.
+
+    Requirements:
+    - Include at least one example showing the word in different tenses (if verb)
+    - Include examples showing both literal and figurative meanings (if applicable)
+    - Ensure sentences are natural and idiomatic
+    - Vary sentence length and complexity
 
     Example JSON format:
     {
