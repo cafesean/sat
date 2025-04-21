@@ -1,0 +1,164 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SAT Study App - Vocabulary</title>
+  <!-- Tailwind CDN with custom colors -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#4F46E5',      // Indigo
+            secondary: '#10B981',    // Emerald
+            accent: '#FBBF24',       // Yellow
+            neutral: {
+              100: '#F3F4F6',
+              200: '#E5E7EB',
+              600: '#4B5563',
+              900: '#111827',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-neutral-100 text-neutral-900 font-sans">
+  <header class="p-4 bg-white shadow">
+    <h1 class="text-xl font-semibold text-primary">SAT Study App</h1>
+  </header>
+  <main class="p-6 space-y-8">
+    <!-- Your Word Banks -->
+    <section>
+      <h2 class="text-2xl font-serif mb-4 text-neutral-900">Your Word Banks</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="bg-white p-4 rounded-lg shadow">
+          <h3 class="font-semibold text-neutral-900">20 Words</h3>
+          <p class="text-sm text-neutral-600">Last practiced: Apr 21, 2025</p>
+          <div class="mt-2 h-2 bg-neutral-200 rounded">
+            <div class="h-full bg-primary rounded" style="width: 20%;"></div>
+          </div>
+          <a href="word-bank.html" class="inline-block mt-4 px-3 py-2 bg-primary text-white rounded">Practice</a>
+        </div>
+        <a href="#" class="flex items-center justify-center bg-white p-6 rounded-lg shadow border-2 border-dashed text-neutral-400">
+          + Create Word Bank
+        </a>
+      </div>
+    </section>
+
+    <!-- Your Groups -->
+    <section>
+      <h2 class="text-2xl font-serif mb-4 text-neutral-900">Your Groups</h2>
+      <div class="space-y-2">
+        <div class="flex items-center justify-between bg-white p-4 rounded-lg shadow">
+          <span class="font-medium text-neutral-900">Jayden</span>
+          <button class="text-primary">View</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Practice History -->
+    <section>
+      <h2 class="text-2xl font-serif mb-4 text-neutral-900">Practice History</h2>
+      <ul class="space-y-2">
+        <li class="flex justify-between bg-white p-4 rounded-lg shadow">
+          <div>
+            <p class="font-medium text-neutral-900">20 Words</p>
+            <p class="text-sm text-neutral-600">Apr 21, 2025, 11:57 AM</p>
+          </div>
+          <a href="#" class="text-primary">Review</a>
+        </li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
+
+<!-- word-bank.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Word Bank: American Idioms</title>
+  <!-- Tailwind CDN with custom colors -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#4F46E5', secondary: '#10B981', accent: '#FBBF24', neutral: {100: '#F3F4F6', 200: '#E5E7EB', 600: '#4B5563', 900: '#111827'}
+          }
+        }
+      }
+    }
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-neutral-100 text-neutral-900 font-sans">
+  <header class="p-4 bg-white shadow flex items-center">
+    <a href="index.html" class="mr-4 text-primary">← Back</a>
+    <h1 class="text-xl font-semibold text-neutral-900">American Idioms</h1>
+  </header>
+  <main class="p-6 space-y-6">
+    <div class="flex space-x-2">
+      <button class="px-2 py-1 border border-neutral-300 text-neutral-900 rounded">Grid</button>
+      <button class="px-2 py-1 border border-neutral-300 text-neutral-900 rounded">List</button>
+      <button class="px-3 py-2 bg-secondary text-white rounded">Practice</button>
+      <button class="px-3 py-2 bg-accent text-white rounded">Share</button>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <!-- Word Card -->
+      <div class="bg-white p-4 rounded-lg shadow flex flex-col">
+        <h3 class="font-semibold text-neutral-900">I like the sound of that</h3>
+        <p class="text-sm text-neutral-600 mt-1">An expression of approval or interest in a suggestion.</p>
+        <button class="mt-auto text-sm text-primary">Notes</button>
+      </div>
+      <!-- Repeat additional cards... -->
+    </div>
+    <button class="px-4 py-2 bg-primary text-white rounded">Add Words</button>
+  </main>
+</body>
+</html>
+
+<!-- practice.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Practice Session</title>
+  <!-- Tailwind CDN with custom colors -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#4F46E5', secondary: '#10B981', accent: '#FBBF24', neutral: {100: '#F3F4F6', 200: '#E5E7EB', 600: '#4B5563', 900: '#111827'}
+          }
+        }
+      }
+    }
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-neutral-100 text-neutral-900 font-sans">
+  <header class="p-4 bg-white shadow">
+    <h1 class="text-xl font-semibold text-primary">Practice Session</h1>
+  </header>
+  <main class="p-6 max-w-lg mx-auto space-y-4">
+    <h2 class="text-2xl font-serif text-neutral-900">Write a sentence using the word above.</h2>
+    <textarea class="w-full p-2 border border-neutral-300 rounded" rows="4"></textarea>
+    <div class="flex items-center justify-between">
+      <button class="text-secondary">Hint</button>
+      <button class="px-4 py-2 bg-primary text-white rounded">Submit Answer</button>
+    </div>
+    <!-- Feedback placeholder -->
+    <p class="text-accent">Needs Improvement. Use 'apple' in a sentence.</p>
+  </main>
+</body>
+</html>

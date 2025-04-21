@@ -19,10 +19,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from '@/components/ui/skeleton';
 import useLocalStorage from '@/hooks/useLocalStorage'; // Import useLocalStorage
 import { api, type RouterOutputs } from '@/utils/trpc';
-// Import the new view components
-import { WordCardLargeGrid } from '@/components/features/vocab/WordCardLargeGrid';
-import { WordCardSmallGrid } from '@/components/features/vocab/WordCardSmallGrid';
-import { WordListItemView } from '@/components/features/vocab/WordListItemView';
+// Import the new unified WordCard component
+import { WordCard } from '@/components/features/vocab/WordCard';
+// Remove import for WordListItemView
 import { ArrowLeft, Grid, List, Loader2, NotebookText, Plus, SortAsc, SortDesc, Star, View } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
@@ -346,7 +345,7 @@ export default function WordBankDetailPage() {
           </div>
           <div className="flex gap-2"> {/* Wrap buttons */}
             <ViewNotesDialog bankId={bankId}>
-              <Button variant="secondary" className="relative">
+              <Button variant="outline" className="relative"> {/* Changed to outline */}
                 <NotebookText className="h-5 w-5 md:h-4 md:w-4 md:mr-2" />
                 <span className="hidden md:inline">View Notes</span>
                 {wordBank.noteCount > 0 && (
@@ -357,7 +356,7 @@ export default function WordBankDetailPage() {
               </Button>
             </ViewNotesDialog>
             {wordBank?._count?.words === 0 ? (
-              <Button variant="secondary" onClick={() => router.push(`/vocabulary/edit/${bankId}`)}>
+              <Button variant="outline" onClick={() => router.push(`/vocabulary/edit/${bankId}`)}> {/* Changed to outline */}
                 <Plus className="mr-2 h-4 w-4" />
                 Add Words
               </Button>
@@ -367,7 +366,7 @@ export default function WordBankDetailPage() {
               </Button>
             )}
             <div className="relative">
-              <Button variant="secondary" onClick={() => setShareType("group")}>
+              <Button variant="outline" onClick={() => setShareType("group")}> {/* Changed to outline */}
                 Share
               </Button>
               {shareType && (
@@ -406,7 +405,7 @@ export default function WordBankDetailPage() {
                             Share
                           </Button>
                           <Button
-                            variant="secondary"
+                            variant="outline" // Changed to outline
                             size="sm"
                             onClick={() => setShareType(null)}
                           >
@@ -461,7 +460,7 @@ export default function WordBankDetailPage() {
               </Button>
               {/* Starred Filter Toggle Button */}
               <Button
-                variant={showStarredOnly ? "secondary" : "ghost"}
+                variant={showStarredOnly ? "default" : "ghost"} // Changed to default
                 size="icon"
                 onClick={() => setShowStarredOnly(!showStarredOnly)}
                 className="h-9 w-9"
@@ -473,17 +472,17 @@ export default function WordBankDetailPage() {
             {/* View Mode Toggle Buttons */}
             <div className="flex items-center gap-1 rounded-md bg-muted p-1 ml-2">
               <Button
-                variant={viewMode === 'large-grid' ? 'secondary' : 'ghost'}
+                variant={viewMode === 'large-grid' ? 'default' : 'ghost'} // Changed to default
                 size="sm" onClick={() => setViewMode('large-grid')} className="h-7 px-2" aria-label="Large grid view">
                 <View className="h-4 w-4" /> {/* Using View for large grid */}
               </Button>
               <Button
-                variant={viewMode === 'small-grid' ? 'secondary' : 'ghost'}
+                variant={viewMode === 'small-grid' ? 'default' : 'ghost'} // Changed to default
                 size="sm" onClick={() => setViewMode('small-grid')} className="h-7 px-2" aria-label="Small grid view">
                 <Grid className="h-4 w-4" />
               </Button>
               <Button
-                variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                variant={viewMode === 'list' ? 'default' : 'ghost'} // Changed to default
                 size="sm" onClick={() => setViewMode('list')} className="h-7 px-2" aria-label="List view">
                 <List className="h-4 w-4" />
               </Button>
@@ -497,11 +496,12 @@ export default function WordBankDetailPage() {
               {viewMode === 'large-grid' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {filteredAndSortedWords.map((word) => (
-                    <WordCardLargeGrid
+                    <WordCard
                       key={word.id}
                       word={word}
                       bankId={bankId}
-                      onDeleteRequest={handleDeleteRequest} // Pass delete handler
+                      viewMode='large-grid'
+                      onDeleteRequest={handleDeleteRequest}
                     />
                   ))}
                 </div>
@@ -509,38 +509,37 @@ export default function WordBankDetailPage() {
 
               {/* Small Grid View */}
               {viewMode === 'small-grid' && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                   {filteredAndSortedWords.map((word) => (
-                    <WordCardSmallGrid
+                    <WordCard
                       key={word.id}
                       word={word}
                       bankId={bankId}
+                      viewMode='small-grid'
+                      onStarToggle={() => utils.vocab.listByBank.invalidate({ wordBankId: bankId })} // Pass refetch/invalidate
                     />
                   ))}
                 </div>
               )}
 
-              {/* List View */}
+              {/* List View (using WordListItemView, likely uses Collapsible internally) */}
               {viewMode === 'list' && (
-                <div className="space-y-1 border rounded-md">
+                <div className="space-y-3">
                   {filteredAndSortedWords.map((word) => (
-                    <WordListItemView
+                    <WordCard
                       key={word.id}
                       word={word}
                       bankId={bankId}
+                      viewMode='collapsible' // Use the new WordCard for collapsible view
+                      onDeleteRequest={handleDeleteRequest}
                     />
                   ))}
                 </div>
               )}
             </>
           ) : (
-            <p className="text-muted-foreground text-center py-6">
-              {wordFilterText ? 'No words match your filter.' : 'No words added to this bank yet.'}
-            </p>
+            <p className="text-center text-muted-foreground">No words found matching your criteria.</p>
           )}
-          {/* End Conditional Rendering */}
-
-          {/* Old Add New Words Section Removed */}
         </CardContent>
       </Card>
 
@@ -548,11 +547,9 @@ export default function WordBankDetailPage() {
       <AlertDialog open={!!wordToDelete} onOpenChange={(open) => !open && setWordToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the word
-              {/* Display baseWord, fallback to text */}
-              <span className="font-semibold"> "{wordToDelete?.wordMaster?.baseWord || wordToDelete?.text}"</span> and its practice history.
+              Are you sure you want to delete the word "{wordToDelete?.wordMaster?.baseWord || wordToDelete?.text}"? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -572,6 +569,6 @@ export default function WordBankDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div >
+    </div>
   );
 }

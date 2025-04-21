@@ -84,7 +84,9 @@ const Navbar = () => {
         ) : session ? (
           <>
             {/* Quick Practice Button */}
-            <QuickPracticeButton />
+            <div className="hidden md:block">
+              <QuickPracticeButton />
+            </div>
             {/* User Dropdown Menu */}
             <UserNav session={session} />
           </>
@@ -116,7 +118,7 @@ function QuickPracticeButton() {
 
   return (
     <Button
-      variant='secondary' // Or another appropriate variant
+      variant='default' // Using default variant for Quick Practice button
       size='sm'
       onClick={() => quickStartMutation.mutate()}
       disabled={quickStartMutation.isPending}

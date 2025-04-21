@@ -1,3 +1,4 @@
+import MobileBottomNav from '@/components/MobileBottomNav';
 import Navbar from '@/components/navbar';
 import ClientProviders from '@/providers/ClientProviders'; // Import the new component
 import '@/styles/globals.css';
@@ -25,6 +26,7 @@ export default function RootLayout({
         <ClientProviders>
           <Navbar />
           {children}
+          <MobileBottomNav />
         </ClientProviders>
       </body>
     </html>

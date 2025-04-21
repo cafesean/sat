@@ -1,6 +1,6 @@
 'use client'
 
-import { WordCardLargeGrid } from '@/components/features/vocab/WordCardLargeGrid';
+import { WordCard } from '@/components/features/vocab/WordCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api, type RouterOutputs } from '@/utils/trpc';
@@ -113,10 +113,11 @@ export default function SharedWordBankPage() {
                   }
                 };
                 return (
-                  <WordCardLargeGrid
+                  <WordCard
                     key={word.id}
                     word={wordListItem}
                     bankId={wordBank.id}
+                    viewMode='large-grid'
                   />
                 );
               })}
