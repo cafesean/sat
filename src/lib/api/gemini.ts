@@ -1,6 +1,24 @@
 import { env } from "@/env.mjs";
 import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from '@google/generative-ai';
 
+// Type declarations for Gemini API responses
+interface EnrichWordResponse {
+  wordType: string;
+  definition: string;
+  sampleSentences: string[];
+  translation: string;
+}
+
+interface GradeSentenceResponse {
+  isCorrect: boolean;
+  feedback: string;
+}
+
+interface ReadingWritingContent {
+  passage: string;
+  questions: string[];
+}
+
 // Configuration for content generation
 const generationConfig = {
   temperature: 0.7,

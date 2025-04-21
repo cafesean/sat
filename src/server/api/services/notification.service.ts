@@ -12,7 +12,6 @@ export const createNotification = async (
       userId,
       type,
       message,
-      metadata: metadata || null,
     },
   });
 };

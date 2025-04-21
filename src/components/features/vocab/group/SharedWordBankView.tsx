@@ -2,9 +2,11 @@
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
 import type { RouterOutputs } from "@/utils/trpc";
 import { api } from "@/utils/trpc";
 import { Loader2 } from "lucide-react";
+import { useState } from "react";
 
 type SharedWordBank = RouterOutputs["wordBank"]["getSharedWordBank"];
 
@@ -46,8 +48,6 @@ export function SharedWordBankView({ sharedWordBankId, onBack }: SharedWordBankV
     );
   }
 
-import { useState } from "react";
-import { useToast } from "@/hooks/use-toast";
 
   return (
     <Card className="p-6">
@@ -97,7 +97,7 @@ function CopyButton({ sharedWordBankId, originalName }: { sharedWordBankId: stri
       toast({
         title: "Word bank copied",
         description: `Copied "${originalName}" to your collection.`,
-        variant: "success",
+        variant: "default",
       });
     },
     onError: (error) => {
@@ -123,5 +123,4 @@ function CopyButton({ sharedWordBankId, originalName }: { sharedWordBankId: stri
       {isCopying ? "Copying..." : "Copy Word Bank"}
     </Button>
   );
-}
 }

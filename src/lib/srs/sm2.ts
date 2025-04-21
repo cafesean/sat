@@ -22,6 +22,8 @@ const DEFAULT_EASE_FACTOR = 2.5;
 const MIN_EASE_FACTOR = 1.3;
 const STAR_PRIORITY_BOOST = 1.5;
 const SENTENCE_USAGE_FACTOR = 0.1;
+// Reduce max interval to prevent date overflow errors - ~15 years is still plenty
+const MAX_INTERVAL_DAYS = 5475; // Cap at ~15 years instead of ~10 years or larger
 
 export function calculateNextReview(wordSrsData: WordSrsData, easeChosen: number): SrsUpdate {
   let { repetitions, easeFactor, interval, isStarred, sampleSentences, successRate } = wordSrsData;
@@ -39,6 +41,9 @@ export function calculateNextReview(wordSrsData: WordSrsData, easeChosen: number
                repetitions === 2 ? 6 :
                Math.ceil(interval * easeFactor);
   }
+
+  // Cap the interval to prevent date overflow errors - strictly enforce the max
+  interval = Math.min(interval, MAX_INTERVAL_DAYS);
 
   // Adjust ease factor based on response
   easeFactor = Math.max(
@@ -63,12 +68,20 @@ export function calculateNextReview(wordSrsData: WordSrsData, easeChosen: number
   // Calculate next review date with priority adjustment
   const now = new Date();
   const nextReviewDate = new Date(now);
-  const daysToAdd = Math.max(1, Math.floor(interval / priorityScore));
-  if (isNaN(daysToAdd) || !isFinite(daysToAdd)) {
-    nextReviewDate.setDate(now.getDate() + 1);
-  } else {
-    nextReviewDate.setDate(now.getDate() + daysToAdd);
+  let daysToAdd = Math.max(1, Math.floor(interval / priorityScore));
+  
+  // Extra safeguards against invalid dates - strictly enforce max
+  daysToAdd = Math.min(MAX_INTERVAL_DAYS, daysToAdd || 1);
+  
+  // Safely set the date
+  nextReviewDate.setDate(now.getDate() + daysToAdd);
+  
+  // Ensure the date is valid - failsafe
+  if (isNaN(nextReviewDate.getTime())) {
+    // If still invalid, just add 1 day as absolute fallback
+    nextReviewDate.setTime(now.getTime() + (24 * 60 * 60 * 1000));
   }
+  
   nextReviewDate.setHours(0, 0, 0, 0);
 
   return {

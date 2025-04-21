@@ -11,7 +11,7 @@ import GoogleProvider from 'next-auth/providers/google';
 export const authOptions: NextAuthOptions = {
   // Configure one or more authentication providers
   // Ensure prisma instance is passed correctly. The 'as any' might hide underlying type issues.
-  adapter: PrismaAdapter(prisma!), // Use non-null assertion if confident prisma is defined
+  adapter: PrismaAdapter(prisma!) as any, // Use type assertion to bypass type mismatch
   providers: [
     // Credentials Provider for Email/Password
     CredentialsProvider({

@@ -140,6 +140,7 @@ model PracticeSession {
   difficulty     Int?
   createdAt      DateTime          @default(now())
   wordBankId     String?
+  lastFetchedWordId String?         // Added for infinite SRS practice sessions
   answerAttempts AnswerAttempt[]
   passage        Passage?
   user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
