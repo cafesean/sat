@@ -60,6 +60,19 @@ export function UserDashboard() {
         </Card>
       </div>
       {/* Add other dashboard sections here */}
+      <div className="mt-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Reading & Writing Module</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p>Start practicing SAT-style reading and writing passages.</p>
+            <a href="/reading-writing-landing" className="text-blue-600 hover:underline">
+              Go to Reading & Writing
+            </a>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -31,7 +31,8 @@ const Navbar = () => {
   const { theme, setTheme } = useTheme(); // Get theme state and setter
 
   const navLinks = [
-    { href: '/vocabulary', label: 'Vocabulary' }
+    { href: '/vocabulary', label: 'Vocabulary' },
+    { href: '/reading-writing-landing', label: 'Reading & Writing' }
   ];
 
   return (

@@ -31,6 +31,10 @@ model User {
   invitesSent        GroupInvite[]    @relation("InvitedBy")
   invitesReceived    GroupInvite[]    @relation("InvitedUser")
   notifications      Notification[]
+  questionSets       QuestionSet[]  @relation("CreatedQuestionSets")
+  sharedQuestionSets SharedQuestionSet[] @relation("SharedQuestionSetsBy")
+  receivedSharedQuestionSets SharedQuestionSet[] @relation("SharedQuestionSetsWith")
+  questionChats      QuestionChat[]
 }
 
 model Account {
@@ -147,19 +151,77 @@ model PracticeSession {
   vocabLogs      WordPracticeLog[]
 }
 
+model Difficulty {
+  id          String      @id @default(cuid())
+  name        String
+  description String?
+  level       Int         @unique
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  passages    Passage[]
+  questionSets QuestionSet[]
+}
+
+model QuestionSet {
+  id          String      @id @default(cuid())
+  title       String
+  description String?
+  difficultyId String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  isPublic    Boolean     @default(false)
+  creatorId   String
+  difficulty  Difficulty  @relation(fields: [difficultyId], references: [id])
+  creator     User        @relation("CreatedQuestionSets", fields: [creatorId], references: [id])
+  questions   Question[]
+  sharedSets  SharedQuestionSet[]
+}
+
+model SharedQuestionSet {
+  id              String      @id @default(cuid())
+  questionSetId   String
+  sharedById      String
+  sharedWithGroupId String?
+  sharedWithUserId  String?
+  sharedAt        DateTime    @default(now())
+  shareLink       String?    @unique
+  questionSet     QuestionSet @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+  sharedBy       User        @relation("SharedQuestionSetsBy", fields: [sharedById], references: [id])
+  sharedWithGroup Group?     @relation("GroupSharedQuestionSets", fields: [sharedWithGroupId], references: [id], onDelete: Cascade)
+  sharedWithUser User?       @relation("SharedQuestionSetsWith", fields: [sharedWithUserId], references: [id], onDelete: Cascade)
+
+  @@unique([questionSetId, sharedWithGroupId])
+  @@unique([questionSetId, sharedWithUserId])
+}
+
+model QuestionChat {
+  id          String      @id @default(cuid())
+  questionId  String
+  userId      String
+  message     String
+  isAi        Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  question    Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Update Passage model to include difficulty relation
 model Passage {
   id                String          @id @default(cuid())
   content           String
-  difficulty        Int
+  difficultyId      String
   createdAt         DateTime        @default(now())
   practiceSessionId String          @unique
+  difficulty        Difficulty      @relation(fields: [difficultyId], references: [id])
   practiceSession   PracticeSession @relation(fields: [practiceSessionId], references: [id], onDelete: Cascade)
   questions         Question[]
 }
 
+// Update Question model to include questionSet relation
 model Question {
   id             String          @id @default(cuid())
-  passageId      String
+  passageId      String?
+  questionSetId  String?
   questionText   String
   type           QuestionType    @default(MULTIPLE_CHOICE)
   options        String[]
@@ -167,8 +229,11 @@ model Question {
   explanation    String?
   createdAt      DateTime        @default(now())
   answerAttempts AnswerAttempt[]
-  passage        Passage         @relation(fields: [passageId], references: [id], onDelete: Cascade)
+  passage        Passage?        @relation(fields: [passageId], references: [id], onDelete: Cascade)
+  questionSet    QuestionSet?    @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+  chats          QuestionChat[]
 }
+
 
 model AnswerAttempt {
   id                String          @id @default(cuid())
@@ -207,7 +272,8 @@ model Group {
   creator   User         @relation("CreatedGroups", fields: [creatorId], references: [id]) // Added relation name
   members   GroupMember[]
   sharedWordBanks SharedWordBank[] @relation("GroupSharedWordBanks") // Added relation name
-  invites   GroupInvite[] @relation("GroupInvites") // Removed fields and references from this side of the relation
+  invites   GroupInvite[] @relation("GroupInvites")
+  sharedQuestionSets SharedQuestionSet[] @relation("GroupSharedQuestionSets")
 }
 
 model GroupMember {
@@ -290,4 +356,6 @@ enum PracticeType {
 
 enum QuestionType {
   MULTIPLE_CHOICE
+  SHORT_ANSWER
+  ESSAY
 }
