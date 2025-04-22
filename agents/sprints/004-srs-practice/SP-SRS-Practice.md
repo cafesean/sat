@@ -30,6 +30,37 @@ Enhance the practice sessions with spaced repetition, improved sample sentences,
     *   Store the star status of each word in the database.
     *   Allow users to filter their word banks to show only starred words.
 
+
+## Technical Stories / Tasks
+
+* **Backend – Practice Session API Enhancements**
+  - Create or extend endpoints for starting, repeating, and fetching practice sessions (`/api/practice/start`, `/api/practice/repeat`, `/api/practice/words`).
+  - Implement cursor- or offset-based pagination in `getPrioritizedWords` to support infinite sessions.
+  - Integrate spaced-repetition logic in the backend to order words by mastery level and review interval.
+  - Write unit tests for new pagination parameters and SRS ordering behavior.
+
+* **Frontend – Practice Session UI Enhancements**
+  - Add "Repeat Session" button to the practice completion screen and wire it to the repeat-session endpoint.
+  - Randomize card order client-side on session start when no pagination is used.
+  - Append newly fetched words to the practice queue to enable seamless infinite scrolling.
+  - Display multiple sample sentences retrieved from the Gemini API in the word detail view.
+  - Implement star toggle UI and filter control for starred words during practice and review.
+
+* **Backend – Database Schema Updates**
+  - Add a `starred` boolean field to the `Word` model or create a `StarredWord` join table to track starred status per user.
+  - Add a `lastFetchedCursor` or `lastFetchedOffset` field to the `PracticeSession` model for session state tracking.
+  - Create migration scripts and update ORM models accordingly.
+
+* **Integration – Gemini API Sample Sentences**
+  - Modify the word details endpoint to fetch and store multiple sample sentences.
+  - Cache or store sentences to reduce repeated Gemini calls.
+  - Handle API errors gracefully, falling back to a single sentence if necessary.
+
+* **Testing & QA**
+  - Extend end-to-end tests to cover repeat sessions, infinite scrolling, and starred filtering.
+  - Load-test practice sessions with large word banks to ensure performance under load.
+  - Write integration tests for sample sentences display and error fallback.
+
 ## Key User Experience Considerations
 
 *   **Seamless Integration:** Integrate the new features seamlessly into the existing app interface.
