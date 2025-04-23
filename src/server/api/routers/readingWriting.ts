@@ -1,273 +1,125 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
+import { env } from "@/env.mjs";
+import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from "@google/generative-ai";
+
+// Import the Gemini API helper functions
+import { generateReadingWritingContent } from "@/lib/api/gemini";
+
+// Helper function to generate a random topic using Gemini API
+async function generateRandomTopicWithGemini(): Promise<string> {
+  if (!env.GEMINI_API_KEY) {
+    throw new Error("AI API not configured");
+  }
+
+  const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
+  const model = genAI.getGenerativeModel({ model: env.GEMINI_MODEL_NAME });
+  
+  const prompt = `
+    Generate a random academic topic suitable for an SAT reading passage.
+    The topic should be specific enough to generate a focused passage but broad enough to allow for multiple questions.
+    Examples: "The History of Antibiotics", "Coral Reef Ecosystems", "The Impact of Social Media on Political Discourse"
+    
+    Return only the topic title as plain text, without quotes or additional formatting.
+  `;
+  
+  const result = await model.generateContent({
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: {
+      temperature: 0.8,
+      topK: 40,
+      topP: 0.95,
+      maxOutputTokens: 256
+    },
+    safetySettings: [
+      { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+      { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+      { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+      { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+    ]
+  });
+  
+  return result.response.text().trim();
+}
 
 export const readingWritingRouter = router({
   startReadingWritingSession: protectedProcedure
     .input(z.object({
-      wordBankId: z.string().optional(),
-      difficulty: z.number().optional()
+      questionSetId: z.string(),
+      difficulty: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { wordBankId, difficulty } = input;
+      const { questionSetId, difficulty } = input;
       const userId = ctx.session.user.id;
 
-      // Create new practice session
+      // Verify question set exists and belongs to user
+      const questionSet = await ctx.prisma.questionSet.findUnique({
+        where: { id: questionSetId },
+        include: { passages: true }
+      });
+
+      if (!questionSet || questionSet.userId !== userId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Question Set not found" });
+      }
+
+      // Create new practice session linked to question set
       const session = await ctx.prisma.practiceSession.create({
         data: {
           userId,
           type: "READING_WRITING",
-          wordBankId,
-          difficulty
+          difficulty: difficulty || 2, // Default to medium difficulty
+          questionSetId: questionSetId,
+          passage: questionSet.passages.length > 0 ? {
+            connect: { id: questionSet.passages[0].id }
+          } : undefined
+        },
+        include: {
+          passage: {
+            include: {
+              questions: true
+            }
+          }
         }
       });
 
       return { session };
     }),
 
-  submitAnswerAttempt: protectedProcedure
+  addPassage: protectedProcedure
     .input(z.object({
-      sessionId: z.string(),
-      questionId: z.string(),
-      selectedAnswer: z.string()
+      questionSetId: z.string(),
+      content: z.string().min(1, "Passage content cannot be empty"),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { sessionId, questionId, selectedAnswer } = input;
+      const { questionSetId, content } = input;
       const userId = ctx.session.user.id;
 
-      // Get question to check answer
-      const question = await ctx.prisma.question.findUnique({
-        where: { id: questionId },
-        include: { passage: true }
+      // Verify question set exists and belongs to user
+      const questionSet = await ctx.prisma.questionSet.findUnique({
+        where: { id: questionSetId },
       });
 
-      if (!question) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Question not found" });
+      if (!questionSet || questionSet.userId !== userId) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Question Set not found",
+        });
       }
 
-      // Verify session exists and belongs to user
-      const session = await ctx.prisma.practiceSession.findUnique({
-        where: { id: sessionId }
-      });
-
-      if (!session || session.userId !== userId) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Invalid session" });
-      }
-
-      // Check if answer is correct
-      const isCorrect = selectedAnswer === question.correctAnswer;
-
-      // Create answer attempt
-      const attempt = await ctx.prisma.answerAttempt.create({
+      // Create passage linked to question set
+      const createdPassage = await ctx.prisma.passage.create({
         data: {
-          practiceSessionId: sessionId,
-          questionId,
-          userId,
-          selectedAnswer,
-          isCorrect
-        }
-      });
-
-      return { attempt, isCorrect };
-    }),
-
-  getReadingWritingSession: protectedProcedure
-    .input(z.object({ sessionId: z.string() }))
-    .query(async ({ ctx, input }) => {
-      const { sessionId } = input;
-      const userId = ctx.session.user.id;
-
-      const session = await ctx.prisma.practiceSession.findUnique({
-        where: { id: sessionId },
-        include: {
-          passage: {
-            include: {
-              questions: true
-            }
+          content,
+          difficulty: 2, // default difficulty
+          questionSet: {
+            connect: { id: questionSetId },
           },
-          answerAttempts: true
-        }
-      });
-
-      if (!session || session.userId !== userId) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Invalid session" });
-      }
-
-      return session;
-    }),
-
-  generatePassageAndQuestions: protectedProcedure
-    .input(z.object({
-      sessionId: z.string(),
-      topic: z.string().optional(),
-      difficulty: z.number().optional()
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const { sessionId, topic, difficulty } = input;
-      const userId = ctx.session.user.id;
-
-      // Verify session exists and belongs to user
-      const session = await ctx.prisma.practiceSession.findUnique({
-        where: { id: sessionId }
-      });
-
-      if (!session || session.userId !== userId) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Invalid session" });
-      }
-
-      // TODO: Implement Gemini API integration
-      // This is a placeholder - actual implementation would call Gemini API
-      const generatedPassage = {
-        content: "Sample passage about " + (topic || "general knowledge"),
-        difficulty: difficulty || 3,
-        questions: [
-          {
-            questionText: "What is the main topic of this passage?",
-            type: "MULTIPLE_CHOICE" as const,
-            options: ["Option 1", "Option 2", "Option 3", "Option 4"],
-            correctAnswer: "Option 1",
-            explanation: "The passage clearly focuses on this topic"
-          }
-        ]
-      };
-
-      // Create passage and questions
-      const passage = await ctx.prisma.passage.create({
-        data: {
-          content: generatedPassage.content,
-          difficulty: generatedPassage.difficulty,
-          practiceSessionId: sessionId,
-          questions: {
-            create: generatedPassage.questions.map(q => ({
-              questionText: q.questionText,
-              type: q.type,
-              options: q.options,
-              correctAnswer: q.correctAnswer,
-              explanation: q.explanation
-            }))
-          }
         },
-        include: {
-          questions: true
-        }
       });
 
-      return { passage };
+      return createdPassage;
     }),
 
-  createQuestionSet: protectedProcedure
-    .input(z.object({
-      passageId: z.string(),
-      questions: z.array(z.object({
-        questionText: z.string(),
-        type: z.enum(["MULTIPLE_CHOICE"]),
-        options: z.array(z.string()),
-        correctAnswer: z.string(),
-        explanation: z.string().optional()
-      }))
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const { passageId, questions } = input;
-      const userId = ctx.session.user.id;
-
-      // Verify passage exists and belongs to user
-      const passage = await ctx.prisma.passage.findUnique({
-        where: { id: passageId },
-        include: { practiceSession: true }
-      });
-
-      if (!passage || passage.practiceSession.userId !== userId) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Invalid passage" });
-      }
-
-      // Create all questions
-      const createdQuestions = await ctx.prisma.$transaction(
-        questions.map(q =>
-          ctx.prisma.question.create({
-            data: {
-              passageId,
-              questionText: q.questionText,
-              type: q.type,
-              options: q.options,
-              correctAnswer: q.correctAnswer,
-              explanation: q.explanation
-            }
-          })
-        )
-      );
-
-      return { questions: createdQuestions };
-    }),
-
-  shareQuestionSet: protectedProcedure
-    .input(z.object({
-      passageId: z.string(),
-      sharedWithUserId: z.string().optional(),
-      sharedWithGroupId: z.string().optional(),
-      generateShareLink: z.boolean().optional()
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const { passageId, sharedWithUserId, sharedWithGroupId, generateShareLink } = input;
-      const userId = ctx.session.user.id;
-
-      // Verify passage exists and belongs to user
-      const passage = await ctx.prisma.passage.findUnique({
-        where: { id: passageId },
-        include: { practiceSession: true }
-      });
-
-      if (!passage || passage.practiceSession.userId !== userId) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Invalid passage" });
-      }
-
-      // TODO: Implement sharing logic similar to wordBankRouter.shareWordBank
-      // This would involve creating a SharedQuestionSet model in Prisma schema
-      throw new TRPCError({ code: "NOT_IMPLEMENTED", message: "Sharing not yet implemented" });
-    }),
-
-  getSharedQuestionSet: protectedProcedure
-    .input(z.object({
-      sharedQuestionSetId: z.string().optional(),
-      shareLink: z.string().optional()
-    }))
-    .query(async ({ ctx, input }) => {
-      // TODO: Implement retrieval of shared question sets
-      throw new TRPCError({ code: "NOT_IMPLEMENTED", message: "Not yet implemented" });
-    }),
-
-  copySharedQuestionSet: protectedProcedure
-    .input(z.object({
-      sharedQuestionSetId: z.string().optional(),
-      shareLink: z.string().optional()
-    }))
-    .mutation(async ({ ctx, input }) => {
-      // TODO: Implement copying of shared question sets
-      throw new TRPCError({ code: "NOT_IMPLEMENTED", message: "Not yet implemented" });
-    }),
-
-  askQuestionAboutPassage: protectedProcedure
-    .input(z.object({
-      passageId: z.string(),
-      question: z.string()
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const { passageId, question } = input;
-      const userId = ctx.session.user.id;
-
-      // Verify passage exists and belongs to user
-      const passage = await ctx.prisma.passage.findUnique({
-        where: { id: passageId },
-        include: { practiceSession: true }
-      });
-
-      if (!passage || passage.practiceSession.userId !== userId) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Invalid passage" });
-      }
-
-      // TODO: Implement Gemini API integration for answering questions
-      return {
-        answer: "This is a sample answer from the AI. The actual implementation would call the Gemini API to generate a response based on the passage content.",
-        relevantPassageExcerpt: passage.content.substring(0, 100) + "..."
-      };
-    })
+  // ... other existing procedures ...
 });

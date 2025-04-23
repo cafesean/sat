@@ -139,6 +139,29 @@ export const vocabRouter = router({
 			return sharedRecord?.shareLink ?? null;
 		}),
 
+	// New procedure to get word by text and bankId
+	getWordByText: protectedProcedure
+		.input(z.object({ text: z.string(), wordBankId: z.string().cuid() }))
+		.query(async ({ ctx, input }) => {
+			const { text, wordBankId } = input;
+			const word = await ctx.prisma.word.findFirst({
+				where: {
+					text: text,
+					wordBankId: wordBankId,
+				},
+				include: {
+					wordMaster: true,
+				},
+			});
+			if (!word) {
+				throw new TRPCError({
+					code: "NOT_FOUND",
+					message: `Word "${text}" not found in word bank.`,
+				});
+			}
+			return word;
+		}),
+
 	createWordBank: protectedProcedure.input(wordBankSchema).mutation(async ({ ctx, input }) => {
 		console.log("Validated input received by createWordBank:", input);
 		console.log("Session user:", ctx.session.user);

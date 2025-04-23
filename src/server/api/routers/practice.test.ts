@@ -33,12 +33,14 @@ describe("Practice Router", () => {
         id: "session_123",
         userId: "user_123",
         type: PracticeType.VOCABULARY,
-        wordBankId: "bank_123",
         startTime: new Date(),
         endTime: null,
         createdAt: new Date(),
         score: null,
-        difficulty: null
+        difficulty: null,
+        wordBankId: "bank_123",
+        lastFetchedWordId: "word_1",
+        questionSetId: null
       };
 
       vi.mocked(prisma.practiceSession.create).mockResolvedValue(mockSession);
@@ -69,7 +71,9 @@ describe("Practice Router", () => {
         startTime: new Date(),
         score: null,
         difficulty: null,
-        wordBankId: "bank_123"
+        wordBankId: "bank_123",
+        lastFetchedWordId: null,
+        questionSetId: null
       };
 
       vi.mocked(prisma.practiceSession.update).mockResolvedValue(mockSession);

@@ -3,7 +3,8 @@ import { z } from 'zod';
 export enum PracticeType {
   VOCABULARY = 'VOCABULARY',
   GRAMMAR = 'GRAMMAR',
-  LISTENING = 'LISTENING'
+  LISTENING = 'LISTENING',
+  READING_WRITING = 'READING_WRITING'
 }
 
 export const startVocabSessionSchema = z.object({
@@ -23,4 +24,20 @@ export const submitVocabAnswerSchema = z.object({
 
 export const getVocabSessionSummarySchema = z.object({
   practiceSessionId: z.string(),
+});
+
+export const startReadingWritingPracticeSessionSchema = z.object({
+  questionSetId: z.string().uuid(),
+});
+
+export const practiceSessionChatSchema = z.object({
+  practiceSessionId: z.string().uuid(),
+  message: z.string().min(1, "Message cannot be empty"),
+});
+
+export const getPracticeSessionHistorySchema = z.object({
+  questionSetId: z.string().uuid(),
+  page: z.number().int().min(1).default(1),
+  limit: z.number().int().min(1).max(50).default(10),
+  includeChatHistory: z.boolean().default(false),
 });

@@ -6,3 +6,4 @@
 - Avoid adding internal thought processes, commentary, or planning notes as comments in the source code. Comments should be limited to essential explanations of complex logic, important caveats, or public documentation. Use commit messages or task communication channels for all other commentary.
 - Read `/agents/sprints/README.MD` to understand how and where to create, reference, and update sprint-specific documents.
 - Always use PNPM instead of NPM
+- Always assume the applications is running; no need to run pnpm run dev

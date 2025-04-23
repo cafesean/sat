@@ -19,6 +19,8 @@ describe('Session Cloning', () => {
       startTime: new Date(),
       endTime: null,
       score: null,
+      lastFetchedWordId: null,
+      questionSetId: null,
       wordBank: {
         id: 'bank1',
         words: [
@@ -56,7 +58,9 @@ describe('Session Cloning', () => {
       createdAt: new Date(),
       startTime: new Date(),
       endTime: null,
-      score: null
+      score: null,
+      lastFetchedWordId: null,
+      questionSetId: null
     });
     vi.mocked(prisma.word.createMany).mockResolvedValue({ count: 1 });
 
@@ -112,7 +116,9 @@ describe('Session Cloning', () => {
         wordBankId: 'bank1',
         startTime: expect.any(Date),
         endTime: null,
-        score: null
+        score: null,
+        lastFetchedWordId: null,
+        questionSetId: null
       }
     });
 
@@ -155,6 +161,8 @@ describe('Session Cloning', () => {
       startTime: new Date(),
       endTime: null,
       score: null,
+      lastFetchedWordId: null,
+      questionSetId: null,
       wordBank: null
     };
 

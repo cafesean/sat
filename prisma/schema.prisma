@@ -8,33 +8,34 @@ datasource db {
 }
 
 model User {
-  id                 String            @id @default(cuid())
-  name               String?
-  email              String            @unique
-  emailVerified      DateTime?
-  image              String?
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
-  role               UserRole          @default(USER)
-  gradeLevel         Int?
-  languagePreference String            @default("en")
-  hashedPassword     String?
-  accounts           Account[]
-  answerAttempts     AnswerAttempt[]
-  practiceSessions   PracticeSession[]
-  sessions           Session[]
-  WordBank           WordBank[]
-  createdGroups      Group[]          @relation("CreatedGroups")
-  groupMemberships   GroupMember[]
-  sharedWordBanks    SharedWordBank[] @relation("SharedBy")
-  receivedSharedWordBanks SharedWordBank[] @relation("SharedWithUser")
-  invitesSent        GroupInvite[]    @relation("InvitedBy")
-  invitesReceived    GroupInvite[]    @relation("InvitedUser")
-  notifications      Notification[]
-  questionSets       QuestionSet[]  @relation("CreatedQuestionSets")
-  sharedQuestionSets SharedQuestionSet[] @relation("SharedQuestionSetsBy")
-  receivedSharedQuestionSets SharedQuestionSet[] @relation("SharedQuestionSetsWith")
-  questionChats      QuestionChat[]
+  id                         String                @id @default(cuid())
+  name                       String?
+  email                      String                @unique
+  emailVerified              DateTime?
+  image                      String?
+  createdAt                  DateTime              @default(now())
+  updatedAt                  DateTime              @updatedAt
+  role                       UserRole              @default(USER)
+  gradeLevel                 Int?
+  languagePreference         String                @default("en")
+  hashedPassword             String?
+  accounts                   Account[]
+  answerAttempts             AnswerAttempt[]
+  practiceSessions           PracticeSession[]
+  sessions                   Session[]
+  WordBank                   WordBank[]
+  createdGroups              Group[]               @relation("CreatedGroups")
+  groupMemberships           GroupMember[]
+  sharedWordBanks            SharedWordBank[]      @relation("SharedBy")
+  receivedSharedWordBanks    SharedWordBank[]      @relation("SharedWithUser")
+  invitesSent                GroupInvite[]         @relation("InvitedBy")
+  invitesReceived            GroupInvite[]         @relation("InvitedUser")
+  notifications              Notification[]
+  questionSets               QuestionSet[]         @relation("CreatedQuestionSets")
+  sharedQuestionSets         SharedQuestionSet[]   @relation("SharedQuestionSetsBy")
+  receivedSharedQuestionSets SharedQuestionSet[]   @relation("SharedQuestionSetsWith")
+  questionChats              QuestionChat[]
+  practiceSessionChats       PracticeSessionChat[]
 }
 
 model Account {
@@ -71,62 +72,93 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-model WordMaster {
-  id               String   @id @default(cuid())
-  baseWord         String
-  variations       Json
-  language         String   @default("en")
-  wordType         String?
-  definition       String?
-  sampleSentences  String[]
-  translations     Json
-  isDictionaryWord Boolean  @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+model WordBank {
+  id               String            @id @default(cuid())
+  createdAt        DateTime          @default(now())
+  userId           String
+  name             String
+  updatedAt        DateTime          @updatedAt
+  description      String?
+  isPublic         Boolean           @default(false)
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   words            Word[]
-
-  @@unique([baseWord, language])
-}
-
-model WordBankWords {
-  id         String   @id @default(cuid())
-  wordBankId String
-  words      Json
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  wordBank   WordBank @relation(fields: [wordBankId], references: [id], onDelete: Cascade)
+  practiceSessions PracticeSession[]
+  sharedWith       SharedWordBank[]
+  groups           GroupWordBank[]
 }
 
 model Word {
-  id                   String            @id @default(cuid())
-  wordBankId           String
-  interval             Int               @default(1)
-  easeFactor           Float             @default(2.5)
-  repetitions          Int               @default(0)
-  nextReviewDate       DateTime          @default(now())
-  isStarred            Boolean           @default(false)
-  notes                String?
-  wordMasterId         String
-  text                 String            @default("")
-  mastery              Int               @default(0)
-  nextDueAtReviewCount Int               @default(0)
-  timesSeen            Int               @default(0)
-  successRate          Float             @default(0)
-  sampleSentences      String[]          @default([])
-  wordBank             WordBank          @relation(fields: [wordBankId], references: [id], onDelete: Cascade)
-  wordMaster           WordMaster        @relation(fields: [wordMasterId], references: [id], onDelete: Cascade)
-  practiceLogs         WordPracticeLog[]
+  id           String            @id @default(cuid())
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  wordBankId   String
+  wordMasterId String
+  isStarred    Boolean           @default(false)
+  wordType     String?
+  notes        String?
+  text         String
+  wordBank     WordBank          @relation(fields: [wordBankId], references: [id], onDelete: Cascade)
+  wordMaster   WordMaster        @relation(fields: [wordMasterId], references: [id])
+  practiceLogs WordPracticeLog[]
+
+  // SRS fields
+  interval             Int       @default(1)
+  easeFactor           Float     @default(2.5)
+  repetitions          Int       @default(0)
+  mastery              Int       @default(0)
+  timesSeen            Int       @default(0)
+  successRate          Float     @default(0)
+  nextReviewDate       DateTime?
+  nextDueAtReviewCount Int?
+  reviewCount          Int       @default(0)
+  userSentences        String[]
 
   @@unique([wordBankId, wordMasterId])
 }
 
+model WordMaster {
+  id               String   @id @default(cuid())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  sampleSentences  String[]
+  baseWord         String
+  variations       Json
+  language         String
+  wordType         String?
+  definition       String?
+  translations     Json
+  isDictionaryWord Boolean  @default(false)
+  words            Word[]
+}
+
+model PracticeSession {
+  id                String                @id @default(cuid())
+  createdAt         DateTime              @default(now())
+  userId            String
+  type              PracticeType
+  startTime         DateTime              @default(now())
+  endTime           DateTime?
+  score             Int?
+  difficulty        Int?
+  wordBankId        String?
+  lastFetchedWordId String?
+  questionSetId     String?
+  user              User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wordBank          WordBank?             @relation(fields: [wordBankId], references: [id])
+  questionSet       QuestionSet?          @relation(fields: [questionSetId], references: [id])
+  vocabLogs         WordPracticeLog[]
+  passage           Passage?
+  answerAttempts    AnswerAttempt[]
+  chats             PracticeSessionChat[]
+}
+
 model WordPracticeLog {
   id                String          @id @default(cuid())
-  wordId            String
   practiceSessionId String
+  wordId            String
+  isCorrect         Boolean
   timestamp         DateTime        @default(now())
   userSentences     String[]
-  isCorrect         Boolean
   aiFeedback        String?
   easeChosen        Int
   hintUsed          Boolean         @default(false)
@@ -134,172 +166,56 @@ model WordPracticeLog {
   word              Word            @relation(fields: [wordId], references: [id], onDelete: Cascade)
 }
 
-model PracticeSession {
-  id             String            @id @default(cuid())
-  userId         String
-  type           PracticeType
-  startTime      DateTime          @default(now())
-  endTime        DateTime?
-  score          Float?
-  difficulty     Int?
-  createdAt      DateTime          @default(now())
-  wordBankId     String?
-  answerAttempts AnswerAttempt[]
-  passage        Passage?
-  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  wordBank       WordBank?         @relation(fields: [wordBankId], references: [id])
-  vocabLogs      WordPracticeLog[]
-}
-
-model Difficulty {
-  id          String      @id @default(cuid())
-  name        String
-  description String?
-  level       Int         @unique
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  passages    Passage[]
-  questionSets QuestionSet[]
-}
-
-model QuestionSet {
-  id          String      @id @default(cuid())
-  title       String
-  description String?
-  difficultyId String
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  isPublic    Boolean     @default(false)
-  creatorId   String
-  difficulty  Difficulty  @relation(fields: [difficultyId], references: [id])
-  creator     User        @relation("CreatedQuestionSets", fields: [creatorId], references: [id])
-  questions   Question[]
-  sharedSets  SharedQuestionSet[]
-}
-
-model SharedQuestionSet {
-  id              String      @id @default(cuid())
-  questionSetId   String
-  sharedById      String
-  sharedWithGroupId String?
-  sharedWithUserId  String?
-  sharedAt        DateTime    @default(now())
-  shareLink       String?    @unique
-  questionSet     QuestionSet @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
-  sharedBy       User        @relation("SharedQuestionSetsBy", fields: [sharedById], references: [id])
-  sharedWithGroup Group?     @relation("GroupSharedQuestionSets", fields: [sharedWithGroupId], references: [id], onDelete: Cascade)
-  sharedWithUser User?       @relation("SharedQuestionSetsWith", fields: [sharedWithUserId], references: [id], onDelete: Cascade)
-
-  @@unique([questionSetId, sharedWithGroupId])
-  @@unique([questionSetId, sharedWithUserId])
-}
-
-model QuestionChat {
-  id          String      @id @default(cuid())
-  questionId  String
-  userId      String
-  message     String
-  isAi        Boolean     @default(false)
-  createdAt   DateTime    @default(now())
-  question    Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-// Update Passage model to include difficulty relation
-model Passage {
-  id                String          @id @default(cuid())
-  content           String
-  difficultyId      String
-  createdAt         DateTime        @default(now())
-  practiceSessionId String          @unique
-  difficulty        Difficulty      @relation(fields: [difficultyId], references: [id])
-  practiceSession   PracticeSession @relation(fields: [practiceSessionId], references: [id], onDelete: Cascade)
-  questions         Question[]
-}
-
-// Update Question model to include questionSet relation
-model Question {
-  id             String          @id @default(cuid())
-  passageId      String?
-  questionSetId  String?
-  questionText   String
-  type           QuestionType    @default(MULTIPLE_CHOICE)
-  options        String[]
-  correctAnswer  String
-  explanation    String?
-  createdAt      DateTime        @default(now())
-  answerAttempts AnswerAttempt[]
-  passage        Passage?        @relation(fields: [passageId], references: [id], onDelete: Cascade)
-  questionSet    QuestionSet?    @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
-  chats          QuestionChat[]
-}
-
-
-model AnswerAttempt {
-  id                String          @id @default(cuid())
-  practiceSessionId String
-  questionId        String
-  userId            String
-  selectedAnswer    String
-  isCorrect         Boolean
-  timestamp         DateTime        @default(now())
-  practiceSession   PracticeSession @relation(fields: [practiceSessionId], references: [id], onDelete: Cascade)
-  question          Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model WordBank {
-  id               String            @id @default(cuid())
-  name             String
-  description      String?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime @updatedAt
-  userId           String
-  reviewCount      Int               @default(0) // Added reviewCount
-  practiceSessions PracticeSession[]
-  words            Word[]
-  User             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  wordReferences   WordBankWords[]
-  sharedWordBanks  SharedWordBank[] // Added for SharedWordBank.wordBank
-}
-
 model Group {
-  id        String       @id @default(cuid())
-  name      String
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-  creatorId String
-  creator   User         @relation("CreatedGroups", fields: [creatorId], references: [id]) // Added relation name
-  members   GroupMember[]
-  sharedWordBanks SharedWordBank[] @relation("GroupSharedWordBanks") // Added relation name
-  invites   GroupInvite[] @relation("GroupInvites")
-  sharedQuestionSets SharedQuestionSet[] @relation("GroupSharedQuestionSets")
+  id              String           @id @default(cuid())
+  name            String
+  description     String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  creatorId       String
+  isPublic        Boolean          @default(false)
+  creator         User             @relation("CreatedGroups", fields: [creatorId], references: [id])
+  members         GroupMember[]
+  wordBanks       GroupWordBank[]
+  sharedWordBanks SharedWordBank[] @relation("GroupSharedWordBanks")
+  invites         GroupInvite[]    @relation("GroupInvites")
 }
 
 model GroupMember {
-  id        String   @id @default(cuid())
-  groupId   String
-  userId    String
-  joinedAt  DateTime @default(now())
-  role      String   @default("member") // e.g., 'admin', 'member'
-  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id       String   @id @default(cuid())
+  groupId  String
+  userId   String
+  role     String   @default("member") // member, admin
+  joinedAt DateTime @default(now())
+  group    Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([groupId, userId])
 }
 
+model GroupWordBank {
+  id         String   @id @default(cuid())
+  groupId    String
+  wordBankId String
+  addedAt    DateTime @default(now())
+  group      Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  wordBank   WordBank @relation(fields: [wordBankId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, wordBankId])
+}
+
 model SharedWordBank {
-  id              String    @id @default(cuid())
-  wordBankId      String
-  sharedById      String
+  id                String   @id @default(cuid())
+  wordBankId        String
+  sharedById        String
   sharedWithGroupId String?
   sharedWithUserId  String?
-  sharedAt        DateTime  @default(now())
-  shareLink       String?   @unique
-  wordBank        WordBank  @relation(fields: [wordBankId], references: [id], onDelete: Cascade)
-  sharedBy        User      @relation("SharedBy", fields: [sharedById], references: [id])
-  sharedWithGroup Group?    @relation("GroupSharedWordBanks", fields: [sharedWithGroupId], references: [id], onDelete: Cascade) // Added relation name
-  sharedWithUser  User?     @relation("SharedWithUser", fields: [sharedWithUserId], references: [id], onDelete: Cascade)
+  sharedAt          DateTime @default(now())
+  shareLink         String?  @unique
+  wordBank          WordBank @relation(fields: [wordBankId], references: [id], onDelete: Cascade)
+  sharedBy          User     @relation("SharedBy", fields: [sharedById], references: [id])
+  sharedWithGroup   Group?   @relation("GroupSharedWordBanks", fields: [sharedWithGroupId], references: [id], onDelete: Cascade) // Added relation name
+  sharedWithUser    User?    @relation("SharedWithUser", fields: [sharedWithUserId], references: [id], onDelete: Cascade)
 
   @@unique([wordBankId, sharedWithGroupId])
   @@unique([wordBankId, sharedWithUserId])
@@ -309,31 +225,31 @@ model GroupInvite {
   id              String   @id @default(cuid())
   groupId         String
   invitedByUserId String
-  invitedUserId   String?  // Optional, if known (email invite)
+  invitedUserId   String? // Optional, if known (email invite)
   inviteToken     String   @unique
   status          String   @default("pending") // pending, accepted, rejected
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  group           Group    @relation("GroupInvites", fields: [groupId], references: [id], onDelete: Cascade)
-  invitedByUser   User     @relation("InvitedBy", fields: [invitedByUserId], references: [id])
-  invitedUser     User?    @relation("InvitedUser", fields: [invitedUserId], references: [id])
+  group         Group @relation("GroupInvites", fields: [groupId], references: [id], onDelete: Cascade)
+  invitedByUser User  @relation("InvitedBy", fields: [invitedByUserId], references: [id])
+  invitedUser   User? @relation("InvitedUser", fields: [invitedUserId], references: [id])
 
   @@unique([groupId, invitedUserId])
 }
 
 model Notification {
-  id          String      @id @default(cuid())
-  userId      String
-  type        NotificationType
-  message     String
-  isRead      Boolean     @default(false)
-  createdAt   DateTime    @default(now())
-  readAt      DateTime?
-  metadata    Json?
-  
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  message   String
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  readAt    DateTime?
+  metadata  Json?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId, isRead])
 }
 
@@ -358,4 +274,88 @@ enum QuestionType {
   MULTIPLE_CHOICE
   SHORT_ANSWER
   ESSAY
+}
+
+model QuestionSet {
+  id               String              @id @default(uuid())
+  topic            String
+  userId           String
+  createdAt        DateTime            @default(now())
+  user             User                @relation("CreatedQuestionSets", fields: [userId], references: [id], onDelete: Cascade)
+  passages         Passage[]
+  sharedWith       SharedQuestionSet[]
+  practiceSessions PracticeSession[]
+}
+
+model Passage {
+  id                String           @id @default(uuid())
+  content           String
+  difficulty        Int
+  practiceSessionId String?          @unique
+  questionSetId     String?
+  createdAt         DateTime         @default(now())
+  practiceSession   PracticeSession? @relation(fields: [practiceSessionId], references: [id], onDelete: Cascade)
+  questionSet       QuestionSet?     @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+  questions         Question[]
+}
+
+model Question {
+  id             String          @id @default(uuid())
+  passageId      String
+  questionText   String
+  questionType   QuestionType    @default(MULTIPLE_CHOICE)
+  options        String[]
+  correctAnswer  String
+  explanation    String?
+  createdAt      DateTime        @default(now())
+  passage        Passage         @relation(fields: [passageId], references: [id], onDelete: Cascade)
+  answerAttempts AnswerAttempt[]
+  chats          QuestionChat[]
+}
+
+model AnswerAttempt {
+  id                String          @id @default(uuid())
+  practiceSessionId String
+  questionId        String
+  userId            String
+  selectedAnswer    String
+  isCorrect         Boolean
+  createdAt         DateTime        @default(now())
+  practiceSession   PracticeSession @relation(fields: [practiceSessionId], references: [id], onDelete: Cascade)
+  question          Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SharedQuestionSet {
+  id                String      @id @default(uuid())
+  questionSetId     String
+  sharedById        String
+  sharedWithUserId  String?
+  sharedWithGroupId String?
+  shareLink         String?     @unique
+  sharedAt          DateTime    @default(now())
+  questionSet       QuestionSet @relation(fields: [questionSetId], references: [id], onDelete: Cascade)
+  sharedBy          User        @relation("SharedQuestionSetsBy", fields: [sharedById], references: [id])
+  sharedWithUser    User?       @relation("SharedQuestionSetsWith", fields: [sharedWithUserId], references: [id], onDelete: Cascade)
+}
+
+model QuestionChat {
+  id         String   @id @default(uuid())
+  questionId String
+  userId     String
+  message    String
+  createdAt  DateTime @default(now())
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PracticeSessionChat {
+  id                String          @id @default(uuid())
+  practiceSessionId String
+  userId            String
+  message           String
+  isBot             Boolean         @default(false)
+  createdAt         DateTime        @default(now())
+  practiceSession   PracticeSession @relation(fields: [practiceSessionId], references: [id], onDelete: Cascade)
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

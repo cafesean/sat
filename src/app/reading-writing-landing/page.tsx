@@ -1,44 +1,69 @@
-import Link from "next/link";
+'use client';
 
-import { useSession } from "next-auth/react";
+import React from 'react';
+import { useRouter } from 'next/navigation';
+import { api } from '../../utils/trpc';
 
 export default function ReadingWritingLandingPage() {
-  const { data: session, status } = useSession();
+  const router = useRouter();
 
-  if (status === "loading") {
-    return <p>Loading...</p>;
+  const { data: questionSetsData, isLoading, error } = api.readingWriting.listQuestionSets.useQuery();
+  const startSessionMutation = api.readingWriting.startReadingWritingSession.useMutation();
+
+  const handleSelectQuestionSet = async (questionSetId: string) => {
+    try {
+      const session = await startSessionMutation.mutateAsync({ questionSetId });
+      router.push(`/reading-writing-landing/${session.session.id}`);
+    } catch (error) {
+      console.error('Error starting session:', error);
+      // TODO: Display error message to user
+    }
+  };
+
+  if (isLoading) {
+    return <div className="container mx-auto p-4">Loading Question Sets...</div>;
   }
 
-  if (!session) {
-    return (
-      <div className="container mx-auto px-4 py-8 text-center">
-        <h1 className="text-4xl font-bold mb-4">Reading & Writing Module</h1>
-        <p className="text-lg text-muted-foreground mb-8">
-          Improve your reading comprehension and writing skills with practice passages and prompts.
-        </p>
-        <p className="text-muted-foreground mb-8">
-          Please login or sign up to access the reading and writing practice features.
-        </p>
-        <div className="flex justify-center gap-4">
-          <Link href="/login">
-            <button className="px-6 py-3 bg-primary text-primary-foreground rounded-md text-lg font-semibold">
-              Login
-            </button>
-          </Link>
-          <Link href="/signup">
-            <button className="px-6 py-3 border border-primary text-primary rounded-md text-lg font-semibold">
-              Sign Up
-            </button>
-          </Link>
-        </div>
-      </div>
-    );
+  if (error) {
+    return <div className="container mx-auto p-4 text-red-500">Error loading Question Sets: {error.message}</div>;
+  }
+
+  const questionSets = questionSetsData?.questionSets || [];
+
+  // Define the type for question sets
+  interface QuestionSet {
+    id: string;
+    topic: string;
+    createdAt: string | Date;
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      {/* Render the reading and writing practice interface here */}
-      <p>Welcome, {session.user?.name}! Start your Reading & Writing practice.</p>
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">Reading & Writing Practice</h1>
+      
+      <div className="mb-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold">Available Question Sets:</h2>
+          <button 
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            onClick={() => router.push('/reading-writing-create')}
+          >
+            Create New Question Set
+          </button>
+        </div>
+        {questionSets.length === 0 ? (
+          <p>No question sets available yet.</p>
+        ) : (
+          <ul>
+            {questionSets.map((set: QuestionSet) => (
+              <li key={set.id} className="mb-2 p-3 border rounded-md cursor-pointer hover:bg-gray-100" onClick={() => handleSelectQuestionSet(set.id)}>
+                <h3 className="text-lg font-medium">{set.topic}</h3>
+                <p className="text-sm text-gray-600">Created: {new Date(set.createdAt).toLocaleDateString()}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
