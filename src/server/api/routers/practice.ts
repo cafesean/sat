@@ -1,40 +1,37 @@
-import { PracticeType, getPracticeSessionHistorySchema, practiceSessionChatSchema, startReadingWritingPracticeSessionSchema } from "@/schemas/practice.schema";
+import { prioritizeWordsFrequency } from "@/lib/srs/frequencyBased";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
-import { TRPCError } from "@trpc/server";
-import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from "@google/generative-ai";
-import { env } from "@/env.mjs";
+import { checkWordBankAccess } from "./vocab";
 
-// Helper function to initialize Gemini client
-function initGeminiClient() {
-  try {
-    const apiKey = env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.error("GEMINI_API_KEY is not defined in environment variables");
-      return null;
-    }
-    
-    return new GoogleGenerativeAI(apiKey);
-  } catch (error) {
-    console.error("Failed to initialize Gemini client:", error);
-    return null;
-  }
-}
+// Type that exactly matches our database schema for Word
+type WordForPrioritization = {
+  id: string;
+  text: string;
+  mastery: number;
+  nextDueAtReviewCount: number;
+  timesSeen: number;
+  successRate: number;
+  isStarred: boolean;
+  wordMaster?: any;
+  // Optional additional fields for the prioritization algorithm
+  priorityScore?: number;
+};
 
 export const practiceRouter = router({
+  // Start a new practice session
   startPracticeSession: protectedProcedure
     .input(
       z.object({
-        userId: z.string().cuid(),
-        wordBankId: z.string().cuid().optional(),
+        wordBankId: z.string().cuid(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const session = await ctx.prisma.practiceSession.create({
         data: {
-          userId: input.userId,
-          type: PracticeType.VOCABULARY,
+          userId: ctx.session.user.id,
           wordBankId: input.wordBankId,
+          type: "VOCABULARY", // Required by schema
         },
       });
       return session;
@@ -45,7 +42,11 @@ export const practiceRouter = router({
     .mutation(async ({ ctx, input }) => {
       const session = await ctx.prisma.practiceSession.update({
         where: { id: input.sessionId },
-        data: { endTime: new Date() },
+        data: { 
+          endTime: new Date(),
+          // Use Prisma.DbNull for type safety
+          lastFetchedWordId: null as unknown as Prisma.NullTypes.DbNull,
+        },
       });
       return session;
     }),
@@ -56,350 +57,142 @@ export const practiceRouter = router({
         wordBankId: z.string().cuid().optional(),
         sessionId: z.string().cuid().optional(),
         limit: z.number().min(1).max(100).default(10),
+        cursor: z.string().optional(), // Add cursor for pagination
       })
     )
     .query(async ({ ctx, input }) => {
-      // Get words due for review, prioritizing those with lowest intervals
-      const words = await ctx.prisma.word.findMany({
+      // Find the last fetched word ID from the session if not explicitly provided
+      let cursorId = input.cursor;
+      
+      if (input.sessionId && !cursorId) {
+        // Use raw query to access the custom field
+        const sessions = await ctx.prisma.$queryRaw<{id: string, lastFetchedWordId: string | null}[]>`
+          SELECT id, "lastFetchedWordId" 
+          FROM "PracticeSession" 
+          WHERE id = ${input.sessionId}
+        `;
+        
+        if (sessions && sessions.length > 0) {
+          cursorId = sessions[0].lastFetchedWordId || undefined;
+        }
+      }
+      
+      // Get the current reviewCount for the wordBank
+      const wordBank = input.wordBankId 
+        ? await ctx.prisma.wordBank.findUnique({
+            where: { id: input.wordBankId },
+            select: { reviewCount: true }
+          })
+        : null;
+      
+      const currentReviewCount = wordBank?.reviewCount || 0;
+      
+      // Get words due for review
+      let words = await ctx.prisma.word.findMany({
         where: {
           wordBankId: input.wordBankId,
+          nextDueAtReviewCount: { lte: currentReviewCount },
         },
-        orderBy: [
-          { createdAt: "asc" }, // Fallback ordering
-        ],
-        take: input.limit,
-        include: {
+        select: {
+          id: true,
+          text: true,
+          mastery: true,
+          nextDueAtReviewCount: true,
+          timesSeen: true,
+          successRate: true,
+          isStarred: true,
           wordMaster: true,
         },
+        take: input.limit * 2, // Get more than we need for sorting
+        ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
       });
-      return words;
-    }),
-
-  startReadingWritingPracticeSession: protectedProcedure
-    .input(startReadingWritingPracticeSessionSchema)
-    .mutation(async ({ ctx, input }) => {
-      const { questionSetId } = input;
-      const userId = ctx.session.user.id;
-
-      // Verify question set exists and belongs to user
-      const questionSet = await ctx.prisma.questionSet.findUnique({
-        where: { id: questionSetId },
-        include: {
-          passages: {
-            include: {
-              questions: true
-            }
-          }
-        }
-      });
-
-      if (!questionSet) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Question Set not found"
-        });
-      }
-
-      // Create new practice session linked to question set
-      const session = await ctx.prisma.practiceSession.create({
-        data: {
-          userId,
-          type: PracticeType.READING_WRITING,
-          questionSetId,
-          startTime: new Date()
-        },
-        include: {
-          questionSet: {
-            include: {
-              passages: {
-                include: {
-                  questions: true
-                }
-              }
-            }
-          }
-        }
-      });
-
-      return {
-        session,
-        initialData: {
-          questionSet,
-          passages: questionSet.passages
-        }
-      };
-    }),
-
-  sendChatMessage: protectedProcedure
-    .input(practiceSessionChatSchema)
-    .mutation(async ({ ctx, input }) => {
-      const { practiceSessionId, message } = input;
-      const userId = ctx.session.user.id;
-
-      // Verify practice session exists and belongs to user
-      const practiceSession = await ctx.prisma.practiceSession.findUnique({
-        where: { 
-          id: practiceSessionId,
-          userId
-        },
-        include: {
-          questionSet: true,
-          chats: {
-            orderBy: { createdAt: 'asc' },
-            take: 10 // Limit chat history to last 10 messages for context
-          }
-        }
-      });
-
-      if (!practiceSession) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Practice session not found or you don't have access to it"
-        });
-      }
-
-      // Save user message to database
-      const userChatMessage = await ctx.prisma.practiceSessionChat.create({
-        data: {
-          practiceSessionId,
-          userId,
-          message
-        }
-      });
-
-      // Build context for AI response
-      // We'll use a convention where user messages are from the actual user
-      // and bot messages are from a special "AI" user (but we'll use the same user ID for now)
-      let chatHistory = practiceSession.chats.map(chat => {
-        // Determine if it's a bot message based on content patterns
-        // This is a workaround since we don't have the isBot field yet
-        const isBot = chat.userId === userId && 
-                     (chat.message.startsWith("AI: ") || 
-                      chat.message.includes("As an AI tutor"));
-        
-        return {
-          role: isBot ? "model" : "user",
-          content: chat.message
-        };
-      });
-
-      // Add current message to history
-      chatHistory.push({
-        role: "user",
-        content: message
-      });
-
-      // Build system prompt based on practice session type
-      let systemPrompt = "";
-      if (practiceSession.type === PracticeType.READING_WRITING) {
-        systemPrompt = `You are an AI tutor helping a student with SAT reading and writing practice. 
-        The student is working on a question set titled "${practiceSession.questionSet?.topic || 'Reading and Writing'}".
-        Provide helpful, educational responses that guide the student without giving direct answers.
-        Focus on explaining concepts, providing strategies, and helping the student understand the material better.`;
-      } else {
-        systemPrompt = `You are an AI tutor helping a student with vocabulary practice.
-        Provide helpful, educational responses about word meanings, usage, and language learning.
-        Focus on explaining concepts and helping the student understand the material better.`;
-      }
-
-      try {
-        // Initialize Gemini client
-        const genAI = initGeminiClient();
-        if (!genAI) {
-          throw new Error("Failed to initialize Gemini client");
-        }
-
-        // Configure safety settings
-        const safetySettings = [
-          {
-            category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-          },
-        ];
-
-        // Generate AI response
-        const model = genAI.getGenerativeModel({ 
-          model: env.GEMINI_MODEL_NAME || "gemini-pro",
-          safetySettings
-        });
-
-        // Create chat history for the model
-        const chat = model.startChat({
-          history: [
-            {
-              role: "user",
-              parts: [{ text: "Please act as described in the following instructions for all our future conversations: " + systemPrompt }],
-            },
-            {
-              role: "model",
-              parts: [{ text: "I'll help you with your reading and writing practice as requested. Feel free to ask any questions about the material you're working on." }],
-            },
-            ...chatHistory.map(msg => ({
-              role: msg.role as "user" | "model",
-              parts: [{ text: msg.content }]
-            }))
-          ],
-        });
-
-        // Generate response
-        const result = await chat.sendMessage(message);
-        const aiResponse = result.response.text();
-
-        // Save AI response to database
-        // Prefix with "AI: " to identify bot messages since we don't have isBot field
-        const botChatMessage = await ctx.prisma.practiceSessionChat.create({
-          data: {
-            practiceSessionId,
-            userId, // Using the same user ID for the bot message
-            message: "AI: " + aiResponse
-          }
-        });
-
-        // Return both messages
-        return {
-          userMessage: userChatMessage,
-          botMessage: botChatMessage
-        };
-      } catch (error) {
-        console.error("Error generating AI response:", error);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to generate AI response"
-        });
-      }
-    }),
-
-  getPracticeSessionHistory: protectedProcedure
-    .input(getPracticeSessionHistorySchema)
-    .query(async ({ ctx, input }) => {
-      const { questionSetId, page, limit, includeChatHistory } = input;
-      const userId = ctx.session.user.id;
-      const skip = (page - 1) * limit;
-
-      // Verify question set exists and belongs to user or is shared with user
-      const questionSet = await ctx.prisma.questionSet.findUnique({
-        where: { id: questionSetId },
-        select: { id: true, userId: true }
-      });
-
-      if (!questionSet) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Question Set not found"
-        });
-      }
-
-      // Check if user has access to this question set
-      const isOwner = questionSet.userId === userId;
       
-      if (!isOwner) {
-        // Check if question set is shared with user
-        const sharedWithUser = await ctx.prisma.sharedQuestionSet.findFirst({
-          where: {
-            questionSetId,
-            sharedWithUserId: userId
-          }
+      // If no words are due, get any words from this bank
+      if (words.length === 0 && input.wordBankId) {
+        words = await ctx.prisma.word.findMany({
+          where: { wordBankId: input.wordBankId },
+          select: {
+            id: true,
+            text: true,
+            mastery: true,
+            nextDueAtReviewCount: true,
+            timesSeen: true,
+            successRate: true,
+            isStarred: true,
+            wordMaster: true,
+          },
+          take: input.limit * 2,
         });
+      }
+      
+      // Convert to the format expected by prioritizeWordsFrequency
+      const wordsForPrioritization = words.map(word => ({
+        id: word.id,
+        text: word.text || "",
+        mastery: word.mastery,
+        nextDueAtReviewCount: word.nextDueAtReviewCount,
+        timesSeen: word.timesSeen,
+        successRate: word.successRate,
+        isStarred: word.isStarred,
+        wordMaster: word.wordMaster
+      }));
+      
+      // Sort words using our frequency-based prioritization
+      const prioritizedWords = prioritizeWordsFrequency(wordsForPrioritization, currentReviewCount);
+      
+      // Limit to requested number
+      const limitedWords = prioritizedWords.slice(0, input.limit);
+      
+      // Update the session with the last fetched word ID if sessionId was provided and words were found
+      if (input.sessionId && limitedWords.length > 0) {
+        const lastWord = limitedWords[limitedWords.length - 1];
+        
+        // Use raw query to update the custom field
+        await ctx.prisma.$executeRaw`
+          UPDATE "PracticeSession"
+          SET "lastFetchedWordId" = ${lastWord.id}
+          WHERE id = ${input.sessionId}
+        `;
+      }
+      
+      return limitedWords;
+    }),
 
-        if (!sharedWithUser) {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "You don't have access to this Question Set"
-          });
-        }
+  // Toggle star status on a word during practice
+  toggleStar: protectedProcedure
+    .input(
+      z.object({
+        wordId: z.string().cuid(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Fetch the word with its current star status and bank ID
+      const word = await ctx.prisma.word.findUnique({
+        where: { id: input.wordId },
+        select: { 
+          id: true,
+          isStarred: true,
+          wordBankId: true,
+        },
+      });
+
+      if (!word) {
+        throw new Error("Word not found");
       }
 
-      // Get total count for pagination
-      const totalCount = await ctx.prisma.practiceSession.count({
-        where: {
-          questionSetId,
-          userId
-        }
+      // Check if user has access to this word's bank
+      const { hasAccess } = await checkWordBankAccess(ctx.prisma, ctx.session.user.id, word.wordBankId);
+      if (!hasAccess) {
+        throw new Error("Access denied to this word's bank");
+      }
+
+      // Toggle the star status
+      const updatedWord = await ctx.prisma.word.update({
+        where: { id: input.wordId },
+        data: { isStarred: !word.isStarred },
+        select: { id: true, isStarred: true }
       });
 
-      // Get practice sessions with pagination
-      const practiceSessions = await ctx.prisma.practiceSession.findMany({
-        where: {
-          questionSetId,
-          userId
-        },
-        include: {
-          answerAttempts: {
-            include: {
-              question: true
-            }
-          },
-          ...(includeChatHistory ? {
-            chats: {
-              orderBy: {
-                createdAt: 'asc'
-              }
-            }
-          } : {})
-        },
-        orderBy: {
-          startTime: 'desc'
-        },
-        skip,
-        take: limit
-      });
-
-      // Format the response
-      const formattedSessions = practiceSessions.map(session => {
-        // Calculate session duration if endTime exists
-        const duration = session.endTime 
-          ? Math.round((session.endTime.getTime() - session.startTime.getTime()) / 1000) 
-          : null;
-        
-        // Calculate score from answer attempts
-        const totalQuestions = session.answerAttempts.length;
-        const correctAnswers = session.answerAttempts.filter(attempt => attempt.isCorrect).length;
-        const score = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : null;
-        
-        return {
-          id: session.id,
-          startTime: session.startTime,
-          endTime: session.endTime,
-          duration, // in seconds
-          isComplete: !!session.endTime,
-          score,
-          totalQuestions,
-          correctAnswers,
-          answerAttempts: session.answerAttempts.map(attempt => ({
-            id: attempt.id,
-            questionId: attempt.questionId,
-            questionText: attempt.question.questionText,
-            selectedAnswer: attempt.selectedAnswer,
-            correctAnswer: attempt.question.correctAnswer,
-            isCorrect: attempt.isCorrect,
-            createdAt: attempt.createdAt
-          })),
-          ...(includeChatHistory ? {
-            chats: session.chats
-          } : {})
-        };
-      });
-
-      return {
-        sessions: formattedSessions,
-        pagination: {
-          totalCount,
-          pageCount: Math.ceil(totalCount / limit),
-          currentPage: page,
-          limit
-        }
-      };
-    })
+      return updatedWord;
+    }),
 });

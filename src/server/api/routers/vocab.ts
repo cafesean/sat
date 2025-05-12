@@ -28,7 +28,12 @@ import { protectedProcedure, router } from "../trpc";
 type WordWithRelations = Prisma.WordGetPayload<{
 	include: {
 		wordMaster: true;
-		wordBank: true;
+		wordBank: {
+			select: {
+				id: true;
+				userId: true;
+			};
+		};
 		_count: {
 			select: {
 				practiceLogs: true;
@@ -137,29 +142,6 @@ export const vocabRouter = router({
 				select: { shareLink: true }
 			});
 			return sharedRecord?.shareLink ?? null;
-		}),
-
-	// New procedure to get word by text and bankId
-	getWordByText: protectedProcedure
-		.input(z.object({ text: z.string(), wordBankId: z.string().cuid() }))
-		.query(async ({ ctx, input }) => {
-			const { text, wordBankId } = input;
-			const word = await ctx.prisma.word.findFirst({
-				where: {
-					text: text,
-					wordBankId: wordBankId,
-				},
-				include: {
-					wordMaster: true,
-				},
-			});
-			if (!word) {
-				throw new TRPCError({
-					code: "NOT_FOUND",
-					message: `Word "${text}" not found in word bank.`,
-				});
-			}
-			return word;
 		}),
 
 	createWordBank: protectedProcedure.input(wordBankSchema).mutation(async ({ ctx, input }) => {
@@ -602,17 +584,50 @@ export const vocabRouter = router({
 				where: { id: input.wordId },
 				select: {
 					id: true,
+					text: true,
 					interval: true,
 					easeFactor: true,
 					repetitions: true,
-					wordBank: { select: { userId: true } },
+					isStarred: true,
+					notes: true,
+					mastery: true,
+					nextDueAtReviewCount: true,
+					timesSeen: true,
+					successRate: true,
+					wordBankId: true,
+					nextReviewDate: true,
+					wordBank: {
+						select: { userId: true }
+					},
+					wordMaster: {
+						select: {
+							sampleSentences: true,
+							definition: true,
+							wordType: true,
+							translations: true
+						}
+					},
+					_count: {
+						select: {
+							practiceLogs: true
+						}
+					}
 				},
 			});
 
-			if (!word || word.wordBank.userId !== ctx.session.user.id) {
+			if (!word) {
 				throw new TRPCError({
 					code: "NOT_FOUND",
-					message: "Word not found or access denied.",
+					message: "Word not found.",
+				});
+			}
+
+			// Check access to the word bank (handles both owned and shared word banks)
+			const { hasAccess } = await checkWordBankAccess(ctx.prisma, ctx.session.user.id, word.wordBankId);
+			if (!hasAccess) {
+				throw new TRPCError({
+					code: "FORBIDDEN",
+					message: "Access denied to this word's bank.",
 				});
 			}
 
@@ -622,9 +637,52 @@ export const vocabRouter = router({
 					interval: word.interval,
 					easeFactor: word.easeFactor,
 					repetitions: word.repetitions,
-				},
+					isStarred: word.isStarred,
+					sampleSentences: Array.isArray(word.wordMaster?.sampleSentences) 
+						? word.wordMaster?.sampleSentences 
+						: [],
+					successRate: word.successRate,
+				} as WordSrsForCalculation, // Cast to match expected type
 				input.ease
 			);
+
+			const MAX_DATE = new Date();
+			MAX_DATE.setFullYear(MAX_DATE.getFullYear() + 100); // Max 100 years in the future
+
+			// Calculate next review date safely
+			let nextReviewDate;
+			try {
+				if (srsUpdate.interval > 36500) { // More than 100 years in days
+					// For extremely large intervals, just use MAX_DATE instead of trying to calculate
+					nextReviewDate = MAX_DATE;
+				} else if (typeof srsUpdate.nextReviewDate === 'string') {
+					// If it's a string, try to parse it
+					nextReviewDate = new Date(srsUpdate.nextReviewDate);
+					// Validate that it's a valid date
+					if (isNaN(nextReviewDate.getTime())) {
+						nextReviewDate = MAX_DATE;
+					}
+				} else if (srsUpdate.nextReviewDate instanceof Date) {
+					nextReviewDate = srsUpdate.nextReviewDate;
+					// Validate that it's a valid date
+					if (isNaN(nextReviewDate.getTime())) {
+						nextReviewDate = MAX_DATE;
+					}
+				} else {
+					// If neither string nor Date, calculate based on interval
+					nextReviewDate = new Date();
+					nextReviewDate.setDate(nextReviewDate.getDate() + srsUpdate.interval);
+				}
+				
+				// Final sanity check and cap to MAX_DATE if needed
+				if (isNaN(nextReviewDate.getTime()) || nextReviewDate > MAX_DATE) {
+					nextReviewDate = MAX_DATE;
+				}
+			} catch (e) {
+				// If anything goes wrong, use MAX_DATE
+				console.error("Error calculating nextReviewDate:", e);
+				nextReviewDate = MAX_DATE;
+			}
 
 			// Update word with new SRS parameters
 			const updatedWord = await ctx.prisma.word.update({
@@ -633,9 +691,22 @@ export const vocabRouter = router({
 					interval: srsUpdate.interval,
 					easeFactor: srsUpdate.easeFactor,
 					repetitions: srsUpdate.repetitions,
-					nextReviewDate: srsUpdate.nextReviewDate, // Use the calculated date
+					nextReviewDate: nextReviewDate,
 				},
 			});
+
+			// If a session ID was provided, create a practice log entry
+			if (input.sessionId) {
+				await ctx.prisma.wordPracticeLog.create({
+					data: {
+						wordId: word.id,
+						practiceSessionId: input.sessionId,
+						userSentences: [], // No sentence in this case
+						isCorrect: input.ease >= 3, // Consider Good/Easy as correct
+						easeChosen: input.ease,
+					},
+				});
+			}
 
 			return updatedWord;
 		}),
@@ -662,11 +733,20 @@ export const vocabRouter = router({
 			},
 		});
 
-		// Verify ownership and existence
-		if (!word || !word.wordBank || word.wordBank.userId !== ctx.session.user.id) {
+		// Verify word exists
+		if (!word) {
 			throw new TRPCError({
 				code: "NOT_FOUND",
-				message: "Word not found or access denied.",
+				message: "Word not found.",
+			});
+		}
+
+		// Check access to the word bank (handles both owned and shared word banks)
+		const { hasAccess } = await checkWordBankAccess(ctx.prisma, ctx.session.user.id, word.wordBankId);
+		if (!hasAccess) {
+			throw new TRPCError({
+				code: "FORBIDDEN",
+				message: "Access denied to this word's bank.",
 			});
 		}
 
@@ -698,6 +778,19 @@ export const vocabRouter = router({
 				data: { reviewCount: { increment: 1 } },
 			}),
 		]);
+
+		// If a session ID was provided, create a practice log entry
+		if (input.sessionId) {
+			await ctx.prisma.wordPracticeLog.create({
+				data: {
+					wordId: word.id,
+					practiceSessionId: input.sessionId,
+					userSentences: [], // No sentence in this case
+					isCorrect: input.correct,
+					easeChosen: input.correct ? 3 : 1, // Use 3 (Good) for correct, 1 (Again) for incorrect
+				},
+			});
+		}
 
 		return updatedWord; // Return the updated word data
 	}), // End of rateWordReviewCount
@@ -740,8 +833,8 @@ export const vocabRouter = router({
 								wordType: enrichedData?.wordType,
 								definition: enrichedData?.definition,
 								sampleSentences: enrichedData?.sampleSentences?.length
-									? { default: enrichedData.sampleSentences[0] }
-									: {},
+									? enrichedData.sampleSentences 
+									: [],
 								translations: enrichedData?.translation ? { default: enrichedData.translation } : {},
 								isDictionaryWord: !!enrichedData,
 							},
@@ -757,7 +850,7 @@ export const vocabRouter = router({
 								baseWord: wordText,
 								variations: [wordText], // Store as JSON array
 								isDictionaryWord: false,
-								sampleSentences: {}, // Default empty JSON
+								sampleSentences: [], // Default empty array
 								translations: {}, // Default empty JSON
 							},
 						});
@@ -886,14 +979,31 @@ export const vocabRouter = router({
 		try {
 			const word = await ctx.prisma.word.findUnique({
 				where: { id: wordId },
-				// Select fields needed for SM2 calculation
 				select: {
 					id: true,
 					text: true,
 					interval: true,
 					easeFactor: true,
 					repetitions: true,
-				},
+					isStarred: true,
+					notes: true,
+					mastery: true,
+					nextDueAtReviewCount: true,
+					timesSeen: true,
+					successRate: true,
+					wordBank: { select: { id: true } }, // Add wordBank to get wordBankId
+					wordMaster: {
+						select: {
+							sampleSentences: true,
+							definition: true,
+							wordType: true,
+							translations: true,
+						}
+					},
+					_count: {
+						select: { practiceLogs: true }
+					}
+				}
 			});
 
 			if (!word) {
@@ -925,18 +1035,22 @@ export const vocabRouter = router({
 					interval: word.interval,
 					easeFactor: word.easeFactor,
 					repetitions: word.repetitions,
-				},
+					isStarred: word.isStarred,
+					sampleSentences: Array.isArray(word.wordMaster?.sampleSentences) 
+						? word.wordMaster?.sampleSentences 
+						: [],
+					successRate: word.successRate,
+				} as WordSrsForCalculation, // Cast to match expected type
 				easeChosen
 			);
 
 			// Transaction to log the practice and update the word's SRS state
 			await ctx.prisma.$transaction([
-				// Removed unused 'updatedWord' variable from transaction result
 				ctx.prisma.wordPracticeLog.create({
 					data: {
 						practiceSessionId,
 						wordId,
-						userSentence,
+						userSentences: [input.userSentence], // Store as array
 						isCorrect: gradingResult.isCorrect,
 						aiFeedback: gradingResult.feedback,
 						easeChosen,
@@ -1072,7 +1186,7 @@ export const vocabRouter = router({
 		const history = await ctx.prisma.wordPracticeLog.findMany({
 			where: { wordId: wordId },
 			orderBy: { timestamp: "desc" },
-			select: { id: true, timestamp: true, userSentence: true, isCorrect: true, aiFeedback: true, easeChosen: true },
+			select: { id: true, timestamp: true, userSentences: true, isCorrect: true, aiFeedback: true, easeChosen: true },
 		});
 		return history;
 	}),
@@ -1093,7 +1207,7 @@ export const vocabRouter = router({
 					where: { wordBank: { userId } },
 				}),
 				ctx.prisma.practiceSession.count({
-					where: { userId, type: "VOCABULARY" },
+					where: { userId, type: PracticeType.VOCABULARY },
 				}),
 				ctx.prisma.word.count({
 					where: {
@@ -1216,3 +1330,15 @@ export const vocabRouter = router({
 		};
 	}),
 });
+
+// Define a minimal type matching what calculateNextReview actually needs
+interface WordSrsForCalculation {
+	interval: number;
+	easeFactor: number;
+	repetitions: number;
+	isStarred: boolean;
+	sampleSentences: string[];
+	successRate: number;
+	// Include any other fields that calculateNextReview may use
+	// but aren't causing type errors
+}
