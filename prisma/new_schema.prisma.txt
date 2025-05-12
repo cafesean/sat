@@ -1,0 +1,454 @@
+/// schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  // Ensure native UUID extension is enabled if you switch to @db.Uuid
+  // extensions = ["uuid-ossp"] // Or pgcrypto for gen_random_uuid() if not using native client-side generation
+}
+
+/// Stores user account information and preferences.
+model User {
+  id                  String    @id @default(cuid())
+  name                String?
+  email               String    @unique
+  email_verified_at   DateTime? @map("email_verified_at") @db.Timestamptz(3)
+  image               String?
+  created_at          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updated_at          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  role                UserRole  @default(USER)
+  grade_level         Int?      @map("grade_level")
+  language_preference String    @default("en") @map("language_preference")
+  hashed_password     String?   @map("hashed_password")
+
+  // Relations
+  accounts                      Account[]
+  answer_attempts               PracticeAnswerAttempt[] @relation("UserAnswerAttempts")
+  practice_sessions             PracticeSession[]       @relation("UserPracticeSessions")
+  sessions                      Session[]
+  word_banks                    WordBank[]              @relation("UserWordBanks")
+  created_groups                Group[]                 @relation("AuthoredGroups")
+  group_memberships             GroupMember[]           @relation("UserGroupMemberships")
+  sent_shared_word_banks        SharedWordBank[]        @relation("WordBanksSharedByUser")
+  received_shared_word_banks    SharedWordBank[]        @relation("WordBanksSharedWithUser")
+  sent_group_invites            GroupInvite[]           @relation("GroupInvitesSentByUser")
+  received_group_invites        GroupInvite[]           @relation("GroupInvitesReceivedByUser")
+  notifications                 Notification[]          @relation("UserNotifications")
+  created_question_sets         QuestionSet[]           @relation("AuthoredQuestionSets")
+  sent_shared_question_sets     SharedQuestionSet[]     @relation("QuestionSetsSharedByUser")
+  received_shared_question_sets SharedQuestionSet[]     @relation("QuestionSetsSharedWithUser")
+  passage_question_chats        PassageQuestionChat[]   @relation("UserPassageQuestionChats")
+  practice_session_chats        PracticeSessionChat[]   @relation("UserPracticeSessionChats")
+
+  @@map("user") // Explicitly map to singular 'user' table
+}
+
+/// Stores linked third-party accounts for users (e.g., Google, Facebook).
+model Account {
+  id                  String  @id @default(cuid())
+  user_id             String  @map("user_id")
+  type                String
+  provider            String
+  provider_account_id String  @map("provider_account_id")
+  refresh_token       String? @db.Text // Refresh tokens can be long
+  access_token        String? @db.Text // Access tokens can be long
+  expires_at          Int?    @map("expires_at")
+  token_type          String? @map("token_type")
+  scope               String?
+  id_token            String? @db.Text // ID tokens can be long
+  session_state       String? @map("session_state")
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([provider, provider_account_id])
+  @@map("account")
+}
+
+/// Stores active user sessions for authentication.
+model Session {
+  id            String   @id @default(cuid())
+  session_token String   @unique @map("session_token")
+  user_id       String   @map("user_id")
+  expires_at    DateTime @map("expires_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+/// Stores tokens for verifying actions like email confirmation.
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires_at DateTime @map("expires_at") @db.Timestamptz(3)
+
+  @@unique([identifier, token])
+  @@map("verification_token")
+}
+
+/// Represents a collection of words created by a user.
+model WordBank {
+  id          String   @id @default(cuid())
+  created_at  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  user_id     String   @map("user_id") // Creator of the word bank
+  name        String
+  updated_at  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  description String?
+  is_public   Boolean  @default(false) @map("is_public")
+
+  user                         User              @relation("UserWordBanks", fields: [user_id], references: [id], onDelete: Cascade)
+  words                        Word[]
+  practice_sessions            PracticeSession[] @relation("WordBankPracticeSessions")
+  shares_received              SharedWordBank[]  @relation("SharedInstanceOfWordBank") // Instances of this bank being shared
+  group_word_bank_associations GroupWordBank[] // Associations of this word bank with groups
+
+  @@map("word_bank")
+}
+
+/// Represents a specific word instance within a user's word bank, linked to a master word definition.
+model Word {
+  id             String   @id @default(cuid())
+  created_at     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updated_at     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  word_bank_id   String   @map("word_bank_id")
+  word_master_id String   @map("word_master_id") // Link to the canonical word
+  is_starred     Boolean  @default(false) @map("is_starred")
+  word_type      String?  @map("word_type") // Could be overridden from WordMaster for this instance
+  notes          String?  @db.Text
+  text           String // The actual word text, potentially denormalized from WordMaster for quick access or if variations are allowed per user instance
+
+  // SRS fields for this specific user's interaction with this word in this bank
+  interval                 Int       @default(1)
+  ease_factor              Float     @default(2.5) @map("ease_factor")
+  repetitions              Int       @default(0)
+  mastery                  Int       @default(0) // Level of mastery (e.g., 0-5)
+  times_seen               Int       @default(0) @map("times_seen")
+  success_rate             Float     @default(0) @map("success_rate")
+  next_review_at           DateTime? @map("next_review_at") @db.Timestamptz(3)
+  next_due_at_review_count Int?      @map("next_due_at_review_count") // For alternative SRS logic
+  review_count             Int       @default(0) @map("review_count")
+  user_sentences           String[]  @map("user_sentences") // Sentences created by the user for this word
+
+  word_bank     WordBank          @relation(fields: [word_bank_id], references: [id], onDelete: Cascade)
+  word_master   WordMaster        @relation(fields: [word_master_id], references: [id], onDelete: Restrict) // Don't delete master if words use it
+  practice_logs WordPracticeLog[]
+
+  @@unique([word_bank_id, word_master_id])
+  @@map("word")
+}
+
+/// Represents a master dictionary entry for a word.
+model WordMaster {
+  id                 String   @id @default(cuid())
+  created_at         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updated_at         DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  sample_sentences   String[] @map("sample_sentences")
+  base_word          String   @unique @map("base_word") // The canonical form of the word
+  variations         Json? // e.g., plural, past tense
+  language           String // e.g., "en", "es"
+  word_type          String?  @map("word_type") // Noun, Verb, Adj etc.
+  definition         String?  @db.Text
+  translations       Json? // e.g., {"es": "palabra", "fr": "mot"}
+  is_dictionary_word Boolean  @default(false) @map("is_dictionary_word") // If it's a curated dictionary word
+
+  words Word[] // User instances of this master word
+
+  @@map("word_master")
+}
+
+/// Represents a user's practice session.
+model PracticeSession {
+  id                   String       @id @default(cuid())
+  created_at           DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  user_id              String       @map("user_id")
+  type                 PracticeType // VOCABULARY or READING_WRITING
+  started_at           DateTime     @default(now()) @map("started_at") @db.Timestamptz(3)
+  ended_at             DateTime?    @map("ended_at") @db.Timestamptz(3)
+  score                Int?
+  difficulty           Int?
+  word_bank_id         String?      @map("word_bank_id") // For VOCABULARY type
+  last_fetched_word_id String?      @map("last_fetched_word_id") // For vocabulary session state
+  question_set_id      String?      @map("question_set_id") // For READING_WRITING type
+
+  user                   User                    @relation("UserPracticeSessions", fields: [user_id], references: [id], onDelete: Cascade)
+  word_bank              WordBank?               @relation("WordBankPracticeSessions", fields: [word_bank_id], references: [id], onDelete: SetNull)
+  question_set           QuestionSet?            @relation(fields: [question_set_id], references: [id], onDelete: SetNull)
+  word_practice_logs     WordPracticeLog[]
+  passage                Passage? // If session is tied to a single passage directly
+  answer_attempts        PracticeAnswerAttempt[]
+  practice_session_chats PracticeSessionChat[]
+
+  @@map("practice_session")
+}
+
+/// Logs a user's interaction with a specific word during a practice session.
+model WordPracticeLog {
+  id                  String   @id @default(cuid())
+  practice_session_id String   @map("practice_session_id")
+  word_id             String   @map("word_id")
+  is_correct          Boolean  @map("is_correct")
+  logged_at           DateTime @default(now()) @map("logged_at") @db.Timestamptz(3)
+  user_sentences      String[] @map("user_sentences")
+  ai_feedback         String?  @map("ai_feedback") @db.Text
+  ease_chosen         Int      @map("ease_chosen") // e.g., 1=Again, 2=Hard, 3=Good, 4=Easy
+  hint_used           Boolean  @default(false) @map("hint_used")
+
+  practice_session PracticeSession @relation(fields: [practice_session_id], references: [id], onDelete: Cascade)
+  word             Word            @relation(fields: [word_id], references: [id], onDelete: Cascade) // If word is deleted, log might be less useful but cascade for now
+
+  @@map("word_practice_log")
+}
+
+/// Represents a user-created group.
+model Group {
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.Text
+  created_at  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updated_at  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  creator_id  String   @map("creator_id")
+  is_public   Boolean  @default(false) @map("is_public")
+
+  creator                      User             @relation("AuthoredGroups", fields: [creator_id], references: [id], onDelete: Restrict) // Prevent user deletion if they own groups
+  members                      GroupMember[]
+  word_bank_associations       GroupWordBank[]  @relation("GroupWordBankJoins")
+  associated_shared_word_banks SharedWordBank[] @relation("WordBanksSharedWithGroup") // WordBanks shared *with* this group
+  group_invites_for_group      GroupInvite[]    @relation("InvitesForGroup")
+
+  @@map("group")
+}
+
+/// Join table for users and groups, defining membership.
+model GroupMember {
+  id        String   @id @default(cuid())
+  group_id  String   @map("group_id")
+  user_id   String   @map("user_id")
+  role      String   @default("member") // e.g., member, admin
+  joined_at DateTime @default(now()) @map("joined_at") @db.Timestamptz(3)
+
+  group Group @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  user  User  @relation("UserGroupMemberships", fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([group_id, user_id])
+  @@map("group_member")
+}
+
+/// Join table for groups and word banks.
+model GroupWordBank {
+  id           String   @id @default(cuid())
+  group_id     String   @map("group_id")
+  word_bank_id String   @map("word_bank_id")
+  added_at     DateTime @default(now()) @map("added_at") @db.Timestamptz(3)
+
+  group     Group    @relation("GroupWordBankJoins", fields: [group_id], references: [id], onDelete: Cascade)
+  word_bank WordBank @relation(fields: [word_bank_id], references: [id], onDelete: Cascade)
+
+  @@unique([group_id, word_bank_id])
+  @@map("group_word_bank")
+}
+
+/// Represents a word bank shared with a user, group, or via a link.
+model SharedWordBank {
+  id                   String   @id @default(cuid())
+  word_bank_id         String   @map("word_bank_id")
+  shared_by_user_id    String   @map("shared_by_user_id")
+  shared_with_group_id String?  @map("shared_with_group_id")
+  shared_with_user_id  String?  @map("shared_with_user_id")
+  shared_at            DateTime @default(now()) @map("shared_at") @db.Timestamptz(3)
+  share_link           String?  @unique @map("share_link") // Optional unique link for public sharing
+
+  word_bank         WordBank @relation("SharedInstanceOfWordBank", fields: [word_bank_id], references: [id], onDelete: Cascade)
+  shared_by_user    User     @relation("WordBanksSharedByUser", fields: [shared_by_user_id], references: [id], onDelete: Cascade) // If sharer is deleted, share record is removed
+  shared_with_group Group?   @relation("WordBanksSharedWithGroup", fields: [shared_with_group_id], references: [id], onDelete: Cascade)
+  shared_with_user  User?    @relation("WordBanksSharedWithUser", fields: [shared_with_user_id], references: [id], onDelete: Cascade)
+
+  @@unique([word_bank_id, shared_with_group_id], name: "uq_word_bank_group_share")
+  @@unique([word_bank_id, shared_with_user_id], name: "uq_word_bank_user_share")
+  @@map("shared_word_bank")
+}
+
+/// Represents an invitation for a user to join a group.
+model GroupInvite {
+  id                 String   @id @default(cuid())
+  group_id           String   @map("group_id")
+  invited_by_user_id String   @map("invited_by_user_id")
+  invited_user_id    String?  @map("invited_user_id") // If known user, otherwise by email/token
+  invite_token       String   @unique @map("invite_token") // Token for non-users or email invites
+  status             String   @default("pending") // pending, accepted, rejected
+  created_at         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updated_at         DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  group           Group @relation("InvitesForGroup", fields: [group_id], references: [id], onDelete: Cascade)
+  invited_by_user User  @relation("GroupInvitesSentByUser", fields: [invited_by_user_id], references: [id], onDelete: Cascade)
+  invited_user    User? @relation("GroupInvitesReceivedByUser", fields: [invited_user_id], references: [id], onDelete: Cascade) // If direct user invite
+
+  @@unique([group_id, invited_user_id], name: "uq_group_user_invite") // Only if invited_user_id is not null
+  @@map("group_invite")
+}
+
+/// Represents notifications for users.
+model Notification {
+  id         String           @id @default(cuid())
+  user_id    String           @map("user_id")
+  type       NotificationType
+  message    String           @db.Text
+  is_read    Boolean          @default(false) @map("is_read")
+  created_at DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  read_at    DateTime?        @map("read_at") @db.Timestamptz(3)
+  metadata   Json? // For storing related IDs or other context
+
+  user User @relation("UserNotifications", fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, is_read])
+  @@map("notification")
+}
+
+/// Represents a collection of passages and their associated questions.
+model QuestionSet {
+  id         String   @id @default(cuid()) // Changed from uuid() to cuid() for consistency
+  topic      String
+  user_id    String   @map("user_id") // Creator of the question set
+  created_at DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user                         User                @relation("AuthoredQuestionSets", fields: [user_id], references: [id], onDelete: Cascade)
+  question_set_passages        Passage[]           @relation("PassagesInSet")
+  shares_of_this_set           SharedQuestionSet[] @relation("SharedInstanceOfQuestionSet")
+  associated_practice_sessions PracticeSession[]
+
+  @@map("question_set")
+}
+
+/// Represents a piece of text content, typically used for reading comprehension.
+model Passage {
+  id                  String   @id @default(cuid()) // Changed from uuid() to cuid() for consistency
+  content             String   @db.Text
+  difficulty          Int
+  practice_session_id String?  @unique @map("practice_session_id") // If passage is tied directly to one session
+  question_set_id     String?  @map("question_set_id")
+  created_at          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  practice_session  PracticeSession?  @relation(fields: [practice_session_id], references: [id], onDelete: SetNull)
+  question_set      QuestionSet?      @relation("PassagesInSet", fields: [question_set_id], references: [id], onDelete: Cascade)
+  passage_questions PassageQuestion[]
+
+  @@map("passage")
+}
+
+/// Represents a question related to a specific passage.
+model PassageQuestion {
+  id             String       @id @default(cuid()) // Changed from uuid() to cuid() for consistency
+  passage_id     String       @map("passage_id")
+  question_text  String       @map("question_text") @db.Text
+  question_type  QuestionType @default(MULTIPLE_CHOICE) @map("question_type")
+  options        String[] // For multiple choice
+  correct_answer String       @map("correct_answer")
+  explanation    String?      @db.Text
+  created_at     DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  passage                      Passage                 @relation(fields: [passage_id], references: [id], onDelete: Cascade)
+  answer_attempts_for_question PracticeAnswerAttempt[] @relation("AttemptsForPassageQuestion")
+  chats_for_question           PassageQuestionChat[]
+
+  @@map("passage_question")
+}
+
+/// Logs a user's attempt to answer a passage question within a practice session.
+model PracticeAnswerAttempt {
+  id                  String   @id @default(cuid()) // Changed from uuid() to cuid() for consistency
+  practice_session_id String   @map("practice_session_id")
+  passage_question_id String   @map("passage_question_id")
+  user_id             String   @map("user_id")
+  selected_answer     String   @map("selected_answer")
+  is_correct          Boolean  @map("is_correct")
+  created_at          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  practice_session PracticeSession @relation(fields: [practice_session_id], references: [id], onDelete: Cascade)
+  passage_question PassageQuestion @relation("AttemptsForPassageQuestion", fields: [passage_question_id], references: [id], onDelete: Cascade)
+  user             User            @relation("UserAnswerAttempts", fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("practice_answer_attempt")
+}
+
+/// Represents a question set shared with a user, or via a link.
+model SharedQuestionSet {
+  id                   String   @id @default(cuid()) // Changed from uuid() to cuid() for consistency
+  question_set_id      String   @map("question_set_id")
+  shared_by_user_id    String   @map("shared_by_user_id")
+  shared_with_user_id  String?  @map("shared_with_user_id")
+  shared_with_group_id String?  @map("shared_with_group_id") // Added for potential sharing with groups
+  share_link           String?  @unique @map("share_link")
+  shared_at            DateTime @default(now()) @map("shared_at") @db.Timestamptz(3)
+
+  question_set     QuestionSet @relation("SharedInstanceOfQuestionSet", fields: [question_set_id], references: [id], onDelete: Cascade)
+  shared_by_user   User        @relation("QuestionSetsSharedByUser", fields: [shared_by_user_id], references: [id], onDelete: Cascade)
+  shared_with_user User?       @relation("QuestionSetsSharedWithUser", fields: [shared_with_user_id], references: [id], onDelete: Cascade)
+  // shared_with_group Group?   @relation(fields: [shared_with_group_id], references: [id], onDelete: Cascade) // Add if groups can receive QSet shares
+
+  @@unique([question_set_id, shared_with_user_id], name: "uq_question_set_user_share")
+  @@unique([question_set_id, shared_with_group_id], name: "uq_question_set_group_share") // If shared_with_group_id is added
+  @@map("shared_question_set")
+}
+
+/// Chat messages related to a specific passage question.
+model PassageQuestionChat {
+  id                  String   @id @default(cuid()) // Changed from uuid() to cuid() for consistency
+  passage_question_id String   @map("passage_question_id")
+  user_id             String   @map("user_id")
+  message             String   @db.Text
+  created_at          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  passage_question PassageQuestion @relation(fields: [passage_question_id], references: [id], onDelete: Cascade)
+  user             User            @relation("UserPassageQuestionChats", fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("passage_question_chat")
+}
+
+/// Chat messages within a practice session, potentially with a bot.
+model PracticeSessionChat {
+  id                  String   @id @default(cuid()) // Changed from uuid() to cuid() for consistency
+  practice_session_id String   @map("practice_session_id")
+  user_id             String   @map("user_id") // Can be human user or a bot identifier if is_bot is true
+  message             String   @db.Text
+  is_bot              Boolean  @default(false) @map("is_bot")
+  created_at          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  practice_session PracticeSession @relation(fields: [practice_session_id], references: [id], onDelete: Cascade)
+  user             User            @relation("UserPracticeSessionChats", fields: [user_id], references: [id], onDelete: Cascade) // Assumes bot also has a user entry or this FK is nullable if bot is not a User
+
+  @@map("practice_session_chat")
+}
+
+// --- Enums ---
+
+enum NotificationType {
+  MEMBER_JOINED
+  WORD_BANK_SHARED
+  GROUP_INVITE
+  GENERAL
+  // Add more specific types as needed
+  // PASSAGE_QUESTION_FEEDBACK
+  // PRACTICE_SESSION_COMPLETED
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  // Add other roles like 'TEACHER', 'CONTENT_CREATOR' if needed
+}
+
+enum PracticeType {
+  VOCABULARY
+  READING_WRITING
+  // Add other types like 'LISTENING', 'SPEAKING_PRONUNCIATION'
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  SHORT_ANSWER
+  ESSAY
+  // Add other types like 'FILL_IN_THE_BLANK', 'MATCHING'
+}
