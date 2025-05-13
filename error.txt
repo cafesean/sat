@@ -1,0 +1,500 @@
+
+ FAIL  src/lib/api/gemini.test.ts [ src/lib/api/gemini.test.ts ]
+Error: Invalid environment variables
+ ❯ onValidationError node_modules/.pnpm/@t3-oss+env-core@0.12.0_typescript@5.8.3_zod@3.24.3/node_modules/@t3-oss/env-core/dist/index.js:61:15
+ ❯ createEnv node_modules/.pnpm/@t3-oss+env-core@0.12.0_typescript@5.8.3_zod@3.24.3/node_modules/@t3-oss/env-core/dist/index.js:67:16
+ ❯ createEnv node_modules/.pnpm/@t3-oss+env-nextjs@0.12.0_typescript@5.8.3_zod@3.24.3/node_modules/@t3-oss/env-nextjs/dist/index.js:12:12
+ ❯ src/env.mjs:4:20
+      2| import { z } from 'zod'
+      3| 
+      4| export const env = createEnv({
+       |                    ^
+      5|   /**
+      6|    * Specify your server-side environment variables schema here. This way you can ensure the app
+ ❯ src/lib/api/gemini.test.ts:1:1
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/51]⎯
+
+ FAIL  src/tests/reading-writing/backendServices.test.ts [ src/tests/reading-writing/backendServices.test.ts ]
+Error: Failed to load url msw-trpc (resolved id: msw-trpc) in /Volumes/X9/Cloud/code/github/cafesean/SAT-New/origin/main/src/tests/reading-writing/backendServices.test.ts. Does the file exist?
+ ❯ loadAndTransform node_modules/.pnpm/vite@6.3.2_@types+node@22.14.1_jiti@1.21.7_yaml@2.7.1/node_modules/vite/dist/node/chunks/dep-DG3BLbPj.js:35668:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/51]⎯
+
+ FAIL  src/server/api/services/__tests__/group.integration.test.ts > Group Integration Tests
+PrismaClientKnownRequestError: 
+Invalid `prisma.user.create()` invocation in
+/Volumes/X9/Cloud/code/github/cafesean/SAT-New/origin/main/src/server/api/services/__tests__/group.integration.test.ts:16:37
+
+  13 
+  14 beforeAll(async () => {
+  15   // Create test users
+→ 16   const user1 = await prisma.user.create(
+Unique constraint failed on the fields: (`email`)
+ ❯ zn.handleRequestError node_modules/.pnpm/@prisma+client@6.6.0_prisma@6.6.0_typescript@5.8.3__typescript@5.8.3/node_modules/@prisma/client/runtime/library.js:121:7459
+ ❯ zn.handleAndLogRequestError node_modules/.pnpm/@prisma+client@6.6.0_prisma@6.6.0_typescript@5.8.3__typescript@5.8.3/node_modules/@prisma/client/runtime/library.js:121:6784
+ ❯ zn.request node_modules/.pnpm/@prisma+client@6.6.0_prisma@6.6.0_typescript@5.8.3__typescript@5.8.3/node_modules/@prisma/client/runtime/library.js:121:6491
+ ❯ l node_modules/.pnpm/@prisma+client@6.6.0_prisma@6.6.0_typescript@5.8.3__typescript@5.8.3/node_modules/@prisma/client/runtime/library.js:130:9778
+ ❯ src/server/api/services/__tests__/group.integration.test.ts:16:19
+     14|   beforeAll(async () => {
+     15|     // Create test users
+     16|     const user1 = await prisma.user.create({
+       |                   ^
+     17|       data: {
+     18|         email: 'test1@example.com',
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/51]⎯
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ Failed Tests 39 ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/tests/reading-writing/readingWritingRouter.test.ts > Reading Writing Router > createQuestionSet > should create a question set with a provided topic
+TRPCError: No procedure found on path "readingWriting,createQuestionSet"
+ ❯ node_modules/.pnpm/@trpc+server@11.1.0_typescript@5.8.3/node_modules/@trpc/server/dist/unstable-core-do-not-import/router.mjs:220:31
+ ❯ src/tests/reading-writing/readingWritingRouter.test.ts:46:22
+     44|   describe('createQuestionSet', () => {
+     45|     it('should create a question set with a provided topic', async () => {
+     46|       const result = await testCaller.readingWriting.createQuestionSet({
+       |                      ^
+     47|         topic: 'Test Topic'
+     48|       });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/51]⎯
+
+ FAIL  src/tests/reading-writing/readingWritingRouter.test.ts > Reading Writing Router > createQuestionSet > should handle errors when creating a question set
+Error: spyOn could not find an object to spy upon
+ ❯ src/tests/reading-writing/readingWritingRouter.test.ts:57:10
+     55| 
+     56|     it('should handle errors when creating a question set', async () => {
+     57|       vi.spyOn(prisma.questionSet, 'create').mockRejectedValueOnce(new Error('Database error'));
+       |          ^
+     58| 
+     59|       await expect(testCaller.readingWriting.createQuestionSet({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/51]⎯
+
+ FAIL  src/tests/reading-writing/readingWritingRouter.test.ts > Reading Writing Router > listQuestionSets > should list question sets for the user
+TRPCError: No procedure found on path "readingWriting,createQuestionSet"
+ ❯ node_modules/.pnpm/@trpc+server@11.1.0_typescript@5.8.3/node_modules/@trpc/server/dist/unstable-core-do-not-import/router.mjs:220:31
+ ❯ src/tests/reading-writing/readingWritingRouter.test.ts:67:7
+     65|   describe('listQuestionSets', () => {
+     66|     it('should list question sets for the user', async () => {
+     67|       await testCaller.readingWriting.createQuestionSet({
+       |       ^
+     68|         topic: 'Test Topic'
+     69|       });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/51]⎯
+
+ FAIL  src/tests/reading-writing/readingWritingRouter.test.ts > Reading Writing Router > getQuestionSet > should retrieve a specific question set
+TRPCError: No procedure found on path "readingWriting,createQuestionSet"
+ ❯ node_modules/.pnpm/@trpc+server@11.1.0_typescript@5.8.3/node_modules/@trpc/server/dist/unstable-core-do-not-import/router.mjs:220:31
+ ❯ src/tests/reading-writing/readingWritingRouter.test.ts:82:26
+     80|   describe('getQuestionSet', () => {
+     81|     it('should retrieve a specific question set', async () => {
+     82|       const createdSet = await testCaller.readingWriting.createQuestionSet({
+       |                          ^
+     83|         topic: 'Test Topic'
+     84|       });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/51]⎯
+
+ FAIL  src/tests/reading-writing/readingWritingRouter.test.ts > Reading Writing Router > startReadingWritingSession > should start a reading writing session
+TRPCError: No procedure found on path "readingWriting,createQuestionSet"
+ ❯ node_modules/.pnpm/@trpc+server@11.1.0_typescript@5.8.3/node_modules/@trpc/server/dist/unstable-core-do-not-import/router.mjs:220:31
+ ❯ src/tests/reading-writing/readingWritingRouter.test.ts:104:26
+    102|   describe('startReadingWritingSession', () => {
+    103|     it('should start a reading writing session', async () => {
+    104|       const createdSet = await testCaller.readingWriting.createQuestionSet({
+       |                          ^
+    105|         topic: 'Test Topic'
+    106|       });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/51]⎯
+
+ FAIL  src/tests/reading-writing/readingWritingRouter.test.ts > Reading Writing Router > submitAnswerAttempt > should submit an answer attempt and return correctness
+TRPCError: No procedure found on path "readingWriting,createQuestionSet"
+ ❯ node_modules/.pnpm/@trpc+server@11.1.0_typescript@5.8.3/node_modules/@trpc/server/dist/unstable-core-do-not-import/router.mjs:220:31
+ ❯ src/tests/reading-writing/readingWritingRouter.test.ts:138:26
+    136|   describe('submitAnswerAttempt', () => {
+    137|     it('should submit an answer attempt and return correctness', async () => {
+    138|       const createdSet = await testCaller.readingWriting.createQuestionSet({
+       |                          ^
+    139|         topic: 'Test Topic'
+    140|       });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/51]⎯
+
+ FAIL  src/tests/schemas/readingWriting.schema.test.ts > Reading/Writing Schemas > ContentSetSchema > should invalidate a content set with too many questions
+AssertionError: expected [Function] to throw an error
+ ❯ src/tests/schemas/readingWriting.schema.test.ts:150:56
+    148|         questions: [...validContentSet.questions, ...validContentSet.questions], // More than 10 questions
+    149|       };
+    150|       expect(() => ContentSetSchema.parse(invalidSet)).toThrow();
+       |                                                        ^
+    151|     });
+    152| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/51]⎯
+
+ FAIL  src/tests/srs/sessionClone.test.ts > Session Cloning > should successfully clone a session with word bank and words
+TypeError: vi.mocked(...).mockResolvedValue is not a function
+ ❯ src/tests/srs/sessionClone.test.ts:54:50
+     52|     };
+     53| 
+     54|     vi.mocked(prisma.practiceSession.findUnique).mockResolvedValue(mockSession);
+       |                                                  ^
+     55|     vi.mocked(prisma.practiceSession.create).mockResolvedValue({
+     56|       ...mockSession,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/51]⎯
+
+ FAIL  src/tests/srs/sessionClone.test.ts > Session Cloning > should throw error when session not found
+TypeError: vi.mocked(...).mockResolvedValue is not a function
+ ❯ src/tests/srs/sessionClone.test.ts:148:50
+    146| 
+    147|   it('should throw error when session not found', async () => {
+    148|     vi.mocked(prisma.practiceSession.findUnique).mockResolvedValue(null);
+       |                                                  ^
+    149| 
+    150|     await expect(cloneSession('invalid')).rejects.toThrow('Session not found');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/51]⎯
+
+ FAIL  src/tests/srs/sessionClone.test.ts > Session Cloning > should throw error when session has no word bank
+TypeError: vi.mocked(...).mockResolvedValue is not a function
+ ❯ src/tests/srs/sessionClone.test.ts:169:50
+    167|     };
+    168| 
+    169|     vi.mocked(prisma.practiceSession.findUnique).mockResolvedValue(mockSession);
+       |                                                  ^
+    170| 
+    171|     await expect(cloneSession('session1')).rejects.toThrow(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/51]⎯
+
+ FAIL  src/tests/srs/sm2.test.ts > SRS Priority Calculation > should increase interval for "Good" response (easeChosen=3)
+AssertionError: expected 2.5 to be greater than 2.5
+ ❯ src/tests/srs/sm2.test.ts:25:31
+     23|     expect(result.interval).toBe(1);
+     24|     expect(result.repetitions).toBe(1);
+     25|     expect(result.easeFactor).toBeGreaterThan(2.5);
+       |                               ^
+     26|   });
+     27| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/51]⎯
+
+ FAIL  src/tests/srs/starToggle.test.ts > Star Toggle Logic > should toggle star status of a word
+TypeError: vi.mocked(...).mockResolvedValue is not a function
+ ❯ src/tests/srs/starToggle.test.ts:33:39
+     31|     const mockWord = createMockWord('word1', false, 'bank1');
+     32| 
+     33|     vi.mocked(prisma.word.findUnique).mockResolvedValue(mockWord);
+       |                                       ^
+     34|     vi.mocked(prisma.word.update).mockResolvedValue({ ...mockWord, isStarred: true });
+     35| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/51]⎯
+
+ FAIL  src/tests/srs/starToggle.test.ts > Star Toggle Logic > should throw error if word not found
+TypeError: vi.mocked(...).mockResolvedValue is not a function
+ ❯ src/tests/srs/starToggle.test.ts:45:39
+     43| 
+     44|   it('should throw error if word not found', async () => {
+     45|     vi.mocked(prisma.word.findUnique).mockResolvedValue(null);
+       |                                       ^
+     46|     await expect(toggleWordStar('nonexistent')).rejects.toThrow('Word not found');
+     47|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/51]⎯
+
+ FAIL  src/tests/srs/starToggle.test.ts > Star Toggle Logic > should get starred words for a user
+TypeError: vi.mocked(...).mockResolvedValue is not a function
+ ❯ src/tests/srs/starToggle.test.ts:55:37
+     53|     ];
+     54| 
+     55|     vi.mocked(prisma.word.findMany).mockResolvedValue(mockStarredWords);
+       |                                     ^
+     56|     const result = await getStarredWords('user1');
+     57|     expect(result).toHaveLength(2);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/51]⎯
+
+ FAIL  src/tests/srs/wordRandomizer.test.ts > Word Randomization > should return empty array for empty word bank
+TypeError: vi.mocked(...).mockReturnValue is not a function
+ ❯ src/tests/srs/wordRandomizer.test.ts:40:37
+     38| 
+     39|   it('should return empty array for empty word bank', async () => {
+     40|     vi.mocked(prisma.word.findMany).mockReturnValue(mockPrismaResponse([]));
+       |                                     ^
+     41|     const result = await getRandomizedWords('empty-bank');
+     42|     expect(result).toEqual([]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/51]⎯
+
+ FAIL  src/tests/srs/wordRandomizer.test.ts > Word Randomization > should prioritize starred words
+TypeError: vi.mocked(...).mockReturnValue is not a function
+ ❯ src/tests/srs/wordRandomizer.test.ts:52:37
+     50|     ];
+     51|     
+     52|     vi.mocked(prisma.word.findMany).mockReturnValue(mockPrismaResponse(mockWords));
+       |                                     ^
+     53|     const result = await getRandomizedWords('bank1');
+     54|     
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/51]⎯
+
+ FAIL  src/tests/srs/wordRandomizer.test.ts > Word Randomization > should prioritize lower mastery words
+TypeError: vi.mocked(...).mockReturnValue is not a function
+ ❯ src/tests/srs/wordRandomizer.test.ts:66:37
+     64|     ];
+     65|     
+     66|     vi.mocked(prisma.word.findMany).mockReturnValue(mockPrismaResponse(mockWords));
+       |                                     ^
+     67|     const result = await getRandomizedWords('bank1');
+     68|     
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[20/51]⎯
+
+ FAIL  src/tests/srs/wordRandomizer.test.ts > Word Randomization > should combine star and mastery priorities
+TypeError: vi.mocked(...).mockReturnValue is not a function
+ ❯ src/tests/srs/wordRandomizer.test.ts:81:37
+     79|     ];
+     80|     
+     81|     vi.mocked(prisma.word.findMany).mockReturnValue(mockPrismaResponse(mockWords));
+       |                                     ^
+     82|     const result = await getRandomizedWords('bank1');
+     83|     
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[21/51]⎯
+
+ FAIL  src/tests/srs/wordRandomizer.test.ts > Word Randomization > should include sample sentences
+TypeError: vi.mocked(...).mockImplementation is not a function
+ ❯ src/tests/srs/wordRandomizer.test.ts:95:37
+     93|     ];
+     94|     
+     95|     vi.mocked(prisma.word.findMany).mockImplementation((args: any) => {
+       |                                     ^
+     96|       if (args.include?.wordMaster) {
+     97|         return mockPrismaResponse(mockWords);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[22/51]⎯
+
+ FAIL  src/server/api/routers/practice.test.ts > Practice Router > startPracticeSession > should create a new practice session
+TypeError: vi.mocked(...).mockResolvedValue is not a function
+ ❯ src/server/api/routers/practice.test.ts:46:48
+     44|       };
+     45| 
+     46|       vi.mocked(prisma.practiceSession.create).mockResolvedValue(mockSession);
+       |                                                ^
+     47| 
+     48|       const result = await practiceRouter
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[23/51]⎯
+
+ FAIL  src/server/api/routers/practice.test.ts > Practice Router > endPracticeSession > should mark a session as ended
+TypeError: vi.mocked(...).mockResolvedValue is not a function
+ ❯ src/server/api/routers/practice.test.ts:79:48
+     77|       };
+     78| 
+     79|       vi.mocked(prisma.practiceSession.update).mockResolvedValue(mockSession);
+       |                                                ^
+     80| 
+     81|       const result = await practiceRouter
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[24/51]⎯
+
+ FAIL  src/server/api/routers/practice.test.ts > Practice Router > getPrioritizedWords > should return words due for review
+TypeError: vi.mocked(...).mockResolvedValue is not a function
+ ❯ src/server/api/routers/practice.test.ts:118:39
+    116|       ];
+    117| 
+    118|       vi.mocked(prisma.word.findMany).mockResolvedValue(mockWords);
+       |                                       ^
+    119| 
+    120|       const result = await practiceRouter
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[25/51]⎯
+
+ FAIL  src/server/api/routers/readingWriting.test.ts > ReadingWriting Router > startReadingWritingSession > should create a new reading/writing session
+TypeError: Cannot read properties of undefined (reading 'findUnique')
+ ❯ src/server/api/routers/readingWriting.test.ts:56:36
+     54|       };
+     55| 
+     56|       vi.mocked(prisma.questionSet.findUnique).mockResolvedValue({
+       |                                    ^
+     57|         id: "set_123",
+     58|         userId: "user_123",
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[26/51]⎯
+
+ FAIL  src/server/api/routers/readingWriting.test.ts > ReadingWriting Router > startReadingWritingSession > should throw error if question set not found
+TypeError: Cannot read properties of undefined (reading 'findUnique')
+ ❯ src/server/api/routers/readingWriting.test.ts:106:36
+    104| 
+    105|     it("should throw error if question set not found", async () => {
+    106|       vi.mocked(prisma.questionSet.findUnique).mockResolvedValue(null);
+       |                                    ^
+    107| 
+    108|       await expect(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[27/51]⎯
+
+ FAIL  src/server/api/routers/readingWriting.test.ts > ReadingWriting Router > addPassage > should add passage to question set
+TypeError: Cannot read properties of undefined (reading 'findUnique')
+ ❯ src/server/api/routers/readingWriting.test.ts:127:36
+    125|       };
+    126| 
+    127|       vi.mocked(prisma.questionSet.findUnique).mockResolvedValue({
+       |                                    ^
+    128|         id: "set_123",
+    129|         userId: "user_123",
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[28/51]⎯
+
+ FAIL  src/server/api/routers/readingWriting.test.ts > ReadingWriting Router > addPassage > should throw error if question set not found
+TypeError: Cannot read properties of undefined (reading 'findUnique')
+ ❯ src/server/api/routers/readingWriting.test.ts:159:36
+    157| 
+    158|     it("should throw error if question set not found", async () => {
+    159|       vi.mocked(prisma.questionSet.findUnique).mockResolvedValue(null);
+       |                                    ^
+    160| 
+    161|       await expect(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[29/51]⎯
+
+ FAIL  src/server/api/routers/__tests__/group.test.ts > Group Router > inviteUserToGroup > should prevent duplicate pending invitations
+AssertionError: promise resolved "{ success: true, …(2) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "inviteToken": "a774883c-6f70-458c-95a1-823045c09eaf",
++   "isExisting": true,
++   "success": true,
+  }
+
+ ❯ src/server/api/routers/__tests__/group.test.ts:51:7
+     49|           email: testUser2.email,
+     50|         })
+     51|       ).rejects.toThrowError("This user already has a pending invitation");
+       |       ^
+     52|     });
+     53| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[30/51]⎯
+
+ FAIL  src/server/api/routers/__tests__/group.test.ts > Group Router > inviteUserToGroup > should prevent duplicate pending invitations
+ FAIL  src/server/api/routers/__tests__/group.test.ts > Group Router > inviteUserToGroup > should allow new invite after previous one is accepted
+ FAIL  src/server/api/routers/__tests__/group.test.ts > Group Router > leaveGroup > should prevent group creator from leaving
+ FAIL  src/server/api/routers/__tests__/group.test.ts > Group Router > leaveGroup > should allow regular member to leave
+ FAIL  src/server/api/routers/__tests__/group.test.ts > Group Router > updateGroupName > should allow admin to update group name
+ FAIL  src/server/api/routers/__tests__/group.test.ts > Group Router > updateGroupName > should prevent non-admin from updating group name
+ FAIL  src/server/api/routers/__tests__/group.test.ts > Group Router > updateMemberRole > should allow admin to promote member to admin
+ FAIL  src/server/api/routers/__tests__/group.test.ts > Group Router > updateMemberRole > should prevent non-admin from changing roles
+ FAIL  src/server/api/routers/__tests__/group.test.ts > Group Router > updateMemberRole > should prevent changing group creator's role
+PrismaClientKnownRequestError: 
+Invalid `prisma.user.deleteMany()` invocation in
+/Volumes/X9/Cloud/code/github/cafesean/SAT-New/origin/main/src/tests/test-utils.ts:17:21
+
+  14 }
+  15 
+  16 export async function cleanupTestUsers(userIds: string[]) {
+→ 17   await prisma.user.deleteMany(
+Foreign key constraint violated: `Group_creatorId_fkey (index)`
+ ❯ zn.handleRequestError node_modules/.pnpm/@prisma+client@6.6.0_prisma@6.6.0_typescript@5.8.3__typescript@5.8.3/node_modules/@prisma/client/runtime/library.js:121:7459
+ ❯ zn.handleAndLogRequestError node_modules/.pnpm/@prisma+client@6.6.0_prisma@6.6.0_typescript@5.8.3__typescript@5.8.3/node_modules/@prisma/client/runtime/library.js:121:6784
+ ❯ zn.request node_modules/.pnpm/@prisma+client@6.6.0_prisma@6.6.0_typescript@5.8.3__typescript@5.8.3/node_modules/@prisma/client/runtime/library.js:121:6491
+ ❯ l node_modules/.pnpm/@prisma+client@6.6.0_prisma@6.6.0_typescript@5.8.3__typescript@5.8.3/node_modules/@prisma/client/runtime/library.js:130:9778
+ ❯ cleanupTestUsers src/tests/test-utils.ts:17:3
+     15| 
+     16| export async function cleanupTestUsers(userIds: string[]) {
+     17|   await prisma.user.deleteMany({
+       |   ^
+     18|     where: { id: { in: userIds } },
+     19|   });
+ ❯ src/server/api/routers/__tests__/group.test.ts:30:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[31/51]⎯
+
+ FAIL  src/server/api/routers/__tests__/group.test.ts > Group Router > inviteUserToGroup > should allow new invite after previous one is accepted
+ FAIL  src/server/api/routers/__tests__/group.test.ts > Group Router > leaveGroup > should prevent group creator from leaving
+ FAIL  src/server/api/routers/__tests__/group.test.ts > Group Router > leaveGroup > should allow regular member to leave
+ FAIL  src/server/api/routers/__tests__/group.test.ts > Group Router > updateGroupName > should allow admin to update group name
+ FAIL  src/server/api/routers/__tests__/group.test.ts > Group Router > updateGroupName > should prevent non-admin from updating group name
+ FAIL  src/server/api/routers/__tests__/group.test.ts > Group Router > updateMemberRole > should allow admin to promote member to admin
+ FAIL  src/server/api/routers/__tests__/group.test.ts > Group Router > updateMemberRole > should prevent non-admin from changing roles
+ FAIL  src/server/api/routers/__tests__/group.test.ts > Group Router > updateMemberRole > should prevent changing group creator's role
+PrismaClientKnownRequestError: 
+Invalid `prisma.user.create()` invocation in
+/Volumes/X9/Cloud/code/github/cafesean/SAT-New/origin/main/src/tests/test-utils.ts:6:28
+
+  3 import { hash } from "bcryptjs";
+  4 
+  5 export async function createTestUser(email: string) {
+→ 6   return await prisma.user.create(
+Unique constraint failed on the fields: (`email`)
+ ❯ zn.handleRequestError node_modules/.pnpm/@prisma+client@6.6.0_prisma@6.6.0_typescript@5.8.3__typescript@5.8.3/node_modules/@prisma/client/runtime/library.js:121:7459
+ ❯ zn.handleAndLogRequestError node_modules/.pnpm/@prisma+client@6.6.0_prisma@6.6.0_typescript@5.8.3__typescript@5.8.3/node_modules/@prisma/client/runtime/library.js:121:6784
+ ❯ zn.request node_modules/.pnpm/@prisma+client@6.6.0_prisma@6.6.0_typescript@5.8.3__typescript@5.8.3/node_modules/@prisma/client/runtime/library.js:121:6491
+ ❯ l node_modules/.pnpm/@prisma+client@6.6.0_prisma@6.6.0_typescript@5.8.3__typescript@5.8.3/node_modules/@prisma/client/runtime/library.js:130:9778
+ ❯ createTestUser src/tests/test-utils.ts:6:10
+      4| 
+      5| export async function createTestUser(email: string) {
+      6|   return await prisma.user.create({
+       |          ^
+      7|     data: {
+      8|       email,
+ ❯ src/server/api/routers/__tests__/group.test.ts:13:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[32/51]⎯
+
+ FAIL  src/server/api/services/__tests__/notification.service.test.ts > Notification Service > notifyNewGroupMember > should notify all group members except the new member
+AssertionError: expected "createNotification" to be called 1 times, but got 0 times
+ ❯ src/server/api/services/__tests__/notification.service.test.ts:98:37
+     96|       await notificationService.notifyNewGroupMember('g1', 'u2');
+     97| 
+     98|       expect(createNotificationSpy).toHaveBeenCalledTimes(1);
+       |                                     ^
+     99|       expect(createNotificationSpy).toHaveBeenCalledWith(
+    100|         'u1',
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[33/51]⎯
+
+ FAIL  src/server/api/services/__tests__/notification.service.test.ts > Notification Service > notifyWordBankShared > should notify recipient when word bank is shared with group
+TypeError: Cannot read properties of undefined (reading 'findUnique')
+ ❯ src/server/api/services/__tests__/notification.service.test.ts:122:24
+    120|       const sharedBy = { id: 'u1', name: 'Sharer' };
+    121|       const group = { id: 'g1', name: 'Group1' };
+    122|       (prisma.wordBank.findUnique as any).mockResolvedValue(wordBank);
+       |                        ^
+    123|       (prisma.user.findUnique as any).mockResolvedValue(sharedBy);
+    124|       (prisma.group.findUnique as any).mockResolvedValue(group);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[34/51]⎯
+
+ FAIL  src/server/api/services/__tests__/notification.service.test.ts > Notification Service > notifyWordBankShared > should notify recipient when word bank is shared with user
+TypeError: Cannot read properties of undefined (reading 'findUnique')
+ ❯ src/server/api/services/__tests__/notification.service.test.ts:140:24
+    138|       const wordBank = { id: 'wb1', name: 'WordBank1' };
+    139|       const sharedBy = { id: 'u1', name: 'Sharer' };
+    140|       (prisma.wordBank.findUnique as any).mockResolvedValue(wordBank);
+       |                        ^
+    141|       (prisma.user.findUnique as any).mockResolvedValue(sharedBy);
+    142|       const createNotificationSpy = vi.spyOn(notificationService, 'createNotification').mockResolvedValue({} as any);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[35/51]⎯
+
+ FAIL  src/server/api/services/__tests__/notification.service.test.ts > Notification Service > notifyWordBankShared > should return early if word bank or sharedBy user not found
+TypeError: Cannot read properties of undefined (reading 'findUnique')
+ ❯ src/server/api/services/__tests__/notification.service.test.ts:155:24
+    153| 
+    154|     it('should return early if word bank or sharedBy user not found', async () => {
+    155|       (prisma.wordBank.findUnique as any).mockResolvedValue(null);
+       |                        ^
+    156|       (prisma.user.findUnique as any).mockResolvedValue(null);
