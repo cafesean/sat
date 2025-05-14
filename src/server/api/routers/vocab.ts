@@ -176,75 +176,53 @@ export const vocabRouter = router({
 
 	listWordBanks: protectedProcedure.query(async ({ ctx }) => {
 		try {
-			// Get both owned and shared word banks
-			const [ownedBanks, sharedBanks] = await Promise.all([
-				ctx.prisma.wordBank.findMany({
-					where: { userId: ctx.session.user.id },
-					include: {
-						words: { select: { interval: true } },
-						practiceSessions: {
-							orderBy: { createdAt: "desc" },
-							take: 1,
-							select: { createdAt: true },
-						},
-						sharedWordBanks: { // Include sharedWordBanks for owned banks as well
-							include: {
-								sharedWithGroup: {
-									include: {
-										members: {
-											where: { userId: ctx.session.user.id }, // Filter members to current user
-											select: { role: true, groupId: true }, // Select role and groupId
+			// Get both owned and shared word banks in a single query
+			const wordBanks = await ctx.prisma.wordBank.findMany({
+				where: {
+					OR: [
+						{ userId: ctx.session.user.id }, // Owned banks
+						{
+							sharedWith: { // Relation from WordBank to SharedWordBank
+								some: {
+									OR: [
+										{ sharedWithUserId: ctx.session.user.id }, // Directly shared with user
+										{
+											sharedWithGroup: { // Shared with a group
+												members: { // Group has members
+													some: { userId: ctx.session.user.id } // User is a member of that group
+												}
+											}
 										}
-									}
+									]
 								}
 							}
 						}
+					]
+				},
+				include: {
+					words: { select: { interval: true } },
+					practiceSessions: {
+						orderBy: { createdAt: "desc" },
+						take: 1,
+						select: { createdAt: true },
 					},
-					orderBy: { createdAt: "desc" },
-				}),
-				ctx.prisma.wordBank.findMany({
-					where: {
-						sharedWordBanks: {
-							some: {
-								sharedWithGroup: {
-									members: {
-										some: { userId: ctx.session.user.id }
-									}
+					sharedWith: { // Include the SharedWordBank records linked to this WordBank
+						include: {
+							sharedWithGroup: { // Include the Group if shared with a group
+								include: {
+									members: true // Include all members of the group
 								}
+							},
+							sharedBy: { // Include who shared it
+								select: { id: true, name: true }
+							},
+							sharedWithUser: { // Include who it was shared with directly
+								select: { id: true, name: true }
 							}
 						}
-					},
-					include: {
-						words: { select: { interval: true } },
-						practiceSessions: {
-							orderBy: { createdAt: "desc" },
-							take: 1,
-							select: { createdAt: true },
-						},
-						sharedWordBanks: { // Include sharedWordBanks for shared banks
-							include: {
-								sharedWithGroup: {
-									include: {
-										members: {
-											where: { userId: ctx.session.user.id }, // Filter members to current user
-											select: { role: true, groupId: true }, // Select role and groupId
-										}
-									}
-								}
-							}
-						}
-					},
-				}),
-			]);
-
-			// Combine and de-duplicate banks by ID
-			const seenIds = new Set<string>();
-			const wordBanks = [...ownedBanks, ...sharedBanks].filter(bank => {
-				if (seenIds.has(bank.id)) {
-					return false;
-				}
-				seenIds.add(bank.id);
-				return true;
+					}
+				},
+				orderBy: { createdAt: "desc" },
 			});
 
 			// Define the expected type based on the Prisma query result structure
@@ -252,23 +230,22 @@ export const vocabRouter = router({
 				include: {
 					words: { select: { interval: true } };
 					practiceSessions: { select: { createdAt: true } };
-					sharedWordBanks: {
+					sharedWith: {
 						include: {
 							sharedWithGroup: {
 								include: {
-									members: {
-										where: { userId: string }; // This where clause is in the query, not the result type
-										select: { role: true, groupId: true };
-									};
+									members: true; // Include all members
 								};
 							};
+							sharedBy: { select: { id: true, name: true } };
+							sharedWithUser: { select: { id: true, name: true } };
 						};
 					};
 				};
 			}>;
 
 			// Corrected type definition for the mapped result
-			type WordBankWithGroupInfo = Omit<BankWithDetails, 'words' | 'practiceSessions' | 'sharedWordBanks'> & {
+			type WordBankWithGroupInfo = Omit<BankWithDetails, 'words' | 'practiceSessions' | 'sharedWith'> & {
 				wordCount: number;
 				masteryPercentage: number;
 				lastPracticedAt: Date | null;
@@ -287,17 +264,27 @@ export const vocabRouter = router({
 				const masteryPercentage = totalWords > 0 ? Math.round((masteredCount / totalWords) * 100) : 0;
 
 				// Extract group information and user's role
-				const sharedGroups = bank.sharedWordBanks
-					.map(swb => swb.sharedWithGroup)
-					.filter(group => group !== null) // Filter out null groups if any
-					.map(group => ({
-						id: group.id,
-						name: group.name,
-						userRole: group.members[0]?.role ?? null, // Get the role of the current user
-					}));
+				const sharedGroups = bank.sharedWith
+					.filter(sw => sw.sharedWithGroupId !== null && sw.sharedWithGroup !== null) // Filter for group shares
+					.map(sw => sw.sharedWithGroup!) // Non-null assertion after filtering
+					.map(group => {
+						const currentUserMembership = group.members.find(member => member.userId === ctx.session.user.id);
+						return {
+							id: group.id,
+							name: group.name,
+							userRole: currentUserMembership?.role ?? null, // Get the role of the current user
+						};
+					});
+
+				// Determine if the bank is shared with the current user (either directly or via a group)
+				const isShared = bank.sharedWith.some(sw =>
+					sw.sharedWithUserId === ctx.session.user.id ||
+					(sw.sharedWithGroupId !== null && sw.sharedWithGroup?.members.some(member => member.userId === ctx.session.user.id))
+				);
+
 
 				// eslint-disable-next-line @typescript-eslint/no-unused-vars
-				const { words, practiceSessions, sharedWordBanks, ...bankWithoutRelations } = bank;
+				const { words, practiceSessions, sharedWith, ...bankWithoutRelations } = bank;
 
 				return {
 					...bankWithoutRelations,
@@ -305,7 +292,7 @@ export const vocabRouter = router({
 					masteryPercentage: masteryPercentage,
 					lastPracticedAt: practiceSessions[0]?.createdAt ?? null,
 					sharedGroups: sharedGroups, // Include shared group information
-					isShared: sharedGroups.length > 0, // A bank is shared if it has any shared groups
+					isShared: isShared, // Indicate if the bank is shared with the current user
 				};
 			});
 			return wordBanksWithDetails;
