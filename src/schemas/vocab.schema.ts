@@ -68,7 +68,8 @@ export const wordBankSchema = z.object({
 // Word CRUD Schemas
 export const addWordsSchema = z.object({
   wordBankId: z.string().cuid(),
-  wordsText: z.string().min(1)
+  wordsText: z.string().min(1),
+  languagePreference: z.string().optional() // Add optional language preference
 });
 
 export const deleteWordSchema = z.object({

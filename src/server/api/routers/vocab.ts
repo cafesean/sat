@@ -812,7 +812,7 @@ export const vocabRouter = router({
 						}
 
 						// If not, enrich and create new WordMaster
-						const enrichedData = await enrichWord(wordText);
+						const enrichedData = await enrichWord(wordText, input.languagePreference); // Pass language preference
 						const wordMaster = await ctx.prisma.wordMaster.create({
 							data: {
 								baseWord: wordText,
@@ -820,10 +820,11 @@ export const vocabRouter = router({
 								wordType: enrichedData?.wordType,
 								definition: enrichedData?.definition,
 								sampleSentences: enrichedData?.sampleSentences?.length
-									? enrichedData.sampleSentences 
+									? enrichedData.sampleSentences
 									: [],
 								translations: enrichedData?.translation ? { default: enrichedData.translation } : {},
 								isDictionaryWord: !!enrichedData,
+								language: input.languagePreference ?? "en", // Add language field
 							},
 						});
 
@@ -839,6 +840,7 @@ export const vocabRouter = router({
 								isDictionaryWord: false,
 								sampleSentences: [], // Default empty array
 								translations: {}, // Default empty JSON
+								language: input.languagePreference ?? "en", // Add language field
 							},
 						});
 						return { wordMasterId: wordMaster.id };
