@@ -68,7 +68,7 @@ export const wordBankSchema = z.object({
 // Word CRUD Schemas
 export const addWordsSchema = z.object({
   wordBankId: z.string().cuid(),
-  wordsText: z.string().min(1),
+  words: z.array(z.string().min(1)), // Expect an array of strings
   languagePreference: z.string().optional() // Add optional language preference
 });
 

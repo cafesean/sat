@@ -1,5 +1,27 @@
+// Mock environment variables by mocking the env module
+vi.mock('@/env.mjs', () => ({
+  env: {
+    DATABASE_URL: 'postgresql://testuser:testpassword@localhost:5432/testdb',
+    NEXTAUTH_URL: 'http://localhost:3000',
+    NODE_ENV: 'test',
+    NEXTAUTH_SECRET: 'test-secret',
+    GOOGLE_CLIENT_ID: 'test-google-client-id',
+    GOOGLE_CLIENT_SECRET: 'test-google-client-secret',
+    GEMINI_API_KEY: 'test-gemini-api-key',
+    EMAIL_SERVER_HOST: 'test-smtp-host',
+    EMAIL_SERVER_PORT: 587,
+    EMAIL_SERVER_USER: 'test-smtp-user',
+    EMAIL_SERVER_PASSWORD: 'test-smtp-password',
+    EMAIL_FROM: 'test@example.com',
+    JIRA_PROJECT_KEY: 'TEST',
+  },
+}));
+
 import { PrismaClient } from '@prisma/client';
+import dotenv from 'dotenv'; // Import dotenv
 import { beforeEach, vi } from 'vitest'; // Added beforeEach import
+
+dotenv.config({ path: '.env' }); // Load environment variables from .env
 
 let userIdCounter = 0; // Counter for generating unique user IDs
 let groupIdCounter = 0; // Counter for generating unique group IDs

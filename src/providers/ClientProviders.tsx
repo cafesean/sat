@@ -1,5 +1,6 @@
 'use client';
 
+import SessionRedirect from '@/components/SessionRedirect'; // Import SessionRedirect
 import { ThemeProvider } from '@/components/theme-provider';
 import TRPCProvider from '@/providers/TRPCProvider';
 import { SessionProvider } from 'next-auth/react';
@@ -20,6 +21,7 @@ const ClientProviders = ({ children }: ClientProvidersProps) => {
           disableTransitionOnChange
         >
           {children}
+          <SessionRedirect /> {/* Add SessionRedirect component */}
         </ThemeProvider>
       </TRPCProvider>
     </SessionProvider>

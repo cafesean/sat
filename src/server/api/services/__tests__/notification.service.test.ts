@@ -90,30 +90,40 @@ describe('Notification Service', () => {
 
   describe('notifyNewGroupMember', () => {
     it('should notify all group members except the new member', async () => {
-      const group = { id: 'g1', name: 'Group1', members: [{ userId: 'u1' }, { userId: 'u2' }] };
+      const group = { id: 'g1', name: 'Group1', members: [{ userId: 'u1' }, { userId: 'u3' }] }; // Ensure newMemberId is different
       const newMember = { id: 'u2', name: 'New Member' };
       (prisma.group.findUnique as any).mockResolvedValue(group);
       (prisma.user.findUnique as any).mockResolvedValue(newMember);
-      const createNotificationSpy = vi.spyOn(notificationService, 'createNotification').mockResolvedValue({} as any);
+      (prisma.notification.create as any).mockResolvedValue({} as any); // Mock prisma.notification.create
 
       await notificationService.notifyNewGroupMember('g1', 'u2');
 
-      expect(createNotificationSpy).toHaveBeenCalledTimes(1);
-      expect(createNotificationSpy).toHaveBeenCalledWith(
-        'u1',
-        'MEMBER_JOINED',
-        'New Member joined Group1',
-        { groupId: 'g1', newMemberId: 'u2' }
-      );
+      // Expect prisma.notification.create to be called for each existing member except the new one
+      expect(prisma.notification.create).toHaveBeenCalledTimes(group.members.length);
+      group.members.forEach(member => {
+        if (member.userId !== 'u2') {
+          expect(prisma.notification.create).toHaveBeenCalledWith({
+            data: {
+              userId: member.userId,
+              type: 'MEMBER_JOINED',
+              message: `${newMember.name || 'A new member'} joined ${group.name}`,
+              metadata: { groupId: 'g1', newMemberId: 'u2' },
+            }
+          });
+        }
+      });
     });
 
     it('should return early if group or new member not found', async () => {
+      (prisma.notification.create as any).mockClear(); // Clear previous mock calls
       (prisma.group.findUnique as any).mockResolvedValue(null);
-      await expect(notificationService.notifyNewGroupMember('g1', 'u2')).resolves.toBeUndefined();
+      await notificationService.notifyNewGroupMember('g1', 'u2');
+      expect(prisma.notification.create).not.toHaveBeenCalled();
 
       (prisma.group.findUnique as any).mockResolvedValue({ id: 'g1', members: [] });
       (prisma.user.findUnique as any).mockResolvedValue(null);
-      await expect(notificationService.notifyNewGroupMember('g1', 'u2')).resolves.toBeUndefined();
+      await notificationService.notifyNewGroupMember('g1', 'u2');
+      expect(prisma.notification.create).not.toHaveBeenCalled();
     });
   });
 
@@ -121,20 +131,22 @@ describe('Notification Service', () => {
     it('should notify recipient when word bank is shared with group', async () => {
       const wordBank = { id: 'wb1', name: 'WordBank1' };
       const sharedBy = { id: 'u1', name: 'Sharer' };
-      const group = { id: 'g1', name: 'Group1' };
+      const group = { id: 'g1', name: 'Group1' }; // Ensure group is defined
       (prisma.wordBank.findUnique as any).mockResolvedValue(wordBank);
       (prisma.user.findUnique as any).mockResolvedValue(sharedBy);
-      (prisma.group.findUnique as any).mockResolvedValue(group);
-      const createNotificationSpy = vi.spyOn(notificationService, 'createNotification').mockResolvedValue({} as any);
+      (prisma.group.findUnique as any).mockResolvedValue(group); // Mock group findUnique
+      (prisma.notification.create as any).mockResolvedValue({} as any); // Mock prisma.notification.create
 
       await notificationService.notifyWordBankShared('wb1', 'u1', { groupId: 'g1' });
 
-      expect(createNotificationSpy).toHaveBeenCalledWith(
-        'g1',
-        'WORD_BANK_SHARED',
-        'Sharer shared the word bank "WordBank1" with your group Group1',
-        { wordBankId: 'wb1', sharedById: 'u1' }
-      );
+      expect(prisma.notification.create).toHaveBeenCalledWith({
+        data: {
+          userId: 'g1', // recipientId should be the groupId
+          type: 'WORD_BANK_SHARED',
+          message: 'Sharer shared the word bank "WordBank1" with your group Group1',
+          metadata: { wordBankId: 'wb1', sharedById: 'u1' },
+        }
+      });
     });
 
     it('should notify recipient when word bank is shared with user', async () => {
@@ -142,23 +154,31 @@ describe('Notification Service', () => {
       const sharedBy = { id: 'u1', name: 'Sharer' };
       (prisma.wordBank.findUnique as any).mockResolvedValue(wordBank);
       (prisma.user.findUnique as any).mockResolvedValue(sharedBy);
-      const createNotificationSpy = vi.spyOn(notificationService, 'createNotification').mockResolvedValue({} as any);
+      (prisma.notification.create as any).mockResolvedValue({} as any); // Mock prisma.notification.create
 
       await notificationService.notifyWordBankShared('wb1', 'u1', { userId: 'u2' });
 
-      expect(createNotificationSpy).toHaveBeenCalledWith(
-        'u2',
-        'WORD_BANK_SHARED',
-        'Sharer shared the word bank "WordBank1" with you',
-        { wordBankId: 'wb1', sharedById: 'u1' }
-      );
+      expect(prisma.notification.create).toHaveBeenCalledWith({
+        data: {
+          userId: 'u2',
+          type: 'WORD_BANK_SHARED',
+          message: 'Sharer shared the word bank "WordBank1" with you',
+          metadata: { wordBankId: 'wb1', sharedById: 'u1' },
+        }
+      });
     });
 
     it('should return early if word bank or sharedBy user not found', async () => {
-      (prisma.wordBank.findUnique as any).mockResolvedValue(null);
-      (prisma.user.findUnique as any).mockResolvedValue(null);
+      (prisma.notification.create as any).mockClear(); // Clear previous mock calls
+      (prisma.wordBank.findUnique as any).mockResolvedValue(null); // wordBank not found
+      (prisma.user.findUnique as any).mockResolvedValue({ id: 'u1', name: 'Sharer' }); // sharedBy user exists
+      await notificationService.notifyWordBankShared('wb1', 'u1', { userId: 'u2' });
+      expect(prisma.notification.create).not.toHaveBeenCalled();
 
-      await expect(notificationService.notifyWordBankShared('wb1', 'u1', { userId: 'u2' })).resolves.toBeUndefined();
+      (prisma.wordBank.findUnique as any).mockResolvedValue({ id: 'wb1', name: 'WordBank1' }); // wordBank exists
+      (prisma.user.findUnique as any).mockResolvedValue(null); // sharedBy user not found
+      await notificationService.notifyWordBankShared('wb1', 'u1', { userId: 'u2' });
+      expect(prisma.notification.create).not.toHaveBeenCalled();
     });
   });
 });

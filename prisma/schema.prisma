@@ -111,7 +111,7 @@ model Word {
   nextReviewDate       DateTime?
   nextDueAtReviewCount Int?
   reviewCount          Int       @default(0)
-  userSentences        String[]
+  userSentence        String?
 
   @@unique([wordBankId, wordMasterId])
 }
@@ -126,7 +126,7 @@ model WordMaster {
   language         String
   wordType         String?
   definition       String?
-  translations     Json
+  translations     Json?
   isDictionaryWord Boolean  @default(false)
   words            Word[]
 }
@@ -158,7 +158,7 @@ model WordPracticeLog {
   wordId            String
   isCorrect         Boolean
   timestamp         DateTime        @default(now())
-  userSentences     String[]
+  userSentence     String
   aiFeedback        String?
   easeChosen        Int
   hintUsed          Boolean         @default(false)
