@@ -118,3 +118,42 @@ export async function generateRwContentSets(
     return null;
   }
 }
+
+/**
+ * Placeholder function to enrich a word using Gemini.
+ * TODO: Implement actual AI logic for word enrichment.
+ */
+export async function enrichWord(wordText: string, language: string = 'en'): Promise<{
+  definition?: string;
+  sampleSentence?: string;
+  translation?: string;
+  wordType?: string;
+} | null> {
+  console.warn(`Placeholder enrichWord called for "${wordText}" in "${language}".`);
+  // Return mock data for now
+  return {
+    definition: `[Placeholder definition for ${wordText}]`,
+    sampleSentence: `This is a placeholder sentence using the word "${wordText}".`,
+    translation: `[Placeholder translation for ${wordText}]`,
+    wordType: 'noun', // Placeholder type
+  };
+}
+
+/**
+ * Placeholder function to grade a user's sentence using Gemini.
+ * TODO: Implement actual AI logic for sentence grading.
+ */
+export async function gradeSentence(wordText: string, userSentence: string): Promise<{
+  isCorrect: boolean;
+  feedback: string;
+} | null> {
+  console.warn(`Placeholder gradeSentence called for word "${wordText}" with sentence "${userSentence}".`);
+  // Simple placeholder logic: mark correct if sentence contains the word
+  const isCorrect = userSentence.toLowerCase().includes(wordText.toLowerCase());
+  const feedback = isCorrect ? 'Looks good (placeholder feedback).' : 'Try using the word in a sentence (placeholder feedback).';
+
+  return {
+    isCorrect,
+    feedback,
+  };
+}

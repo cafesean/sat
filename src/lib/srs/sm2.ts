@@ -6,7 +6,7 @@ interface WordSrsData {
   easeFactor: number | null;
   interval: number;
   isStarred: boolean;
-  sampleSentences: string[];
+  sampleSentence: string | null; // Changed to singular and nullable
   successRate: number;
 }
 
@@ -26,7 +26,7 @@ const SENTENCE_USAGE_FACTOR = 0.1;
 const MAX_INTERVAL_DAYS = 5475; // Cap at ~15 years instead of ~10 years or larger
 
 export function calculateNextReview(wordSrsData: WordSrsData, easeChosen: number): SrsUpdate {
-  let { repetitions, easeFactor, interval, isStarred, sampleSentences, successRate } = wordSrsData;
+  let { repetitions, easeFactor, interval, isStarred, sampleSentence, successRate } = wordSrsData; // Corrected destructuring
 
   // Initialize easeFactor if null
   easeFactor = easeFactor ?? DEFAULT_EASE_FACTOR;
@@ -59,8 +59,10 @@ export function calculateNextReview(wordSrsData: WordSrsData, easeChosen: number
     priorityScore *= STAR_PRIORITY_BOOST;
   }
   
-  // Adjust based on sample sentence usage
-  priorityScore *= 1 + ((sampleSentences?.length ?? 0) * SENTENCE_USAGE_FACTOR);
+  // Adjust based on sample sentence usage (check if it exists)
+  if (sampleSentence) {
+    priorityScore *= 1 + SENTENCE_USAGE_FACTOR; // Apply boost if sample sentence exists
+  }
   
   // Adjust based on recent success rate
   priorityScore *= 0.5 + (successRate / 2);

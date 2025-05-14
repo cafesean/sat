@@ -19,12 +19,14 @@ import { AlertCircle, BookText } from 'lucide-react'; // Import Loader2
 import { useState } from 'react'; // Import useState
 
 // Infer types
-type PracticeSessionItem = RouterOutputs['vocab']['listPracticeSessions']['sessions'][number];
+// Infer types
+type PracticeSessionItem = RouterOutputs['vocab']['listPracticeSessions']['items'][number]; // Use 'items' instead of 'sessions'
 type SessionSummary = RouterOutputs['vocab']['getVocabSessionSummary'];
 
 // Helper component to display individual history item
 function PracticeHistoryItem ({ session, onReviewClick }: { session: PracticeSessionItem, onReviewClick: (sessionId: string) => void }) {
-  const bankName = session.wordBankName ?? 'Quick Practice';
+  // Determine bank name - assuming wordBankName is not directly available
+  const bankName = session.wordBankId ? `Bank ID: ${session.wordBankId}` : 'Quick Practice'; // Use wordBankId if available, otherwise Quick Practice
 
   return (
     <Card>
@@ -44,11 +46,13 @@ function PracticeHistoryItem ({ session, onReviewClick }: { session: PracticeSes
         <div className="flex items-center gap-3 sm:gap-4 text-center flex-shrink-0">
           <div>
             <p className="text-xs text-muted-foreground">Words</p>
-            <p className="font-medium text-sm">{session.wordsStudied}</p>
+            {/* Use _count.vocabLogs for words studied */}
+            <p className="font-medium text-sm">{session._count?.vocabLogs ?? 0}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Acc.</p>
-            <p className="font-medium text-sm">{session.accuracy}%</p>
+            {/* Accuracy data is not directly available in this query result, display placeholder */}
+            <p className="font-medium text-sm">N/A</p>
           </div>
         </div>
         {/* Review Button */}
@@ -65,7 +69,7 @@ function PracticeHistoryItem ({ session, onReviewClick }: { session: PracticeSes
 
 // Component to display session summary inside the dialog
 function SessionReviewContent({ sessionId }: { sessionId: string }) {
-  const { data: summary, isLoading, error } = api.vocab.getVocabSessionSummary.useQuery({ practiceSessionId: sessionId });
+  const { data: summary, isLoading, error } = api.vocab.getVocabSessionSummary.useQuery({ sessionId: sessionId }); // Use 'sessionId'
 
   if (isLoading) {
     return <div className="py-4"><Skeleton className="h-20 w-full" /></div>;
@@ -83,15 +87,23 @@ function SessionReviewContent({ sessionId }: { sessionId: string }) {
   return (
     <ScrollArea className="h-[450px] pr-4">
       <div className="space-y-3 py-2">
-        {summary.logs.map((log) => (
-          <div key={log.id} className="p-3 border rounded-md text-sm">
-            <p className="mb-1"><strong>Word:</strong> {log.word?.text ?? 'N/A'}</p> {/* Assuming word text is needed - adjust query if not */}
-            <p className="mb-1"><strong>Your Sentence:</strong> {log.userSentence}</p>
-            <p className={`font-medium ${log.isCorrect ? 'text-green-600' : 'text-red-600'}`}>
-              <strong>Result:</strong> {log.isCorrect ? 'Correct' : 'Incorrect'}
-            </p>
-            {log.aiFeedback && <p className="text-xs italic text-muted-foreground mt-1"><strong>Feedback:</strong> {log.aiFeedback}</p>}
-            <p className="text-xs mt-1"><strong>Ease:</strong> {easeLevelMap[log.easeChosen] ?? 'N/A'}</p>
+        {/* Map over wordSummaries instead of logs */}
+        {summary.wordSummaries.map((wordSummary) => (
+          <div key={wordSummary.word.id} className="p-3 border rounded-md text-sm">
+            <p className="mb-1"><strong>Word:</strong> {wordSummary.word?.text ?? 'N/A'}</p>
+            {/* Display details for each attempt for this word */}
+            {wordSummary.attempts.map((attempt, index) => (
+              <div key={index} className="ml-2 mt-2 border-l-2 pl-2">
+                 <p className="mb-1"><strong>Attempt {index + 1}:</strong> {attempt.userSentences?.[0] ?? 'N/A'}</p> {/* Assuming userSentences is an array */}
+                 <p className={`font-medium ${attempt.isCorrect ? 'text-green-600' : 'text-red-600'}`}>
+                   <strong>Result:</strong> {attempt.isCorrect ? 'Correct' : 'Incorrect'}
+                 </p>
+                 {attempt.aiFeedback && <p className="text-xs italic text-muted-foreground mt-1"><strong>Feedback:</strong> {attempt.aiFeedback}</p>}
+                 <p className="text-xs mt-1"><strong>Ease:</strong> {easeLevelMap[attempt.easeChosen] ?? 'N/A'}</p>
+              </div>
+            ))}
+             {/* Display overall accuracy for the word */}
+             <p className="text-sm mt-2"><strong>Overall Accuracy for Word:</strong> {Math.round((wordSummary.correctCount / wordSummary.attempts.length) * 100)}%</p>
           </div>
         ))}
       </div>
@@ -120,7 +132,7 @@ export function PracticeHistoryTabContent() {
     }
   );
 
-  const sessions = data?.pages.flatMap((page) => page.sessions) ?? [];
+  const sessions = data?.pages.flatMap((page) => page.items) ?? []; // Use 'items' instead of 'sessions'
 
   if (isLoading) {
     return (
@@ -150,7 +162,10 @@ export function PracticeHistoryTabContent() {
       <div className="space-y-3"> {/* Reduced spacing */}
         {sessions.length > 0 ? (
           sessions.map((session) => (
-            <PracticeHistoryItem key={session.id} session={session} onReviewClick={handleReviewClick} />
+            // Add a check to ensure session is not null or undefined
+            session ? (
+              <PracticeHistoryItem key={session.id} session={session} onReviewClick={handleReviewClick} />
+            ) : null
           ))
         ) : (
         <p className="text-muted-foreground text-center py-8">No practice history found.</p>
@@ -179,7 +194,7 @@ export function PracticeHistoryTabContent() {
           {reviewSessionId && <SessionReviewContent sessionId={reviewSessionId} />}
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="secondary">Close</Button>
+              <Button type="button" variant="outline">Close</Button> {/* Changed variant to outline */}
             </DialogClose>
           </DialogFooter>
         </DialogContent>

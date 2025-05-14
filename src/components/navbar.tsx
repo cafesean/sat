@@ -110,7 +110,7 @@ function QuickPracticeButton() {
   const quickStartMutation = api.vocab.startQuickVocabSession.useMutation({
     onSuccess: (data) => {
       toast.success('Quick practice session started!');
-      router.push(`/vocabulary/practice/${data.practiceSessionId}`);
+      router.push(`/vocabulary/practice/${data.sessionId}`);
     },
     onError: (error) => {
       toast.error(`Failed to start quick session: ${error.message}`);
@@ -180,7 +180,7 @@ function UserNav({ session }: { session: any }) { // Use 'any' for now, refine l
            </Link>
         )}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => signOut()}>
+        <DropdownMenuItem onClick={() => signOut({ callbackUrl: '/' })}>
           Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>

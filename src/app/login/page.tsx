@@ -34,7 +34,28 @@ function LoginForm() {
 
       if (result?.error) {
         console.error("Login failed:", result.error);
-        toast.error('Invalid email or password. Please try again.');
+        let errorMessage = 'Login failed. Please try again.'; // Default error message
+
+        switch (result.error) {
+          case 'MissingCredentials':
+            errorMessage = 'Please enter both email and password.';
+            break;
+          case 'UserNotFoundOrNoPassword':
+            errorMessage = 'Invalid email or password.';
+            break;
+          case 'InvalidPassword':
+            errorMessage = 'Invalid email or password.';
+            break;
+          case 'PrismaUnavailable':
+            errorMessage = 'Database connection error. Please try again later.';
+            break;
+          default:
+            // For any other unexpected errors from NextAuth.js
+            errorMessage = `Login failed: ${result.error}`;
+            break;
+        }
+
+        toast.error(errorMessage);
         setIsCredentialsLoading(false);
       } else if (result?.ok) {
         console.log("signIn successful, result:", result); // Add logging here

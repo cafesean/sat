@@ -23,12 +23,12 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials): Promise<any> { // Add explicit return type (speculative fix)
         if (!credentials?.email || !credentials?.password) {
           console.log('Missing credentials');
-          return null;
+          return "MissingCredentials"; // Return specific error string
         }
         // Ensure prisma is available before using it
         if (!prisma) {
           console.error("Prisma client is not available in authorize callback");
-          return null;
+          return "PrismaUnavailable"; // Return specific error string
         }
 
         const user = await prisma.user.findUnique({
@@ -38,7 +38,7 @@ export const authOptions: NextAuthOptions = {
         if (!user || !user.hashedPassword) {
           // User not found or doesn't have a password set (maybe magic link only)
           console.log('User not found or no password set for:', credentials.email);
-          return null;
+          return "UserNotFoundOrNoPassword"; // Return specific error string
         }
 
         const isValidPassword = await bcrypt.compare(
@@ -48,7 +48,7 @@ export const authOptions: NextAuthOptions = {
 
         if (!isValidPassword) {
           console.log('Invalid password attempt for:', credentials.email);
-          return null;
+          return "InvalidPassword"; // Return specific error string
         }
 
         console.log('Credentials valid for:', credentials.email);
@@ -125,8 +125,10 @@ export const authOptions: NextAuthOptions = {
           session.user.languagePreference = userFromDb.languagePreference;
           // reviewCount assignment removed
         }
+        console.log("Session Callback - session:", session, "token:", token, "user:", user); // Add logging
+        console.log("Session Callback - derived userId:", userId); // Log derived userId
+        console.log("Session Callback - userFromDb:", userFromDb); // Log userFromDb
       }
-      // console.log("Session Callback - session:", session, "token:", token, "user:", user); // Add logging
       return session;
     },
     async jwt({ token, user }) {
