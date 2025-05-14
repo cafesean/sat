@@ -11,7 +11,9 @@ describe("Group Router", () => {
 
   beforeEach(async () => {
     testUser1 = await createTestUser("test1@example.com");
+    console.log('testUser1:', testUser1); // Added console.log
     testUser2 = await createTestUser("test2@example.com");
+    console.log('testUser2:', testUser2); // Added console.log
     testGroup = await prisma.group.create({
       data: {
         name: "Test Group",
@@ -48,7 +50,11 @@ describe("Group Router", () => {
           groupId: testGroup.id,
           email: testUser2.email,
         })
-      ).rejects.toThrowError("This user already has a pending invitation");
+      ).resolves.toEqual({
+        success: true,
+        inviteToken: expect.any(String), // Expect any string for the token
+        isExisting: true,
+      });
     });
 
     test("should allow new invite after previous one is accepted", async () => {

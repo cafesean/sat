@@ -85,7 +85,8 @@ export const listWordsByBankSchema = z.object({
 });
 
 export const toggleWordStarSchema = z.object({
-  wordId: z.string().cuid()
+  wordId: z.string().cuid(),
+  isStarred: z.boolean() // Added isStarred field
 });
 
 export const updateWordNotesSchema = z.object({
@@ -102,13 +103,16 @@ export const updateWordSchema = z.object({
 export type WordListItem = z.infer<typeof WordListItemSchema>;
 export type WordBank = z.infer<typeof wordBankSchema>;
 
-// Word Rating Schema
+// Word Rating Schema (used for practice session answer submission)
 export const rateWordSchema = z.object({
   wordId: z.string().cuid(),
-  ease: z.number().min(1).max(4) // 1=Again, 2=Hard, 3=Good, 4=Easy
+  ease: z.number().int().min(0).max(4) // 0=Again, 1=Hard, 2=Good, 3=Easy, 4=Very Easy (mapping to SM-2 quality 1-5)
 });
 
-export const rateWordReviewCountSchema = z.object({
-  wordId: z.string().cuid(),
-  correct: z.boolean() // Whether user got the word right
-});
+// This schema seems redundant or incorrectly named based on usage in vocab.ts
+// The logic in submitVocabAnswer uses 'easeChosen' (0-4) which maps to SM-2 quality (1-5)
+// Removing this schema as it doesn't seem to align with current implementation.
+// export const rateWordReviewCountSchema = z.object({
+//   wordId: z.string().cuid(),
+//   correct: z.boolean() // Whether user got the word right
+// });

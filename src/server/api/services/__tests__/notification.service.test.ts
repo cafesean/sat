@@ -2,7 +2,7 @@ import { prisma } from '@/lib/db/prisma';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as notificationService from '../notification.service';
 
-vi.mock('@/lib/db/prisma', () => ({
+vi.mock('../../../../lib/db/prisma', () => ({
   prisma: {
     notification: {
       create: vi.fn(),
@@ -14,6 +14,9 @@ vi.mock('@/lib/db/prisma', () => ({
       findUnique: vi.fn(),
     },
     user: {
+      findUnique: vi.fn(),
+    },
+    wordBank: {
       findUnique: vi.fn(),
     },
   },

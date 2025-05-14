@@ -9,6 +9,8 @@ export enum PracticeType {
 
 export const startVocabSessionSchema = z.object({
   wordBankId: z.string().cuid(), // Expect a single CUID for the bank
+  practiceType: z.nativeEnum(PracticeType), // Add practiceType
+  numberOfWords: z.number().int().min(1).optional(), // Add optional numberOfWords
 });
 
 export const getNextVocabWordSchema = z.object({
@@ -23,7 +25,7 @@ export const submitVocabAnswerSchema = z.object({
 });
 
 export const getVocabSessionSummarySchema = z.object({
-  practiceSessionId: z.string(),
+  sessionId: z.string().cuid(), // Changed from practiceSessionId to sessionId
 });
 
 export const startReadingWritingPracticeSessionSchema = z.object({

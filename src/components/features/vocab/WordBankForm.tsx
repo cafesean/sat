@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast'; // Use Shadcn toast
 import { api } from '@/utils/trpc';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
+import { useSession } from 'next-auth/react'; // Import useSession
 import { useRouter } from 'next/navigation'; // Use next/navigation for App Router
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -88,20 +89,33 @@ export const WordBankForm: React.FC<WordBankFormProps> = ({ initialData, onSucce
    })
 
 
+  const { status } = useSession(); // Get session status
+
   const onSubmit = (values: WordBankFormValues) => {
+    // Add client-side authentication check
+    if (status !== 'authenticated') {
+      toast({
+        title: 'Authentication Required',
+        description: 'Please log in to create a word bank.',
+        variant: 'destructive',
+      });
+      // Optionally redirect to login page
+      // router.push('/login');
+      return; // Prevent mutation call
+    }
+
     // If editing, call update mutation, otherwise call create
     if (initialData) {
-      // Call update mutation here (to be implemented)
       // Call update mutation here
       updateMutation.mutate({
         id: initialData.id, // Include the ID for update
         ...values, // Spread the form values (name, description)
-      })
+      });
     } else {
       console.log('Submitting createWordBank with values:', values); // Log values before mutation
-      createMutation.mutate(values)
+      createMutation.mutate(values);
     }
-  }
+  };
 
   const isPending = createMutation.isPending || updateMutation.isPending; // Check both mutations
 

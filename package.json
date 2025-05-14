@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "pg": "prisma generate"
+    "pg": "prisma generate",
+    "test": "vitest --config vitest.config.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.8.0",
@@ -85,12 +86,14 @@
     "@types/react-dom": "^19",
     "eslint-config-prettier": "^10.1.2",
     "eslint-plugin-prettier": "^5.2.6",
+    "msw-trpc": "2.0.0-beta.1",
     "pg": "link:@@types/pg",
     "postcss": "^8",
     "prettier": "^3.5.3",
     "prisma": "^6.6.0",
     "tailwindcss": "^3.4.17",
     "typescript": "^5",
+    "vite-tsconfig-paths": "^5.1.4",
     "vitest-mock-extended": "^3.1.0"
   }
 }
