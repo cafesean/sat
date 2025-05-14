@@ -1,11 +1,10 @@
+import { env } from "@/env.mjs";
+import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from "@google/generative-ai";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
-import { env } from "@/env.mjs";
-import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from "@google/generative-ai";
 
 // Import the Gemini API helper functions
-import { generateReadingWritingContent } from "@/lib/api/gemini";
 
 // Helper function to generate a random topic using Gemini API
 async function generateRandomTopicWithGemini(): Promise<string> {
@@ -33,10 +32,10 @@ async function generateRandomTopicWithGemini(): Promise<string> {
       maxOutputTokens: 256
     },
     safetySettings: [
-      { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-      { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-      { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-      { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+      { category: HarmCategory.HARMCATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+      { category: HarmCategory.HARMCATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+      { category: HarmCategory.HARMCATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+      { category: HarmCategory.HARMCATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
     ]
   });
   
@@ -119,6 +118,38 @@ export const readingWritingRouter = router({
       });
 
       return createdPassage;
+    }),
+
+  generateRandomTopic: protectedProcedure // Changed to protectedProcedure as per root.ts context
+    .mutation(async () => {
+      try {
+        const topic = await generateRandomTopicWithGemini();
+        return topic;
+      } catch (error) {
+        console.error("Error generating random topic:", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to generate topic",
+        });
+      }
+    }),
+
+  createQuestionSet: protectedProcedure // Added createQuestionSet procedure
+    .input(z.object({
+      topic: z.string().min(1, "Topic cannot be empty"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { topic } = input;
+      const userId = ctx.session.user.id;
+
+      const newQuestionSet = await ctx.prisma.questionSet.create({
+        data: {
+          title: topic,
+          userId: userId,
+        },
+      });
+
+      return newQuestionSet;
     }),
 
   // ... other existing procedures ...

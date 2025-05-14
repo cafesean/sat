@@ -145,7 +145,7 @@ describe('Reading/Writing Schemas', () => {
     it('should invalidate a content set with too many questions', () => {
       const invalidSet = {
         passage: validContentSet.passage,
-        questions: [...validContentSet.questions, ...validContentSet.questions], // More than 10 questions
+        questions: [...validContentSet.questions, ...validContentSet.questions.slice(0, 6)], // 11 questions (5 + 6)
       };
       expect(() => ContentSetSchema.parse(invalidSet)).toThrow();
     });
