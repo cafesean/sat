@@ -35,7 +35,7 @@ describe('Reading/Writing tRPC Router', () => {
         id: 'set-1',
         title: 'Test Set',
         passages: [], // Corrected from 'questions' to 'passages'
-        userId: 'user-1'
+        userId: 'test-user-id' // Match the ID of the mock user
       };
 
       vi.mocked(prisma.questionSet.findUnique).mockResolvedValue(mockQuestionSet as any); // Added 'as any' for type compatibility with mock
@@ -44,10 +44,10 @@ describe('Reading/Writing tRPC Router', () => {
         questionSetId: 'set-1'
       });
 
-      expect(result).toHaveProperty('sessionId');
+      expect(result).toHaveProperty('session');
       expect(prisma.questionSet.findUnique).toHaveBeenCalledWith({
         where: { id: 'set-1' },
-        include: { questions: true }
+        include: { passages: true }
       });
     });
 

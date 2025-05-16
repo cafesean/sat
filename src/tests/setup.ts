@@ -210,12 +210,16 @@ vi.mock('@prisma/client', () => {
         return mockUsers[userIndex];
       }),
       delete: vi.fn(),
-      deleteMany: vi.fn().mockImplementation(({ where }) => { // Mock implementation for deleteMany
+      deleteMany: vi.fn().mockImplementation((args = {}) => { // Mock implementation for deleteMany
         const initialCount = mockUsers.length;
-        const deletedUsers = mockUsers.filter(user => where.id.in.includes(user.id));
-        mockUsers.length = 0; // Clear the array
-        mockUsers.push(...mockUsers.filter(user => !where.id.in.includes(user.id))); // Add back users not in the delete list
-        return { count: initialCount - mockUsers.length }; // Return a count of deleted records
+        if (args.where?.id?.in) {
+          const deletedUsers = mockUsers.filter(user => args.where.id.in.includes(user.id));
+          mockUsers.length = 0; // Clear the array
+          mockUsers.push(...mockUsers.filter(user => !args.where.id.in.includes(user.id))); // Add back users not in the delete list
+          return { count: initialCount - mockUsers.length }; // Return a count of deleted records
+        }
+        mockUsers.length = 0; // If no where clause, clear all users
+        return { count: initialCount };
       }),
     },
     notification: {
@@ -229,13 +233,47 @@ vi.mock('@prisma/client', () => {
       updateMany: vi.fn(),
     },
     sharedWordBank: {
-      deleteMany: vi.fn().mockImplementation(() => { // Mock implementation for deleteMany
-        mockSharedWordBanks.length = 0; // Clear the mock shared word banks array
-        return { count: 0 }; // Return a count of deleted records
+      create: vi.fn().mockImplementation(({ data }) => {
+        // Check for unique constraint violation
+        const existingSharedWordBank = mockSharedWordBanks.find(swb => 
+          swb.wordBankId === data.wordBankId && 
+          ((data.sharedWithGroupId && swb.sharedWithGroupId === data.sharedWithGroupId) ||
+           (data.sharedWithUserId && swb.sharedWithUserId === data.sharedWithUserId))
+        );
+        if (existingSharedWordBank) {
+          throw new Error('Unique constraint failed on the fields: (`wordBankId`,`sharedWithGroupId`)');
+        }
+        
+        const newSharedWordBank = { id: `mock-shared-wb-${mockSharedWordBanks.length + 1}`, ...data };
+        mockSharedWordBanks.push(newSharedWordBank);
+        return newSharedWordBank;
+      }),
+      findUnique: vi.fn().mockImplementation(({ where }) => {
+        return mockSharedWordBanks.find(swb => swb.id === where.id) || null;
+      }),
+      findFirst: vi.fn().mockImplementation(({ where }) => {
+        return mockSharedWordBanks.find(swb => 
+          swb.wordBankId === where.wordBankId && 
+          ((where.sharedWithGroupId && swb.sharedWithGroupId === where.sharedWithGroupId) ||
+           (where.sharedWithUserId && swb.sharedWithUserId === where.sharedWithUserId))
+        ) || null;
+      }),
+      deleteMany: vi.fn().mockImplementation((args = {}) => {
+        const initialCount = mockSharedWordBanks.length;
+        mockSharedWordBanks.length = 0;
+        return { count: initialCount };
       }),
     },
     groupMember: {
       create: vi.fn().mockImplementation(({ data }) => {
+        // Check for unique constraint violation
+        const existingMember = mockGroupMembers.find(gm => 
+          gm.groupId === data.groupId && gm.userId === data.userId
+        );
+        if (existingMember) {
+          throw new Error('Unique constraint failed on the fields: (`groupId`,`userId`)');
+        }
+        
         groupMemberIdCounter++;
         const newGroupMember = { id: `mock-group-member-${groupMemberIdCounter}`, ...data };
         mockGroupMembers.push(newGroupMember);
@@ -272,6 +310,27 @@ vi.mock('@prisma/client', () => {
         const newPassage = { id: `mock-passage-${mockPassages.length + 1}`, ...data };
         mockPassages.push(newPassage);
         return newPassage;
+      }),
+    },
+    question: {
+      findFirst: vi.fn().mockImplementation(({ where }) => {
+        // Simple mock to return a question based on passageId
+        return {
+          id: `mock-question-${where.passageId || 'default'}`,
+          questionText: 'Test question?',
+          options: ['Option A', 'Option B', 'Option C', 'Option D'],
+          correctAnswer: 'Option A',
+          explanation: 'This is the explanation'
+        };
+      }),
+    },
+    answerAttempt: {
+      create: vi.fn().mockImplementation(({ data }) => {
+        return {
+          id: `mock-attempt-${Date.now()}`,
+          ...data,
+          createdAt: new Date()
+        };
       }),
     },
     wordBank: { // Added wordBank mock

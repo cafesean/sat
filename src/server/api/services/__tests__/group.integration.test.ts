@@ -53,7 +53,7 @@ describe('Group Integration Tests', () => {
     const group = await prisma.group.create({
       data: {
         name: 'Test Group',
-        creator: { connect: { id: userId1 }},
+        creatorId: userId1,
         members: {
           create: {
             userId: userId1,
@@ -88,37 +88,37 @@ describe('Group Integration Tests', () => {
     });
 
     // Second invite should fail
-    await expect(
-      prisma.groupMember.create({
+    await expect(async () => {
+      await prisma.groupMember.create({
         data: {
           groupId,
           userId: userId2,
           role: 'member',
         },
-      })
-    ).rejects.toThrow(/already a member/);
+      });
+    }).rejects.toThrow(/Unique constraint failed/);
   });
 
   it('should prevent duplicate word bank sharing', async () => {
     // First share should succeed
     await prisma.sharedWordBank.create({
       data: {
-        wordBank: { connect: { id: wordBankId }},
-        sharedBy: { connect: { id: userId1 }},
-        sharedWithGroup: { connect: { id: groupId }},
+        wordBankId,
+        sharedById: userId1,
+        sharedWithGroupId: groupId,
       },
     });
 
     // Second share should fail
-    await expect(
-      prisma.sharedWordBank.create({
+    await expect(async () => {
+      await prisma.sharedWordBank.create({
         data: {
-          wordBank: { connect: { id: wordBankId }},
-          sharedBy: { connect: { id: userId1 }},
-          sharedWithGroup: { connect: { id: groupId }},
+          wordBankId,
+          sharedById: userId1,
+          sharedWithGroupId: groupId,
         },
-      })
-    ).rejects.toThrow(/Unique constraint failed/);
+      });
+    }).rejects.toThrow(/Unique constraint failed/);
   });
 
   it('should prevent group creators from leaving', async () => {

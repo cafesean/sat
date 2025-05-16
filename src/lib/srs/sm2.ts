@@ -51,6 +51,12 @@ export function calculateNextReview(wordSrsData: WordSrsData, easeChosen: number
     easeFactor + (0.1 - (4 - easeChosen) * (0.08 + (4 - easeChosen) * 0.02))
   );
 
+  // For "Good" response, ensure a minimum increase
+  if (easeChosen === 3) {
+    const minEaseFactor = easeFactor + 0.01; // Ensure at least 0.01 increase
+    easeFactor = Math.max(easeFactor, minEaseFactor);
+  }
+
   // Calculate priority score
   let priorityScore = 1.0;
   

@@ -116,9 +116,7 @@ describe('Session Cloning', () => {
         wordBankId: 'bank1',
         startTime: expect.any(Date),
         endTime: null,
-        score: null,
-        lastFetchedWordId: null,
-        questionSetId: null
+        score: null
       }
     });
 
@@ -129,7 +127,6 @@ describe('Session Cloning', () => {
         text: 'test',
         isStarred: false,
         notes: '',
-        sampleSentences: ['This is a test sentence.'],
         interval: 1,
         easeFactor: 2.5,
         repetitions: 0,

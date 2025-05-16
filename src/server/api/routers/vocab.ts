@@ -4,7 +4,7 @@ import {
 	getNextVocabWordSchema,
 	getVocabSessionSummarySchema,
 	startVocabSessionSchema,
-	submitVocabAnswerSchema,
+	submitVocabAnswerSchema
 } from "@/schemas/practice.schema";
 import {
 	addWordsSchema,
@@ -851,6 +851,38 @@ export const vocabRouter = router({
 			wordSummaries: Object.values(wordSummaries),
 		};
 	}),
+
+listPracticeSessions: protectedProcedure
+	 .input(listPracticeSessionsSchema)
+	 .query(async ({ ctx, input }) => {
+	   const { limit, direction, cursor } = input;
+	   const sessions = await ctx.prisma.practiceSession.findMany({
+	     where: {
+	       userId: ctx.session.user.id,
+	       type: PracticeType.VOCABULARY,
+	     },
+	     take: limit,
+	     cursor: cursor ? { id: cursor } : undefined,
+	     orderBy: {
+	       createdAt: direction === "forward" ? "asc" : "desc",
+	     },
+	     // Include any necessary relations, e.g., vocabLogs count or summary info
+	     include: {
+	       _count: {
+	         select: { vocabLogs: true },
+	       },
+	       // Add other includes if needed for the frontend display
+	     },
+	   });
+
+	   // Determine the next cursor for pagination
+	   const nextCursor = sessions.length > 0 ? sessions[sessions.length - 1].id : null;
+
+	   return {
+	     sessions,
+	     nextCursor,
+	   };
+	 }),
 
 	getVocabPracticeHistory: protectedProcedure
 		.input(z.object({ wordBankId: z.string().cuid().optional(), limit: z.number().int().min(1).max(100).default(10), offset: z.number().int().min(0).default(0) }))

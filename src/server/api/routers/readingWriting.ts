@@ -59,7 +59,7 @@ export const readingWritingRouter = router({
       });
 
       if (!questionSet || questionSet.userId !== userId) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Question Set not found" });
+        throw new TRPCError({ code: "NOT_FOUND", message: "Question set not found" });
       }
 
       // Create new practice session linked to question set
@@ -69,7 +69,7 @@ export const readingWritingRouter = router({
           type: "READING_WRITING",
           difficulty: difficulty || 2, // Default to medium difficulty
           questionSetId: questionSetId,
-          passage: questionSet.passages.length > 0 ? {
+          passage: questionSet.passages && questionSet.passages.length > 0 ? {
             connect: { id: questionSet.passages[0].id }
           } : undefined
         },
@@ -89,11 +89,33 @@ export const readingWritingRouter = router({
     .input(z.object({
       questionSetId: z.string(),
       content: z.string().min(1, "Passage content cannot be empty"),
+      difficulty: z.number().int().min(1).default(2),
     }))
     .mutation(async ({ ctx, input }) => {
-      // ... implementation ...
-      // This is a placeholder, actual implementation will be needed
-      return { id: "mockPassageId", content: input.content, questionSetId: input.questionSetId };
+      const { questionSetId, content, difficulty } = input;
+      const userId = ctx.session.user.id;
+
+      // Verify question set exists and belongs to user
+      const questionSet = await ctx.prisma.questionSet.findUnique({
+        where: { id: questionSetId },
+      });
+
+      if (!questionSet || questionSet.userId !== userId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Question set not found" });
+      }
+
+      // Create new passage
+      const passage = await ctx.prisma.passage.create({
+        data: {
+          content,
+          difficulty,
+          questionSet: {
+            connect: { id: questionSetId }
+          },
+        },
+      });
+
+      return passage;
     }),
 
   generateRandomTopic: protectedProcedure
@@ -106,17 +128,22 @@ export const readingWritingRouter = router({
       topic: z.string().min(1, "Topic cannot be empty"),
     }))
     .mutation(async ({ ctx, input }) => {
-      // ... implementation ...
-      // This is a placeholder, actual implementation will be needed
-      return { id: "mockQuestionSetId", topic: input.topic, userId: ctx.session.user.id };
+      const questionSet = await ctx.prisma.questionSet.create({
+        data: {
+          topic: input.topic,
+          userId: ctx.session.user.id,
+        },
+      });
+      return questionSet;
     }),
 
   listQuestionSets: protectedProcedure
     .input(z.object({}))
-    .query(async ({ ctx, input }) => {
-      // ... implementation ...
-      // This is a placeholder, actual implementation will be needed
-      return { questionSets: [{ id: "mockQuestionSetId", topic: "Mock Topic", userId: ctx.session.user.id }] };
+    .query(async ({ ctx }) => {
+      const questionSets = await ctx.prisma.questionSet.findMany({
+        where: { userId: ctx.session.user.id },
+      });
+      return { questionSets };
     }),
   
   submitAnswerAttempt: protectedProcedure
@@ -126,17 +153,51 @@ export const readingWritingRouter = router({
       selectedAnswer: z.string(),
     }))
     .mutation(async ({ ctx, input }) => {
-      // ... placeholder implementation ...
-      return { isCorrect: true, answerAttemptId: "mockAttemptId" };
+      // Verify session exists and belongs to user
+      const session = await ctx.prisma.practiceSession.findUnique({
+        where: { id: input.sessionId },
+        include: { passage: { include: { questions: true } } },
+      });
+
+      if (!session || session.userId !== ctx.session.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Session not found" });
+      }
+
+      // Find the question
+      const question = session.passage?.questions.find(q => q.id === input.questionId);
+      if (!question) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Question not found" });
+      }
+
+      // Check if answer is correct
+      const isCorrect = question.correctAnswer === input.selectedAnswer;
+
+      // Create answer attempt record
+      const answerAttempt = await ctx.prisma.answerAttempt.create({
+        data: {
+          practiceSessionId: input.sessionId,
+          questionId: input.questionId,
+          userId: ctx.session.user.id,
+          selectedAnswer: input.selectedAnswer,
+          isCorrect,
+        },
+      });
+
+      return { isCorrect, answerAttemptId: answerAttempt.id };
     }),
   
   getQuestionSet: protectedProcedure
     .input(z.object({ questionSetId: z.string() }))
     .query(async ({ ctx, input }) => {
-      // ... placeholder implementation ...
-      if (input.questionSetId === "non-existent-id") {
-        throw new Error("Question set not found");
+      const questionSet = await ctx.prisma.questionSet.findUnique({
+        where: { id: input.questionSetId },
+        include: { passages: true },
+      });
+
+      if (!questionSet || questionSet.userId !== ctx.session.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Question set not found" });
       }
-      return { id: input.questionSetId, topic: "Mock Topic", userId: ctx.session.user.id, passages: [] };
+
+      return questionSet;
     }),
 });

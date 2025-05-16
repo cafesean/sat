@@ -7,7 +7,7 @@ describe('SRS Priority Calculation', () => {
     easeFactor: 2.5,
     interval: 1,
     isStarred: false,
-    sampleSentences: [],
+    sampleSentence: null,
     successRate: 1.0
   };
 
@@ -34,7 +34,7 @@ describe('SRS Priority Calculation', () => {
   it('should prioritize words with more sample sentences higher', () => {
     const wordWithSentences = { 
       ...baseWord, 
-      sampleSentences: ['s1', 's2', 's3'] 
+      sampleSentence: 'Sample sentence'
     };
     const result = calculateNextReview(wordWithSentences, 3);
     expect(result.priorityScore).toBeGreaterThan(1.0);
@@ -44,11 +44,11 @@ describe('SRS Priority Calculation', () => {
     const words = [
       { ...baseWord, successRate: 0.5 },
       { ...baseWord, isStarred: true },
-      { ...baseWord, sampleSentences: ['s1'] }
+      { ...baseWord, sampleSentence: 'Sample sentence' }
     ];
     const prioritized = prioritizeWords(words);
     expect(prioritized[0].isStarred).toBe(true);
-    expect(prioritized[1].sampleSentences.length).toBe(1);
+    expect(prioritized[1].sampleSentence).toBe('Sample sentence');
     expect(prioritized[2].successRate).toBe(0.5);
   });
 });

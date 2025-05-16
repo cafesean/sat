@@ -43,3 +43,9 @@ export const getPracticeSessionHistorySchema = z.object({
   limit: z.number().int().min(1).max(50).default(10),
   includeChatHistory: z.boolean().default(false),
 });
+
+export const listPracticeSessionsSchema = z.object({
+ limit: z.number().int().positive().default(10),
+ direction: z.enum(["forward", "backward"]).default("forward"),
+ cursor: z.string().cuid().optional(), // Optional cursor for pagination
+});

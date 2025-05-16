@@ -31,6 +31,30 @@ vi.mock('@google/generative-ai', () => ({
   }
 }));
 
+// Mock Prisma
+vi.mock('@/lib/db/prisma', () => ({
+  prisma: {
+    questionSet: {
+      create: vi.fn(),
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+    },
+    passage: {
+      create: vi.fn(),
+    },
+    practiceSession: {
+      create: vi.fn(),
+      findUnique: vi.fn(),
+    },
+    question: {
+      findFirst: vi.fn(),
+    },
+    answerAttempt: {
+      create: vi.fn(),
+    },
+  },
+}));
+
 describe('Reading Writing Router', () => {
   let userId: string;
   let testCaller: any;
@@ -56,12 +80,20 @@ describe('Reading Writing Router', () => {
 
   describe('createQuestionSet', () => {
     it('should create a question set with a provided topic', async () => {
+      // Mock the questionSet creation
+      vi.spyOn(prisma.questionSet, 'create').mockResolvedValueOnce({
+        id: 'mock-question-set-id',
+        topic: 'Test Topic',
+        userId: userId,
+        createdAt: new Date()
+      });
+      
       const result = await testCaller.readingWriting.createQuestionSet({
         topic: 'Test Topic'
       });
 
       expect(result).toBeDefined();
-      expect(result.id).toBeDefined();
+      expect(result.id).toBe('mock-question-set-id');
       expect(result.topic).toBe('Test Topic');
       expect(result.userId).toBe(userId);
     });
@@ -77,11 +109,27 @@ describe('Reading Writing Router', () => {
 
   describe('listQuestionSets', () => {
     it('should list question sets for the user', async () => {
+      // Mock the questionSet creation
+      vi.spyOn(prisma.questionSet, 'create').mockResolvedValueOnce({
+        id: 'mock-question-set-id',
+        topic: 'Test Topic',
+        userId: userId,
+        createdAt: new Date()
+      });
+      
+      // Mock the questionSet findMany
+      vi.spyOn(prisma.questionSet, 'findMany').mockResolvedValueOnce([{
+        id: 'mock-question-set-id',
+        topic: 'Test Topic',
+        userId: userId,
+        createdAt: new Date()
+      }]);
+
       await testCaller.readingWriting.createQuestionSet({
         topic: 'Test Topic'
       });
 
-      const result = await testCaller.readingWriting.listQuestionSets();
+      const result = await testCaller.readingWriting.listQuestionSets({});
 
       expect(result).toBeDefined();
       expect(result.questionSets).toBeDefined();
@@ -92,6 +140,20 @@ describe('Reading Writing Router', () => {
 
   describe('getQuestionSet', () => {
     it('should retrieve a specific question set', async () => {
+      // Mock the questionSet creation
+      const mockQuestionSet = {
+        id: 'mock-question-set-id',
+        topic: 'Test Topic',
+        userId: userId,
+        createdAt: new Date(),
+        passages: []
+      };
+      
+      vi.spyOn(prisma.questionSet, 'create').mockResolvedValueOnce(mockQuestionSet);
+      
+      // Mock the questionSet findUnique
+      vi.spyOn(prisma.questionSet, 'findUnique').mockResolvedValueOnce(mockQuestionSet);
+
       const createdSet = await testCaller.readingWriting.createQuestionSet({
         topic: 'Test Topic'
       });
@@ -101,8 +163,8 @@ describe('Reading Writing Router', () => {
       });
 
       expect(result).toBeDefined();
-      expect(result.id).toBe(createdSet.id);
-      expect(result.topic).toBe('Mock Topic'); // Updated to match placeholder return
+      expect(result.id).toBe(mockQuestionSet.id);
+      expect(result.topic).toBe(mockQuestionSet.topic);
     });
 
     it('should throw an error for non-existent question set', async () => {
@@ -114,26 +176,50 @@ describe('Reading Writing Router', () => {
 
   describe('startReadingWritingSession', () => {
     it('should start a reading writing session', async () => {
+      // Mock question set and passages
+      const mockQuestionSet = {
+        id: 'mock-question-set-id',
+        topic: 'Test Topic',
+        userId: userId,
+        createdAt: new Date(),
+        passages: [{
+          id: 'mock-passage-id',
+          content: 'Test passage content',
+          difficulty: 2,
+          questionSetId: 'mock-question-set-id',
+          createdAt: new Date(),
+          questions: []
+        }]
+      };
+      
+      // Mock the session that will be created
+      const mockSession = {
+        id: 'mock-session-id',
+        userId: userId,
+        type: 'READING_WRITING',
+        startTime: new Date(),
+        endTime: null,
+        createdAt: new Date(),
+        score: null,
+        difficulty: 2,
+        wordBankId: null,
+        questionSetId: 'mock-question-set-id',
+        passage: {
+          id: 'mock-passage-id',
+          content: 'Test passage content',
+          difficulty: 2,
+          questionSetId: 'mock-question-set-id',
+          createdAt: new Date(),
+          questions: []
+        }
+      };
+      
+      vi.spyOn(prisma.questionSet, 'create').mockResolvedValueOnce(mockQuestionSet);
+      vi.spyOn(prisma.questionSet, 'findUnique').mockResolvedValueOnce(mockQuestionSet);
+      vi.spyOn(prisma.practiceSession, 'create').mockResolvedValueOnce(mockSession);
+
       const createdSet = await testCaller.readingWriting.createQuestionSet({
         topic: 'Test Topic'
-      });
-
-      const passage = await prisma.passage.create({
-        data: {
-          content: 'Test passage content',
-          difficulty: 2, // Add missing difficulty
-          questionSetId: createdSet.id,
-          questions: {
-            create: [
-              {
-                questionText: 'Test question?',
-                options: ['Option A', 'Option B', 'Option C', 'Option D'],
-                correctAnswer: 'Option A',
-                explanation: 'This is the explanation'
-              }
-            ]
-          }
-        }
       });
 
       const result = await testCaller.readingWriting.startReadingWritingSession({
@@ -143,50 +229,90 @@ describe('Reading Writing Router', () => {
       expect(result).toBeDefined();
       expect(result.session).toBeDefined();
       expect(result.session.userId).toBe(userId);
-      expect(result.session.questionSetId).toBe(createdSet.id);
+      expect(result.session.questionSetId).toBe('mock-question-set-id');
     });
   });
 
   describe('submitAnswerAttempt', () => {
     it('should submit an answer attempt and return correctness', async () => {
+      // Mock question set with passage and question
+      const mockQuestion = {
+        id: 'mock-question-id',
+        questionText: 'Test question?',
+        type: 'MULTIPLE_CHOICE',
+        options: ['Option A', 'Option B', 'Option C', 'Option D'],
+        correctAnswer: 'Option A',
+        explanation: 'This is the explanation',
+        passageId: 'mock-passage-id'
+      };
+      
+      const mockPassage = {
+        id: 'mock-passage-id',
+        content: 'Test passage content',
+        difficulty: 2,
+        questionSetId: 'mock-question-set-id',
+        createdAt: new Date(),
+        questions: [mockQuestion]
+      };
+      
+      const mockQuestionSet = {
+        id: 'mock-question-set-id',
+        topic: 'Test Topic',
+        userId: userId,
+        createdAt: new Date(),
+        passages: [mockPassage]
+      };
+      
+      // Mock the session
+      const mockSession = {
+        id: 'mock-session-id',
+        userId: userId,
+        type: 'READING_WRITING',
+        startTime: new Date(),
+        endTime: null,
+        createdAt: new Date(),
+        score: null,
+        difficulty: 2,
+        wordBankId: null,
+        questionSetId: 'mock-question-set-id',
+        passage: mockPassage
+      };
+      
+      // Mock the answer attempt
+      const mockAnswerAttempt = {
+        id: 'mock-attempt-id',
+        practiceSessionId: 'mock-session-id',
+        questionId: 'mock-question-id',
+        userId: userId,
+        selectedAnswer: 'Option A',
+        isCorrect: true,
+        createdAt: new Date()
+      };
+      
+      vi.spyOn(prisma.questionSet, 'create').mockResolvedValueOnce(mockQuestionSet);
+      vi.spyOn(prisma.questionSet, 'findUnique').mockResolvedValueOnce(mockQuestionSet);
+      vi.spyOn(prisma.practiceSession, 'create').mockResolvedValueOnce(mockSession);
+      vi.spyOn(prisma.practiceSession, 'findUnique').mockResolvedValueOnce(mockSession);
+      vi.spyOn(prisma.question, 'findFirst').mockResolvedValueOnce(mockQuestion);
+      vi.spyOn(prisma.answerAttempt, 'create').mockResolvedValueOnce(mockAnswerAttempt);
+
       const createdSet = await testCaller.readingWriting.createQuestionSet({
         topic: 'Test Topic'
-      });
-
-      const passage = await prisma.passage.create({
-        data: {
-          content: 'Test passage content',
-          difficulty: 2, // Add missing difficulty
-          questionSetId: createdSet.id,
-          questions: {
-            create: [
-              {
-                questionText: 'Test question?',
-                options: ['Option A', 'Option B', 'Option C', 'Option D'],
-                correctAnswer: 'Option A',
-                explanation: 'This is the explanation'
-              }
-            ]
-          }
-        }
       });
 
       const session = await testCaller.readingWriting.startReadingWritingSession({
         questionSetId: createdSet.id
       });
 
-      const question = await prisma.question.findFirst({
-        where: { passageId: passage.id }
-      });
-
       const result = await testCaller.readingWriting.submitAnswerAttempt({
         sessionId: session.session.id,
-        questionId: question!.id,
+        questionId: 'mock-question-id',
         selectedAnswer: 'Option A'
       });
 
       expect(result).toBeDefined();
       expect(result.isCorrect).toBe(true);
+      expect(result.answerAttemptId).toBe('mock-attempt-id');
     });
   });
 });

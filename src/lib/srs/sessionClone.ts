@@ -80,8 +80,6 @@ export async function cloneSession(originalSessionId: string) {
     text: word.text,
     isStarred: word.isStarred,
     notes: word.notes,
-    // Get sample sentences from wordMaster
-    sampleSentences: word.wordMaster?.sampleSentences || [],
     // Reset SRS stats
     interval: 1,
     easeFactor: 2.5,
