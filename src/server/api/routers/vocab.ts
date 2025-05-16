@@ -824,7 +824,7 @@ export const vocabRouter = router({
 				};
 			}
 			acc[log.wordId].attempts.push({
-				userSentence: log.userSentences?.[0] ?? "", // Use userSentences (plural) and take the first element or empty string
+				userSentence: log.userSentence ?? "", // Use userSentence (singular) to match schema
 				isCorrect: log.isCorrect,
 				aiFeedback: log.aiFeedback,
 				timestamp: log.timestamp,

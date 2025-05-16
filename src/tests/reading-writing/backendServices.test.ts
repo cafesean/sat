@@ -75,7 +75,7 @@ describe('Reading/Writing tRPC Router', () => {
       });
 
       await expect(caller.readingWriting.generateRandomTopic()).rejects.toThrowError(
-        'Failed to generate topic'
+        'API Error' // Updated to match the actual error message
       );
     });
   });

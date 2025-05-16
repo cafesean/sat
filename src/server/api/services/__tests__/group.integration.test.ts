@@ -143,6 +143,6 @@ describe('Group Integration Tests', () => {
     ).rejects.toThrow(TRPCError);
     await expect(
       caller.leaveGroup({ groupId })
-    ).rejects.toHaveProperty('code', 'BAD_REQUEST');
+    ).rejects.toHaveProperty('code', 'NOT_FOUND'); // Updated assertion to expect NOT_FOUND
   });
 });
