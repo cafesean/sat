@@ -22,10 +22,24 @@ export const PassageSchema = z.object({
 
 export const ContentSetSchema = z.object({
   passage: PassageSchema,
-  questions: z.array(QuestionSchema).min(5).max(10), // Typically 5-10 questions per passage
+  questions: z.array(QuestionSchema).min(5, "Content set must have at least 5 questions").max(10, "Content set cannot have more than 10 questions"),
 });
 
-export type AnswerOption = z.infer<typeof AnswerOptionSchema>;
-export type Question = z.infer<typeof QuestionSchema>;
-export type Passage = z.infer<typeof PassageSchema>;
-export type ContentSet = z.infer<typeof ContentSetSchema>;
+// Schema for submitting an answer attempt
+export const AnswerAttemptSchema = z.object({
+  questionId: z.string(),
+  selectedAnswer: z.string(), // The text of the selected option
+  practiceSessionId: z.string(),
+});
+
+// Schema for fetching a specific practice session
+export const GetPracticeSessionSchema = z.object({
+  sessionId: z.string(),
+});
+
+// Schema for listing practice sessions (used in vocab router, but relevant here)
+export const listPracticeSessionsSchema = z.object({
+  limit: z.number().int().positive().default(10),
+  direction: z.enum(["asc", "desc"]).default("desc"),
+  cursor: z.string().optional(),
+});

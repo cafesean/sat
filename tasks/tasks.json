@@ -1,0 +1,133 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Define R&W Content Set Structure & Zod Schemas",
+      "description": "Define and implement Zod schemas for the expected input to and output from the Gemini API for generating a complete R&W content set. This includes the passage, an array of questions, and for each question: options, correct answer index/text, explanation, and the AI-generated strategy tip for post-review.",
+      "details": "Create new Zod schemas in `src/schemas/readingWriting.schema.ts` to represent the structure of an R&W content set, including Passage and Question objects. Ensure the schema includes fields for passage text, question text, options (array of strings), correct answer (index or text), explanation, and strategy tip. Align the schema with the planned database structure.",
+      "testStrategy": "Write unit tests for the Zod schemas to ensure they correctly parse valid data and reject invalid data structures according to the defined format.",
+      "priority": "high",
+      "dependencies": [],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 2,
+      "title": "Enhance Prisma Schema for R&W Content Storage",
+      "description": "Review and update the `Passage` and `Question` models in `prisma/schema.prisma`. Ensure `Passage` stores passage text and is linked to its questions. Ensure `Question` stores its text, options (string array), correct answer (e.g., index or specific text), AI-generated explanation, and the new AI-generated strategy tip. Add a `difficultyLevel` field to `Passage` (or a new `ContentSet` model if preferred for grouping a passage and its questions as one unit with a shared difficulty).",
+      "details": "Modify `prisma/schema.prisma` to include models for `Passage` and `Question` that can store all components of a generated R&W content set as defined by the Zod schemas (Task 1). Add a `difficultyLevel` field (integer) to the `Passage` model. Define the one-to-many relationship between `Passage` and `Question`. Run `pnpm prisma migrate dev --name update-rw-content-models` to apply changes.",
+      "testStrategy": "Verify the database schema reflects the changes using Prisma Studio or database inspection tools. Ensure relationships and field types are correct. Write basic Prisma client queries to confirm models can be created and queried.",
+      "priority": "high",
+      "dependencies": [
+        1
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 3,
+      "title": "Develop Initial Gemini Prompts for R&W Content Generation",
+      "description": "Design, implement, and version-control sophisticated prompts for the Gemini API to generate high-quality, SAT-style R&W content sets (passage, questions, options, correct answer, explanation, strategy tip) based on a given difficulty level and desired number of questions per passage.",
+      "details": "Draft initial prompts for the Gemini API. The prompts should clearly instruct the AI on the desired output format (matching Zod schema from Task 1), SAT style, required components (passage, questions, options, answer, explanation, strategy tip), difficulty level parameterization, and the number of questions per passage. Store prompts in a version-controlled manner, possibly within helper functions in `src/lib/api/gemini.ts`.",
+      "testStrategy": "Manually test prompts using the Gemini API playground or a simple script to evaluate the quality, structure, and adherence to SAT style and difficulty levels of the generated content. Refine prompts based on output.",
+      "priority": "medium",
+      "dependencies": [],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 4,
+      "title": "Implement Gemini API Client for R&W Content Generation",
+      "description": "Create or enhance a function within `src/lib/api/gemini.ts` (e.g., `generateRwContentSets(difficultyLevel: number, numberOfSets: number): Promise<ContentSet[]>`) that takes difficulty and quantity as input, constructs the appropriate prompts, calls the Gemini API, handles potential API errors (retries, specific error types), and parses the structured JSON response according to the defined Zod schema.",
+      "details": "Implement a function in `src/lib/api/gemini.ts` that takes `difficultyLevel` and `numberOfSets` as parameters. Use the prompts developed in Task 3. Call the Gemini API, ensuring secure handling of the API key via `env.mjs`. Implement error handling for API calls (network issues, rate limits, invalid responses). Parse the API response using the Zod schema defined in Task 1. Return a Promise resolving to an array of validated content set objects.",
+      "testStrategy": "Write integration tests that mock the Gemini API response or use a test API key to verify the function correctly constructs requests, handles responses, parses JSON according to the schema, and implements error handling.",
+      "priority": "high",
+      "dependencies": [
+        1,
+        3
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 5,
+      "title": "Implement Service for Storing R&W Content Sets in DB",
+      "description": "Create a service function (e.g., in `src/server/services/readingWritingService.ts`) that takes the parsed and validated array of R&W content sets (from TS1.1.3 output) and saves them to the PostgreSQL database using Prisma Client. This includes creating `Passage` records and their associated `Question` records (with options, answer, explanation, strategy tip) in a transactional manner to ensure data integrity.",
+      "details": "Create a new file `src/server/services/readingWritingService.ts`. Implement a function, e.g., `saveRwContentSets(contentSets: ContentSet[]): Promise<void>`, that accepts an array of content set objects (matching the structure from Task 4 output). Use Prisma Client (`src/lib/db/prisma.ts`) to insert these sets into the database, creating `Passage` and associated `Question` records. Ensure the `difficultyLevel` is correctly saved. Use Prisma transactions to ensure atomicity.",
+      "testStrategy": "Write integration tests that call the service function with sample content set data. Verify that the data is correctly inserted into the database with the correct relationships and field values using database queries or Prisma Client reads.",
+      "priority": "high",
+      "dependencies": [
+        2,
+        4
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 6,
+      "title": "Create tRPC Mutation for Generating and Storing R&W Content",
+      "description": "Implement a new tRPC mutation (e.g., `adminReadingWriting.generateAndStoreContentSets`) that can be called (e.g., by an admin or an automated process) to initiate the generation of R&W content sets for a specific difficulty level and quantity. This mutation will call the Gemini API client function (TS1.1.3) and the content storage service (TS1.2.2).",
+      "details": "Add a new tRPC mutation, potentially in `src/server/api/routers/admin.ts` or a new `readingWritingAdmin.ts`. This mutation should accept parameters for `difficultyLevel` and `numberOfSets`. Inside the mutation, call the Gemini API client function (Task 4) to generate content. If successful, pass the generated content to the storage service function (Task 5) to save it to the database. Implement appropriate error handling and ensure the endpoint is protected (e.g., requires admin authentication).",
+      "testStrategy": "Write integration tests for the tRPC mutation. Test calling the mutation with valid and invalid inputs. Verify that it correctly triggers the Gemini API client and the storage service (potentially using mocks for external dependencies). Check for correct error responses on failure and successful database insertion on success.",
+      "priority": "high",
+      "dependencies": [
+        4,
+        5
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 7,
+      "title": "Update Prisma Schema for User-Content Interaction Logging",
+      "description": "Create a new model in `prisma/schema.prisma`, e.g., `UserAttemptedContentSet`, with fields like `id`, `userId` (linking to `User`), `passageId` (linking to `Passage`, assuming one passage per set), `attemptedAt` (DateTime).",
+      "details": "Add a new model `UserAttemptedContentSet` to `prisma/schema.prisma`. Define fields `id`, `userId` (foreign key to the existing `User` model), `passageId` (foreign key to the `Passage` model from Task 2), and `attemptedAt` (DateTime, default to now()). Define the relationships. Run `pnpm prisma migrate dev --name add-user-attempted-rw-set`.",
+      "testStrategy": "Verify the database schema includes the new table and relationships using Prisma Studio or database inspection. Write basic Prisma client code to confirm records can be created in the new table and linked to existing User and Passage records.",
+      "priority": "medium",
+      "dependencies": [
+        2
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 8,
+      "title": "Create tRPC Query for R&W Content Inventory",
+      "description": "Implement a new tRPC query (e.g., `adminReadingWriting.getContentSetInventory`) that queries the database (e.g., `Passage` table) using Prisma Client to count the number of available content sets, grouped by `difficultyLevel`.",
+      "details": "Add a new tRPC query, likely in the same router as Task 6. This query should use Prisma Client to query the `Passage` table. Group the results by `difficultyLevel` and count the number of passages in each group. Define what 'available' means (initially, just count all). Return the counts per difficulty level.",
+      "testStrategy": "Write integration tests for the tRPC query. Populate the database with passages across different difficulty levels. Call the query and verify that the returned counts match the expected inventory based on the database state.",
+      "priority": "medium",
+      "dependencies": [
+        2
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 9,
+      "title": "Define Configuration for Content Replenishment Thresholds",
+      "description": "Establish a way to configure minimum inventory thresholds and default batch generation sizes per difficulty level (e.g., via environment variables in `.env` validated by `src/env.mjs`, or a simple database configuration table).",
+      "details": "Define configuration variables for minimum inventory thresholds and batch generation sizes for each difficulty level. Implement this using environment variables defined in `.env` and validated by `src/env.mjs`. Structure the variables clearly, e.g., `RW_MIN_INVENTORY_LEVEL_1=10`, `RW_BATCH_SIZE_LEVEL_1=5`. Ensure these variables are accessible within the application logic.",
+      "testStrategy": "Verify that the configuration variables are correctly loaded and validated by `src/env.mjs`. Write unit tests or simple scripts to confirm the configured values can be accessed correctly within the application.",
+      "priority": "medium",
+      "dependencies": [],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 10,
+      "title": "Implement Automated Content Replenishment Logic (Cron Job)",
+      "description": "Develop a scheduled task (e.g., using Vercel Cron Jobs or a similar serverless scheduler) that periodically checks content inventory and triggers generation if levels are low.",
+      "details": "Create a serverless function or script designed to run as a scheduled task (e.g., a Vercel Cron Job endpoint). This task should: 1. Call the `getContentSetInventory` tRPC query (Task 8) to get current counts. 2. Compare counts against the configured thresholds (Task 9). 3. For any difficulty level below the threshold, call the `generateAndStoreContentSets` tRPC mutation (Task 6) with the configured batch size for that level. Implement logging and error handling for the scheduled task.",
+      "testStrategy": "Write integration tests for the replenishment logic. Mock the tRPC query (Task 8) to simulate low inventory for specific levels. Verify that the logic correctly identifies which levels need replenishment and calls the generation mutation (Task 6) with the appropriate parameters (mocking Task 6 if necessary). Test error handling scenarios.",
+      "priority": "high",
+      "dependencies": [
+        6,
+        8,
+        9
+      ],
+      "status": "pending",
+      "subtasks": []
+    }
+  ]
+}

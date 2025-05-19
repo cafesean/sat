@@ -1,0 +1,11 @@
+# Task ID: 1
+# Title: Define R&W Content Set Structure & Zod Schemas
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Define and implement Zod schemas for the expected input to and output from the Gemini API for generating a complete R&W content set. This includes the passage, an array of questions, and for each question: options, correct answer index/text, explanation, and the AI-generated strategy tip for post-review.
+# Details:
+Create new Zod schemas in `src/schemas/readingWriting.schema.ts` to represent the structure of an R&W content set, including Passage and Question objects. Ensure the schema includes fields for passage text, question text, options (array of strings), correct answer (index or text), explanation, and strategy tip. Align the schema with the planned database structure.
+
+# Test Strategy:
+Write unit tests for the Zod schemas to ensure they correctly parse valid data and reject invalid data structures according to the defined format.

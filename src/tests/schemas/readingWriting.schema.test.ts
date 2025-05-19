@@ -1,8 +1,8 @@
 import {
   AnswerOptionSchema,
-  ContentSetSchema,
   PassageSchema,
   QuestionSchema,
+  ReadingWritingContentSetSchema,
 } from '@/schemas/readingWriting.schema';
 import { describe, expect, it } from 'vitest';
 
@@ -126,12 +126,12 @@ describe('Reading/Writing Schemas', () => {
     };
 
     it('should validate a valid content set', () => {
-      expect(() => ContentSetSchema.parse(validContentSet)).not.toThrow();
+      expect(() => ReadingWritingContentSetSchema.parse(validContentSet)).not.toThrow();
     });
 
     it('should invalidate a content set with missing passage', () => {
       const invalidSet = { questions: validContentSet.questions };
-      expect(() => ContentSetSchema.parse(invalidSet)).toThrow();
+      expect(() => ReadingWritingContentSetSchema.parse(invalidSet)).toThrow();
     });
 
     it('should invalidate a content set with too few questions', () => {
@@ -139,7 +139,7 @@ describe('Reading/Writing Schemas', () => {
         passage: validContentSet.passage,
         questions: validContentSet.questions.slice(0, 4), // Less than 5 questions
       };
-      expect(() => ContentSetSchema.parse(invalidSet)).toThrow();
+      expect(() => ReadingWritingContentSetSchema.parse(invalidSet)).toThrow();
     });
 
     it('should invalidate a content set with too many questions', () => {
@@ -147,7 +147,7 @@ describe('Reading/Writing Schemas', () => {
         passage: validContentSet.passage,
         questions: [...validContentSet.questions, ...validContentSet.questions.slice(0, 6)], // 11 questions (5 + 6)
       };
-      expect(() => ContentSetSchema.parse(invalidSet)).toThrow();
+      expect(() => ReadingWritingContentSetSchema.parse(invalidSet)).toThrow("Content set cannot have more than 10 questions");
     });
 
     it('should invalidate a content set with invalid question structure', () => {
@@ -158,7 +158,7 @@ describe('Reading/Writing Schemas', () => {
           { questionText: 'Invalid Q', type: 'INVALID' }, // Invalid question
         ],
       };
-      expect(() => ContentSetSchema.parse(invalidSet)).toThrow();
+      expect(() => ReadingWritingContentSetSchema.parse(invalidSet)).toThrow();
     });
   });
 });

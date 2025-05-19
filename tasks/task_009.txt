@@ -1,0 +1,11 @@
+# Task ID: 9
+# Title: Define Configuration for Content Replenishment Thresholds
+# Status: pending
+# Dependencies: None
+# Priority: medium
+# Description: Establish a way to configure minimum inventory thresholds and default batch generation sizes per difficulty level (e.g., via environment variables in `.env` validated by `src/env.mjs`, or a simple database configuration table).
+# Details:
+Define configuration variables for minimum inventory thresholds and batch generation sizes for each difficulty level. Implement this using environment variables defined in `.env` and validated by `src/env.mjs`. Structure the variables clearly, e.g., `RW_MIN_INVENTORY_LEVEL_1=10`, `RW_BATCH_SIZE_LEVEL_1=5`. Ensure these variables are accessible within the application logic.
+
+# Test Strategy:
+Verify that the configuration variables are correctly loaded and validated by `src/env.mjs`. Write unit tests or simple scripts to confirm the configured values can be accessed correctly within the application.

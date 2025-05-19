@@ -1,0 +1,11 @@
+# Task ID: 10
+# Title: Implement Automated Content Replenishment Logic (Cron Job)
+# Status: pending
+# Dependencies: 6, 8, 9
+# Priority: high
+# Description: Develop a scheduled task (e.g., using Vercel Cron Jobs or a similar serverless scheduler) that periodically checks content inventory and triggers generation if levels are low.
+# Details:
+Create a serverless function or script designed to run as a scheduled task (e.g., a Vercel Cron Job endpoint). This task should: 1. Call the `getContentSetInventory` tRPC query (Task 8) to get current counts. 2. Compare counts against the configured thresholds (Task 9). 3. For any difficulty level below the threshold, call the `generateAndStoreContentSets` tRPC mutation (Task 6) with the configured batch size for that level. Implement logging and error handling for the scheduled task.
+
+# Test Strategy:
+Write integration tests for the replenishment logic. Mock the tRPC query (Task 8) to simulate low inventory for specific levels. Verify that the logic correctly identifies which levels need replenishment and calls the generation mutation (Task 6) with the appropriate parameters (mocking Task 6 if necessary). Test error handling scenarios.

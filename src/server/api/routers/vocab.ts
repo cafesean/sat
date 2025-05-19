@@ -6,6 +6,7 @@ import {
 	startVocabSessionSchema,
 	submitVocabAnswerSchema,
 } from "@/schemas/practice.schema";
+import { listPracticeSessionsSchema } from "@/schemas/readingWriting.schema";
 import {
 	addWordsSchema,
 	deleteWordSchema,

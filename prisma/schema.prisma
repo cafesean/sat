@@ -307,6 +307,7 @@ model Question {
   options        String[]
   correctAnswer  String
   explanation    String?
+  strategyTip    String? // AI-generated strategy tip for post-review
   createdAt      DateTime        @default(now())
   passage        Passage         @relation(fields: [passageId], references: [id], onDelete: Cascade)
   answerAttempts AnswerAttempt[]

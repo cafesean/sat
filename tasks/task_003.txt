@@ -1,0 +1,11 @@
+# Task ID: 3
+# Title: Develop Initial Gemini Prompts for R&W Content Generation
+# Status: pending
+# Dependencies: None
+# Priority: medium
+# Description: Design, implement, and version-control sophisticated prompts for the Gemini API to generate high-quality, SAT-style R&W content sets (passage, questions, options, correct answer, explanation, strategy tip) based on a given difficulty level and desired number of questions per passage.
+# Details:
+Draft initial prompts for the Gemini API. The prompts should clearly instruct the AI on the desired output format (matching Zod schema from Task 1), SAT style, required components (passage, questions, options, answer, explanation, strategy tip), difficulty level parameterization, and the number of questions per passage. Store prompts in a version-controlled manner, possibly within helper functions in `src/lib/api/gemini.ts`.
+
+# Test Strategy:
+Manually test prompts using the Gemini API playground or a simple script to evaluate the quality, structure, and adherence to SAT style and difficulty levels of the generated content. Refine prompts based on output.

@@ -1,0 +1,11 @@
+# Task ID: 5
+# Title: Implement Service for Storing R&W Content Sets in DB
+# Status: pending
+# Dependencies: 2, 4
+# Priority: high
+# Description: Create a service function (e.g., in `src/server/services/readingWritingService.ts`) that takes the parsed and validated array of R&W content sets (from TS1.1.3 output) and saves them to the PostgreSQL database using Prisma Client. This includes creating `Passage` records and their associated `Question` records (with options, answer, explanation, strategy tip) in a transactional manner to ensure data integrity.
+# Details:
+Create a new file `src/server/services/readingWritingService.ts`. Implement a function, e.g., `saveRwContentSets(contentSets: ContentSet[]): Promise<void>`, that accepts an array of content set objects (matching the structure from Task 4 output). Use Prisma Client (`src/lib/db/prisma.ts`) to insert these sets into the database, creating `Passage` and associated `Question` records. Ensure the `difficultyLevel` is correctly saved. Use Prisma transactions to ensure atomicity.
+
+# Test Strategy:
+Write integration tests that call the service function with sample content set data. Verify that the data is correctly inserted into the database with the correct relationships and field values using database queries or Prisma Client reads.

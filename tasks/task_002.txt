@@ -1,0 +1,11 @@
+# Task ID: 2
+# Title: Enhance Prisma Schema for R&W Content Storage
+# Status: pending
+# Dependencies: 1
+# Priority: high
+# Description: Review and update the `Passage` and `Question` models in `prisma/schema.prisma`. Ensure `Passage` stores passage text and is linked to its questions. Ensure `Question` stores its text, options (string array), correct answer (e.g., index or specific text), AI-generated explanation, and the new AI-generated strategy tip. Add a `difficultyLevel` field to `Passage` (or a new `ContentSet` model if preferred for grouping a passage and its questions as one unit with a shared difficulty).
+# Details:
+Modify `prisma/schema.prisma` to include models for `Passage` and `Question` that can store all components of a generated R&W content set as defined by the Zod schemas (Task 1). Add a `difficultyLevel` field (integer) to the `Passage` model. Define the one-to-many relationship between `Passage` and `Question`. Run `pnpm prisma migrate dev --name update-rw-content-models` to apply changes.
+
+# Test Strategy:
+Verify the database schema reflects the changes using Prisma Studio or database inspection tools. Ensure relationships and field types are correct. Write basic Prisma client queries to confirm models can be created and queried.

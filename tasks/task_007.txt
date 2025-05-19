@@ -1,0 +1,11 @@
+# Task ID: 7
+# Title: Update Prisma Schema for User-Content Interaction Logging
+# Status: pending
+# Dependencies: 2
+# Priority: medium
+# Description: Create a new model in `prisma/schema.prisma`, e.g., `UserAttemptedContentSet`, with fields like `id`, `userId` (linking to `User`), `passageId` (linking to `Passage`, assuming one passage per set), `attemptedAt` (DateTime).
+# Details:
+Add a new model `UserAttemptedContentSet` to `prisma/schema.prisma`. Define fields `id`, `userId` (foreign key to the existing `User` model), `passageId` (foreign key to the `Passage` model from Task 2), and `attemptedAt` (DateTime, default to now()). Define the relationships. Run `pnpm prisma migrate dev --name add-user-attempted-rw-set`.
+
+# Test Strategy:
+Verify the database schema includes the new table and relationships using Prisma Studio or database inspection. Write basic Prisma client code to confirm records can be created in the new table and linked to existing User and Passage records.

@@ -1,0 +1,11 @@
+# Task ID: 4
+# Title: Implement Gemini API Client for R&W Content Generation
+# Status: pending
+# Dependencies: 1, 3
+# Priority: high
+# Description: Create or enhance a function within `src/lib/api/gemini.ts` (e.g., `generateRwContentSets(difficultyLevel: number, numberOfSets: number): Promise<ContentSet[]>`) that takes difficulty and quantity as input, constructs the appropriate prompts, calls the Gemini API, handles potential API errors (retries, specific error types), and parses the structured JSON response according to the defined Zod schema.
+# Details:
+Implement a function in `src/lib/api/gemini.ts` that takes `difficultyLevel` and `numberOfSets` as parameters. Use the prompts developed in Task 3. Call the Gemini API, ensuring secure handling of the API key via `env.mjs`. Implement error handling for API calls (network issues, rate limits, invalid responses). Parse the API response using the Zod schema defined in Task 1. Return a Promise resolving to an array of validated content set objects.
+
+# Test Strategy:
+Write integration tests that mock the Gemini API response or use a test API key to verify the function correctly constructs requests, handles responses, parses JSON according to the schema, and implements error handling.

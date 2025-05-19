@@ -1,0 +1,11 @@
+# Task ID: 8
+# Title: Create tRPC Query for R&W Content Inventory
+# Status: pending
+# Dependencies: 2
+# Priority: medium
+# Description: Implement a new tRPC query (e.g., `adminReadingWriting.getContentSetInventory`) that queries the database (e.g., `Passage` table) using Prisma Client to count the number of available content sets, grouped by `difficultyLevel`.
+# Details:
+Add a new tRPC query, likely in the same router as Task 6. This query should use Prisma Client to query the `Passage` table. Group the results by `difficultyLevel` and count the number of passages in each group. Define what 'available' means (initially, just count all). Return the counts per difficulty level.
+
+# Test Strategy:
+Write integration tests for the tRPC query. Populate the database with passages across different difficulty levels. Call the query and verify that the returned counts match the expected inventory based on the database state.
